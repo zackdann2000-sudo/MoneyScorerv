@@ -1,0 +1,36 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# produção
+/build
+
+# env / segredos
+.env
+.env*.local
+.env.production
+!.env.example
+
+# logs e artefatos de auditoria
+npm-debug.log*
+yarn-error.log*
+*.log
+/.audit/
+
+# sistema
+.DS_Store
+*.pem
+/coverage
+
+# pacotes de distribuição (não versionar o zip de origem)
+*.zip
+
+# artefato temporário do gerador de ícone (o ícone final é public/icon.png)
+/images/

@@ -1,0 +1,9 @@
+{
+  "name": "GreenScore — Sport Analytics PRO",
+  "short_name": "GreenScore",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060f0a",
+  "theme_color": "#060f0a",
+  "icons": [{ "src": "/icon.png", "sizes": "512x512", "type": "image/png" }]
+}
