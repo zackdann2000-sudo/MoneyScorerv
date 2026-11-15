@@ -219,3 +219,24 @@ export const teamBadges = pgTable("team_badges", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * Cache das estatísticas COMPARATIVAS do time (mandante × visitante) de uma
+ * partida — uma linha por jogo, porque `/fixtures/statistics` devolve os dois
+ * times numa única resposta.
+ *
+ * Separada de `player_stats_cache` de propósito: contratos diferentes e
+ * invalidação independente. Regra de validade na rota: 24h quando a partida
+ * está encerrada (dado definitivo) e 5min quando está ao vivo.
+ */
+export const matchTeamStatsCache = pgTable("match_team_stats_cache", {
+  matchId: text("match_id").primaryKey(),
+  league: text("league").notNull().default(""),
+  source: text("source").notNull().default(""),
+  fixtureId: text("fixture_id").notNull().default(""),
+  finalizada: boolean("finalizada").notNull().default(false),
+  /** Lista de TeamStatMetric: { key, label, home, away, percent }. */
+  payload: jsonb("payload").notNull().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("match_team_stats_updated_idx").on(t.updatedAt)]);

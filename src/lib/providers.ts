@@ -876,3 +876,123 @@ export async function afFixtureFinished(fixtureId: string | number): Promise<boo
     return false;
   }
 }
+
+/* =======================================================================
+   API-Football — estatísticas COMPARATIVAS DO TIME (`/fixtures/statistics`)
+   -----------------------------------------------------------------------
+   1 requisição por jogo devolve as 17 métricas dos dois times juntas:
+   posse, xG, finalizações (total/no gol/para fora/bloqueadas/dentro/fora
+   da área), passes, escanteios, faltas, impedimentos, cartões, defesas do
+   goleiro, cobranças de falta.
+
+   NÃO existe split por tempo no plano Free: `?half=true` devolve os mesmos
+   números do agregado (verificado em novembro/2026), por isso a UI mostra
+   os toggles de 1º/2º tempo travados.
+
+   Os valores chegam como string e com sufixo % ("57%"). Normalizamos para
+   número puro e preservamos o percentual em campo separado.
+   ======================================================================= */
+
+/** Uma métrica comparativa já normalizada. */
+export type TeamStatMetric = {
+  /** Chave estável e legível (ex.: "ball_possession"). */
+  key: string;
+  /** Rótulo em pt-BR para a UI. */
+  label: string;
+  /** Valor do mandante (numérico, sem %). */
+  home: number;
+  /** Valor do visitante (numérico, sem %). */
+  away: number;
+  /** true quando o valor é percentual (posse, passes certos). */
+  percent?: boolean;
+};
+
+/** Converte "57%" → 57, "1.43" → 1.43, "449" → 449. Nulo → 0. */
+function parseStatValue(v: any): { n: number; pct: boolean } {
+  if (v == null) return { n: 0, pct: false };
+  const s = String(v).trim();
+  const pct = s.includes("%");
+  const n = Number(s.replace("%", "").replace(",", "."));
+  return { n: Number.isFinite(n) ? n : 0, pct };
+}
+
+/** Métricas da API → rótulo pt-BR. Ordem define o ranking de "Principais". */
+const AF_TEAM_METRICS: { type: string; key: string; label: string }[] = [
+  { type: "Ball Possession", key: "ball_possession", label: "Posse de bola" },
+  { type: "expected_goals", key: "expected_goals", label: "xG (gols esperados)" },
+  { type: "Total Shots", key: "total_shots", label: "Finalizações" },
+  { type: "Shots on Goal", key: "shots_on_goal", label: "Finalizações no gol" },
+  { type: "Shots off Goal", key: "shots_off_goal", label: "Finalizações para fora" },
+  { type: "Blocked Shots", key: "blocked_shots", label: "Finalizações bloqueadas" },
+  { type: "Shots insidebox", key: "shots_insidebox", label: "Finalizações na área" },
+  { type: "Shots outsidebox", key: "shots_outsidebox", label: "Finalizações fora da área" },
+  { type: "Total passes", key: "total_passes", label: "Passes" },
+  { type: "Passes accurate", key: "passes_accurate", label: "Passes certos" },
+  { type: "Corner Kicks", key: "corner_kicks", label: "Escanteios" },
+  { type: "Fouls", key: "fouls", label: "Faltas" },
+  { type: "Offsides", key: "offsides", label: "Impedimentos" },
+  { type: "Yellow Cards", key: "yellow_cards", label: "Cartões amarelos" },
+  { type: "Red Cards", key: "red_cards", label: "Cartões vermelhos" },
+  { type: "Goalkeeper Saves", key: "goalkeeper_saves", label: "Defesas do goleiro" },
+  { type: "Free Kicks", key: "free_kicks", label: "Cobranças de falta" },
+];
+
+/**
+ * Busca `/fixtures/statistics` e devolve as métricas comparativas Home×Away.
+ * Retorna [] quando a partida não tem estatística publicada (ex.: não começou).
+ * `fixtureId` pode ser omitido: nesse caso o id é resolvido por nome+data.
+ */
+export async function afTeamStats(
+  fixtureId: string | number
+): Promise<{ metrics: TeamStatMetric[]; homeTeamId: string; awayTeamId: string }> {
+  const fxId = encodeURIComponent(String(fixtureId));
+  const d = await afFetch(`/fixtures/statistics?fixture=${fxId}`, 24 * 60 * 60 * 1000);
+  const boxes: any[] = d?.response || [];
+  if (boxes.length < 2) return { metrics: [], homeTeamId: "", awayTeamId: "" };
+
+  /* Descobre o mando para não trocar os lados. */
+  let homeId = "";
+  let awayId = "";
+  try {
+    const fx = await afFetch(`/fixtures?id=${fxId}`, 24 * 60 * 60 * 1000);
+    const f = (fx?.response || [])[0];
+    homeId = String(f?.teams?.home?.id ?? "");
+    awayId = String(f?.teams?.away?.id ?? "");
+  } catch {
+    /* sem mando: usa a ordem devolvida */
+  }
+
+  const boxHome = boxes.find((b) => String(b?.team?.id) === homeId) || boxes[0];
+  const boxAway = boxes.find((b) => String(b?.team?.id) === awayId) || boxes[1];
+
+  const mapa = (box: any) => {
+    const m = new Map<string, { n: number; pct: boolean }>();
+    for (const s of box?.statistics || []) {
+      if (!s?.type) continue;
+      m.set(String(s.type), parseStatValue(s.value));
+    }
+    return m;
+  };
+  const h = mapa(boxHome);
+  const a = mapa(boxAway);
+
+  const metrics: TeamStatMetric[] = [];
+  for (const def of AF_TEAM_METRICS) {
+    const hv = h.get(def.type);
+    const av = a.get(def.type);
+    if (!hv && !av) continue; /* a fonte não publicou esta métrica */
+    metrics.push({
+      key: def.key,
+      label: def.label,
+      home: hv?.n ?? 0,
+      away: av?.n ?? 0,
+      percent: !!(hv?.pct || av?.pct),
+    });
+  }
+
+  return {
+    metrics,
+    homeTeamId: String(boxHome?.team?.id ?? ""),
+    awayTeamId: String(boxAway?.team?.id ?? ""),
+  };
+}

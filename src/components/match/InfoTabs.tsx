@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Whistle } from "./icons";
 import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge } from "@/components/ui";
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
+import TeamStatsTab from "./TeamStatsTab";
 import LineupPitch from "@/components/Lineup";
 import Last10Matrix from "@/components/Last10";
 import { PlayerStatCard, PlayerStatsEmpty, type PlayerStatRow } from "./StatBubbles";
@@ -374,6 +375,7 @@ const STAT_CATS = [
 ] as const;
 
 export function StatsTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {
+  const [view, setView] = useState<"time" | "jogadores">("time");
   const [cat, setCat] = useState<(typeof STAT_CATS)[number]["id"]>("gols");
   const [side, setSide] = useState<"home" | "away">("home");
   const [data, setData] = useState<Record<string, any>>({});
@@ -402,6 +404,32 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
 
   return (
     <div className="space-y-3">
+      {/* Seletor: comparativo do time (principal) × stats por jogador */}
+      <div className="flex gap-1.5 bg-panel border border-line rounded-full p-1">
+        {(["time", "jogadores"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex-1 px-3 py-1.5 rounded-full text-[11px] font-extrabold transition-colors ${
+              view === v ? "bg-acc text-black" : "text-mut"
+            }`}
+          >
+            {v === "time" ? "TIME A × TIME B" : "JOGADORES"}
+          </button>
+        ))}
+      </div>
+
+      {view === "time" && (
+        <TeamStatsTab
+          matchId={matchId}
+          league={league}
+          home={d.match.home}
+          away={d.match.away}
+        />
+      )}
+
+      {view === "jogadores" && (
+        <>
       {/* Comparativo ao vivo da partida (quando a ESPN já publicou) */}
       {d.stats?.length > 0 && (
         <div className="bg-panel border border-line rounded-2xl p-4">
@@ -502,6 +530,8 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
       )}
 
       {!cur && !loading && <PlayerStatsEmpty label="Estatísticas" />}
+        </>
+      )}
     </div>
   );
 }
