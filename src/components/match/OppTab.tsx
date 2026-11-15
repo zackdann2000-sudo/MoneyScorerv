@@ -4,10 +4,11 @@ import { MoveHorizontal, BarChart3, ListOrdered } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
 import { GoalsBars } from "@/components/charts";
 import MoneySeniorCountdown from "./MoneySeniorCountdown";
+import OddsCards from "./OddsCards";
 
 type Team = { id: string; name: string; logo: string };
 
-export default function OppTab({ matchId, league, home, away }: { matchId: string; league: string; home: Team; away: Team }) {
+export default function OppTab({ matchId, league, home, away, odds, oddsSource }: { matchId: string; league: string; home: Team; away: Team; odds?: any; oddsSource?: string }) {
   const [side, setSide] = useState<"home" | "away">("home");
   const [view, setView] = useState<"ops" | "desapitos">("ops");
   const [data, setData] = useState<Record<string, any>>({});
@@ -70,6 +71,16 @@ export default function OppTab({ matchId, league, home, away }: { matchId: strin
       {/* Banner do Money Sênior — countdown até 12:00 (Brasília) */}
       <div className="mb-3">
         <MoneySeniorCountdown hasPick={!!moneyPick?.pick} onReveal={() => setView("ops")} />
+      </div>
+
+      {/* Odds reais: API-Football (quando acha a fixture) → ESPN */}
+      <div className="mb-3">
+        <OddsCards
+          odds={odds}
+          source={oddsSource}
+          home={home}
+          away={away}
+        />
       </div>
 
       {/* pílula Times / visão */}

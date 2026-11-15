@@ -7,6 +7,7 @@ export const PROVIDERS = [
   { id: "footballdata", name: "Football-Data.org", desc: "Token gratuito. Competições, tabelas e artilheiros (goals/assistências/pênaltis).", needsKey: true, doc: "https://www.football-data.org/client/register" },
   { id: "sportmonks", name: "Sportmonks", desc: "xG, pressão, estatísticas avançadas de jogadores (planos pagos).", needsKey: true, doc: "https://my.sportmonks.com/api/tokens" },
   { id: "bzzoiro", name: "Bzzoiro Sports", desc: "Probabilidades e feeds complementares (fallback do Oracle).", needsKey: true, doc: "https://sports.bzzoiro.com/dashboard/" },
+  { id: "api-football", name: "API-Football", desc: "Odds reais por partida (Casa/Empate/Fora). Plano free: 100 req/dia; fixtures podem exigir plano pago.", needsKey: true, doc: "https://dashboard.api-football.com/" },
   { id: "onesignal_rest", name: "OneSignal REST", desc: "Chave REST para disparar push do servidor (App ID já embutido).", needsKey: true, doc: "https://dashboard.onesignal.com" },
 ] as const;
 
@@ -14,6 +15,7 @@ const ENV_MAP: Record<string, string | undefined> = {
   footballdata: process.env.FOOTBALL_DATA_TOKEN,
   sportmonks: process.env.SPORTMONKS_TOKEN,
   bzzoiro: process.env.BZZOIRO_TOKEN,
+  "api-football": process.env.API_FOOTBALL_KEY,
   onesignal_rest: process.env.ONESIGNAL_REST_API_KEY,
 };
 

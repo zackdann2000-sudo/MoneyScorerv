@@ -4,6 +4,7 @@ export const LEAGUES = [
   { code: "bra.1", name: "Brasileirão Série A", country: "Brasil", flag: "🇧🇷", priority: 1 },
   { code: "conmebol.libertadores", name: "Libertadores", country: "América do Sul", flag: "🌎", priority: 2 },
   { code: "uefa.champions", name: "Champions League", country: "Europa", flag: "🏆", priority: 3 },
+  { code: "uefa.nations", name: "UEFA Nations League", country: "Europa", flag: "🇪🇺", priority: 3.5 },
   { code: "eng.1", name: "Premier League", country: "Inglaterra", flag: "🏴", priority: 4 },
   { code: "esp.1", name: "LaLiga", country: "Espanha", flag: "🇪🇸", priority: 5 },
   { code: "ita.1", name: "Serie A", country: "Itália", flag: "🇮🇹", priority: 6 },

@@ -537,6 +537,187 @@ export async function playerStatsComFallback(
   return { data: null, source: "indisponível", attempts };
 }
 
+/* ===== API-Football (api-sports.io) — odds reais por partida =====
+ * Auth por header `x-apisports-key` (sem Bearer e sem Content-Type).
+ *
+ * Limitação conhecida do plano Free (verificada em 2026-11):
+ *  - `/fixtures?season=<atual>` → "Free plans do not have access to this season"
+ *  - `/odds?date=` → funciona, mas exige paginar dezenas de páginas
+ *  - `/odds?fixture=<id>` → funciona em 1 chamada (o caminho que usamos)
+ */
+const AF_BASE = "https://v3.football.api-sports.io";
+
+export async function afFetch(path: string, ttl = 600000) {
+  const key = await getKey("api-football");
+  if (!key) throw new Error("Chave API-Football não configurada. Cole no Admin → APIs.");
+  const d = await fetchJson(`${AF_BASE}${path}`, { headers: { "x-apisports-key": key } }, ttl, `af:${path}`);
+  const errs = d?.errors;
+  const hasErr = errs && (Array.isArray(errs) ? errs.length > 0 : Object.keys(errs).length > 0);
+  if (hasErr) {
+    const msg = Array.isArray(errs) ? errs.join("; ") : Object.values(errs).join("; ");
+    throw new Error(String(msg).slice(0, 180));
+  }
+  return d;
+}
+
+/** Status da conta (não consome cota). */
+export async function afStatus() {
+  const d = await afFetch("/status", 60000);
+  const r = d?.response || {};
+  return {
+    plan: r?.subscription?.plan || "?",
+    used: r?.requests?.current ?? null,
+    limitDay: r?.requests?.limit_day ?? null,
+  };
+}
+
+export type OddTriple = { home: number | null; draw: number | null; away: number | null; bookmaker?: string; market?: string };
+
+const toOdd = (v: any): number | null => {
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) && n > 1 ? +n.toFixed(2) : null;
+};
+
+/** Extrai Casa/Empate/Fora do mercado "Match Winner". */
+function extrairMatchWinner(entry: any): OddTriple | null {
+  for (const b of entry?.bookmakers || []) {
+    for (const bet of b?.bets || []) {
+      if (!/match winner/i.test(String(bet?.name))) continue;
+      const vals: any[] = bet?.values || [];
+      const pick = (re: RegExp) => toOdd(vals.find((v) => re.test(String(v?.value)))?.odd);
+      const home = pick(/^home$/i);
+      const draw = pick(/^draw$/i);
+      const away = pick(/^away$/i);
+      if (home != null || draw != null || away != null) {
+        return { home, draw, away, bookmaker: b?.name, market: "Match Winner" };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Odds de uma fixture — 1 requisição.
+ * `invertido` troca casa/fora quando a fonte usa mando oposto ao nosso.
+ */
+export async function afOddsByFixture(fixtureId: string | number, invertido = false): Promise<OddTriple | null> {
+  const d = await afFetch(`/odds?fixture=${encodeURIComponent(String(fixtureId))}`, 600000);
+  for (const entry of (d?.response || []) as any[]) {
+    const triple = extrairMatchWinner(entry);
+    if (!triple) continue;
+    if (!invertido) return triple;
+    return { home: triple.away, draw: triple.draw, away: triple.home, bookmaker: triple.bookmaker, market: triple.market };
+  }
+  return null;
+}
+
+const timeKey = (s: string) =>
+  String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, "")
+    .trim();
+
+/**
+ * Acha a fixture casando NOME DOS TIMES + DATA.
+ *
+ * Usa `/fixtures?date=` (que devolve `teams.home/away.name`) e NÃO `/odds?date=`,
+ * porque o payload de odds não traz nomes de time — só ids (descoberto em teste
+ * real). Com o id em mãos, as odds vêm por `/odds?fixture=` em 1 requisição.
+ * Retorna null quando não acha — nunca adivinha.
+ */
+export async function afFindFixtureId(
+  homeName: string,
+  awayName: string,
+  isoDate: string,
+  leagueHint?: number
+): Promise<{ id: string; invertido: boolean } | null> {
+  const day = String(isoDate).slice(0, 10);
+  const hk = timeKey(homeName);
+  const ak = timeKey(awayName);
+  if (!day || !hk || !ak) return null;
+
+  const d = await afFetch(`/fixtures?date=${day}`, 900000);
+  const resp: any[] = d?.response || [];
+  let melhor: { id: string; score: number; invertido: boolean } | null = null;
+
+  for (const f of resp) {
+    const h = timeKey(f?.teams?.home?.name || "");
+    const a = timeKey(f?.teams?.away?.name || "");
+    if (!h || !a) continue;
+    const near = (x: string, y: string) => x === y || x.includes(y) || y.includes(x);
+    /* ESPN e API-Football às vezes invertem o mando — casamos o PAR, não a ordem. */
+    const mesmaOrdem = near(h, hk) && near(a, ak);
+    const invertido = near(h, ak) && near(a, hk);
+    if (!mesmaOrdem && !invertido) continue;
+    const liga = Number(f?.league?.id || 0);
+    const score =
+      (h === hk ? 2 : 0) + (a === ak ? 2 : 0) +
+      (invertido ? 1 : 0) +
+      (leagueHint && liga === leagueHint ? 3 : 0);
+    if (!melhor || score > melhor.score) melhor = { id: String(f.fixture.id), score, invertido };
+  }
+  return melhor ? { id: melhor.id, invertido: melhor.invertido } : null;
+}
+
+/**
+ * Cascata de odds do jogo: API-Football (se casar) → ESPN (normOdds).
+ * A ESPN nunca é descartada: se a API-Football não casar a fixture,
+ * devolvemos as odds da ESPN e marcamos a origem.
+ */
+export async function oddsDoJogoComFallback(
+  homeName: string,
+  awayName: string,
+  isoDate: string,
+  espnOdds: any,
+  leagueHint?: number
+): Promise<{ odds: any; source: string; attempts: Cascade<any>["attempts"] }> {
+  const attempts: Cascade<any>["attempts"] = [];
+  let key: string | null = null;
+  try {
+    key = await getKey("api-football");
+  } catch {
+    key = null;
+  }
+  if (key) {
+    try {
+      const achado = await afFindFixtureId(homeName, awayName, isoDate, leagueHint);
+      if (achado) {
+        const triple = await afOddsByFixture(achado.id, achado.invertido);
+        if (triple && (triple.home != null || triple.away != null)) {
+          attempts.push({ provider: "api-football", ok: true });
+          return {
+            odds: {
+              provider: triple.bookmaker || "API-Football",
+              details: "Match Winner",
+              home: triple.home,
+              draw: triple.draw,
+              away: triple.away,
+              ou: espnOdds?.ou ?? null,
+              over: espnOdds?.over ?? null,
+              under: espnOdds?.under ?? null,
+            },
+            source: "API-Football",
+            attempts,
+          };
+        }
+        attempts.push({ provider: "api-football", ok: false, reason: `fixture ${achado.id} sem Match Winner` });
+      } else {
+        attempts.push({ provider: "api-football", ok: false, reason: "jogo não encontrado por nome+data" });
+      }
+    } catch (e) {
+      attempts.push({ provider: "api-football", ok: false, reason: String((e as any)?.message || e).slice(0, 140) });
+    }
+  } else {
+    attempts.push({ provider: "api-football", ok: false, reason: "chave não configurada" });
+  }
+
+  attempts.push({ provider: "espn", ok: !!espnOdds, reason: espnOdds ? undefined : "sem odds na ESPN" });
+  return { odds: espnOdds || null, source: espnOdds ? "ESPN" : "indisponível", attempts };
+}
+
 /* ===== Teste de conexão usado pelo Admin ===== */
 export async function testProvider(provider: string): Promise<{ ok: boolean; message: string; sample?: any }> {
   try {
@@ -557,6 +738,14 @@ export async function testProvider(provider: string): Promise<{ ok: boolean; mes
       if (!token) throw new Error("Cole o token primeiro.");
       const res = await fetch("https://sports.bzzoiro.com/api/v1/matches", { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
       return { ok: res.ok, message: res.ok ? "Bzzoiro conectado — endpoint respondeu 200." : `Bzzoiro respondeu HTTP ${res.status}. Verifique o token/plano.`, sample: { status: res.status } };
+    }
+    if (provider === "api-football") {
+      const st = await afStatus();
+      return {
+        ok: true,
+        message: `API-Football OK — plano ${st.plan}, ${st.used ?? "?"}/${st.limitDay ?? "?"} requisições hoje.`,
+        sample: st,
+      };
     }
     if (provider === "onesignal_rest") {
       const token = await getKey("onesignal_rest");

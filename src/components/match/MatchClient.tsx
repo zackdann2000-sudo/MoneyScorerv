@@ -116,7 +116,14 @@ export default function MatchClient({ id, league }: { id: string; league: string
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.finished ? "bg-panel2 text-mut" : "bg-acc/15 text-acc"}`}>{m.finished ? "ENCERRADO" : "AGENDADO"}</span>
               )}
             </div>
-            {d.odds?.home && <p className="text-[9px] text-mut mt-1.5">1 <b className="text-ink">{d.odds.home}</b> · X <b className="text-ink">{d.odds.draw}</b> · 2 <b className="text-ink">{d.odds.away}</b></p>}
+            {d.odds?.home && (
+              <p className="text-[9px] text-mut mt-1.5">
+                1 <b className="text-ink">{d.odds.home}</b> · X <b className="text-ink">{d.odds.draw}</b> · 2 <b className="text-ink">{d.odds.away}</b>
+                {d.oddsSource && d.oddsSource !== "indisponível" && (
+                  <span className={`ml-1.5 text-[8px] font-extrabold px-1 py-0.5 rounded-full ${d.oddsSource === "API-Football" ? "bg-acc/15 text-acc" : "bg-panel2 text-mut"}`}>{d.oddsSource}</span>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex flex-col items-center gap-1.5 min-w-0">
             <Link href={`/times/${m.away.id}?league=${league}`}><Crest src={m.away.logo} size={56} alt={m.away.name} /></Link>
@@ -162,7 +169,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
       </div>
 
       <div className="pt-3 rise" key={tab}>
-        {tab === "oportunidades" && <TipsGate><OppTab matchId={id} league={league} home={m.home} away={m.away} /></TipsGate>}
+        {tab === "oportunidades" && <TipsGate><OppTab matchId={id} league={league} home={m.home} away={m.away} odds={d.odds} oddsSource={d.oddsSource} /></TipsGate>}
         {tab === "ia" && <TipsGate><IaTab matchId={id} league={league} odds={d.odds} /></TipsGate>}
         {tab === "prelive" && <PreLiveTab home={m.home} away={m.away} league={league} officials={d.officials} />}
         {tab === "live" && <LiveTab d={d} matchId={id} league={league} />}

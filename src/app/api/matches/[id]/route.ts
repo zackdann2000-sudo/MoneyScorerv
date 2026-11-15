@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary, normEvents, normStats, normLineups, normH2H, normForm, normOdds } from "@/lib/espn";
 import { getUser } from "@/lib/auth";
 import { attachStrategies } from "@/lib/listStrategy";
+import { oddsDoJogoComFallback } from "@/lib/providers";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const lineups = normLineups(sm, match.home.id);
     const commentary = (sm?.commentary?.items || []).slice(-20).map((c: any) => ({ minute: c?.time?.displayValue || "", text: c?.text || "" })).reverse();
     const officials = (sm?.gameInfo?.officials || []).map((o: any) => ({ name: o?.displayName || o?.fullName || "", role: o?.position?.displayName || "Árbitro", photo: o?.headshot?.href || "" }));
+    /* Odds: API-Football (se casar por nome+data) → ESPN. Não falha a página. */
+    const espnOdds = normOdds(sm);
+    let odds = espnOdds;
+    let oddsSource = espnOdds ? "ESPN" : "indisponível";
+    let oddsAttempts: any[] = [];
+    try {
+      const r = await oddsDoJogoComFallback(match.home.name, match.away.name, match.date, espnOdds);
+      odds = r.odds;
+      oddsSource = r.source;
+      oddsAttempts = r.attempts;
+    } catch {}
     return NextResponse.json({
 match: enriched, strategy: enriched.strategy,
       events: normEvents(sm, match.home.id, match.away.id),
@@ -27,7 +39,9 @@ match: enriched, strategy: enriched.strategy,
       vip,
       form: normForm(sm, match.home.id),
       h2h: normH2H(sm),
-      odds: normOdds(sm),
+      odds,
+      oddsSource,
+      oddsAttempts,
       officials,
       commentary,
       venue: sm?.gameInfo?.venue?.fullName || match.venue || "",
