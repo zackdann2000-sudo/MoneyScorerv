@@ -325,9 +325,16 @@ const STAT_CATS = [
   { id: "gols", label: "Gols" },
   { id: "assistencias", label: "Assistências" },
   { id: "finalizacoes", label: "Finalizações" },
-  { id: "cartoes", label: "Cartões" },
+  { id: "finalizacoesNoGol", label: "Finalizações no Gol" },
+  { id: "finalizacoesParaFora", label: "Finalizações para Fora" },
+  { id: "passes", label: "Passes" },
+  { id: "desarmes", label: "Desarmes" },
+  { id: "interceptacoes", label: "Interceptações" },
   { id: "faltas", label: "Faltas" },
-  { id: "defesas", label: "Defesas" },
+  { id: "faltasSofridas", label: "Faltas Sofridas" },
+  { id: "impedimentos", label: "Impedimentos" },
+  { id: "amarelos", label: "Cartões Amarelos" },
+  { id: "defesas", label: "Defesas Goleiro" },
 ] as const;
 
 export function StatsTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {

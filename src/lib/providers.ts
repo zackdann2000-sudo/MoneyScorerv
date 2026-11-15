@@ -758,3 +758,121 @@ export async function testProvider(provider: string): Promise<{ ok: boolean; mes
     return { ok: false, message: e?.message || "Falha na conexão." };
   }
 }
+/* =======================================================================
+   API-Football — estatísticas de jogador por partida (`/fixtures/players`)
+   -----------------------------------------------------------------------
+   Uma única requisição devolve 11 das 13 métricas da aba Estatísticas.
+   "Finalizações para fora" é derivada (shots.total - shots.on).
+
+   Custo: 1 req/jogo. Por isso NÃO é chamada em cascata por categoria — o
+   consumidor (rota /stats) grava o resultado em `player_stats_cache` e passa
+   a servir do banco.
+   ======================================================================= */
+
+/** Linha normalizada de jogador (contrato único da UI). */
+export type AfPlayerRow = {
+  id: string;
+  name: string;
+  team: string;
+  photo: string;
+  position: string;
+  gols: number;
+  assistencias: number;
+  finalizacoes: number;
+  finalizacoesNoGol: number;
+  finalizacoesParaFora: number;
+  passes: number;
+  desarmes: number;
+  interceptacoes: number;
+  faltas: number;
+  faltasSofridas: number;
+  impedimentos: number;
+  amarelos: number;
+  defesas: number;
+  side: "home" | "away";
+};
+
+const num = (v: any): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Extrai e normaliza os jogadores de um payload de `/fixtures/players`. */
+export function normAfPlayers(resp: any[]): AfPlayerRow[] {
+  const out: AfPlayerRow[] = [];
+  if (!Array.isArray(resp)) return out;
+
+  for (const teamBox of resp) {
+    /* `team.id` casa com o id da API-Football; o lado vem de `fixture` fora daqui. */
+    const teamId = String(teamBox?.team?.id ?? "");
+    const teamName = String(teamBox?.team?.name ?? "");
+    for (const p of teamBox?.players || []) {
+      const st = (p?.statistics || [])[0] || {};
+      const shotsTotal = num(st?.shots?.total);
+      const shotsOn = num(st?.shots?.on);
+      const row: AfPlayerRow = {
+        id: `${teamId}-${p?.player?.id ?? p?.player?.name ?? out.length}`,
+        name: String(p?.player?.name ?? "—"),
+        team: teamName,
+        photo: String(p?.player?.photo ?? ""),
+        position: String(st?.games?.position ?? ""),
+        gols: num(st?.goals?.total),
+        assistencias: num(st?.goals?.assists),
+        finalizacoes: shotsTotal,
+        finalizacoesNoGol: shotsOn,
+        /* Derivada — nunca inventada: só quando o total existe. */
+        finalizacoesParaFora: shotsTotal > 0 ? Math.max(0, shotsTotal - shotsOn) : 0,
+        passes: num(st?.passes?.total),
+        desarmes: num(st?.tackles?.total),
+        interceptacoes: num(st?.tackles?.interceptions),
+        faltas: num(st?.fouls?.committed),
+        faltasSofridas: num(st?.fouls?.drawn),
+        impedimentos: num(st?.offsides),
+        amarelos: num(st?.cards?.yellow),
+        defesas: num(st?.goals?.saves),
+        side: "home",
+      };
+      out.push(row);
+    }
+  }
+  return out;
+}
+
+/**
+ * Busca `/fixtures/players` e devolve as linhas normalizadas.
+ * Marca cada jogador com o lado (home/away) usando os ids do próprio fixture.
+ */
+export async function afPlayerStats(fixtureId: string | number): Promise<AfPlayerRow[]> {
+  const fxId = encodeURIComponent(String(fixtureId));
+  const d = await afFetch(`/fixtures/players?fixture=${fxId}`, 24 * 60 * 60 * 1000);
+  const rows = normAfPlayers(d?.response || []);
+  if (!rows.length) return [];
+
+  /* Descobre o mando consultando o fixture (cache 24h: partida terminada não muda). */
+  let homeId = "";
+  try {
+    const fx = await afFetch(`/fixtures?id=${fxId}`, 24 * 60 * 60 * 1000);
+    homeId = String(((fx?.response || [])[0])?.teams?.home?.id ?? "");
+  } catch {
+    homeId = "";
+  }
+  if (homeId) {
+    for (const r of rows) {
+      const teamId = r.id.split("-")[0];
+      r.side = teamId === homeId ? "home" : "away";
+    }
+  }
+  return rows;
+}
+
+/** True quando o fixture já terminou (dado é definitivo). */
+export async function afFixtureFinished(fixtureId: string | number): Promise<boolean> {
+  try {
+    const d = await afFetch(`/fixtures?id=${encodeURIComponent(String(fixtureId))}`, 600000);
+    const f = (d?.response || [])[0];
+    const st = String(f?.fixture?.status?.short || "");
+    return ["FT", "AET", "PEN"].includes(st);
+  } catch {
+    return false;
+  }
+}

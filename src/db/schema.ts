@@ -174,3 +174,48 @@ export const rateLimits = pgTable("rate_limits", {
   windowStart: timestamp("window_start").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 }, (t) => [index("rate_limits_expires_at_idx").on(t.expiresAt)]);
+/**
+ * Cache das estatísticas por jogador de UMA partida.
+ *
+ * Motivo: `/fixtures/players` da API-Football consome cota por requisição e o
+ * plano gratuito permite apenas 100/dia. A regra é: consulta a API uma vez,
+ * grava aqui, e passa a servir do banco. Para partidas ENCERRADAS o dado é
+ * definitivo, então a linha vale 24h sem nova chamada (`finalizada`).
+ *
+ * `payload` guarda a lista já normalizada (nome, time, lado e os contadores),
+ * para que a rota não precise reprocessar formatos de fornecedor differentes.
+ */
+export const playerStatsCache = pgTable("player_stats_cache", {
+  matchId: text("match_id").primaryKey(),
+  league: text("league").notNull().default(""),
+  source: text("source").notNull().default(""),
+  fixtureId: text("fixture_id").notNull().default(""),
+  finalizada: boolean("finalizada").notNull().default(false),
+  payload: jsonb("payload").notNull().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("player_stats_cache_updated_idx").on(t.updatedAt)]);
+
+/**
+ * Foto do jogador (TheSportsDB). Gravada uma única vez na vida por jogador —
+ * `playerKey` é o nome normalizado. `photo` nulo significa "já consultamos e
+ * não existe", evitando repetir a busca a cada requisição.
+ */
+export const playerPhotos = pgTable("player_photos", {
+  playerKey: text("player_key").primaryKey(),
+  playerName: text("player_name").notNull().default(""),
+  photo: text("photo"),
+  source: text("source").notNull().default("TheSportsDB"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** Escudo de time (TheSportsDB) — apenas fallback quando a ESPN não trouxe. */
+export const teamBadges = pgTable("team_badges", {
+  teamKey: text("team_key").primaryKey(),
+  teamName: text("team_name").notNull().default(""),
+  badge: text("badge"),
+  source: text("source").notNull().default("TheSportsDB"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
