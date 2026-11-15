@@ -6,6 +6,7 @@ import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge 
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import LineupPitch from "@/components/Lineup";
 import Last10Matrix from "@/components/Last10";
+import { PlayerStatCard, PlayerStatsEmpty, type PlayerStatRow } from "./StatBubbles";
 
 type Team = { id: string; name: string; short?: string; logo: string };
 
@@ -208,7 +209,9 @@ export function PreLiveTab({ home, away, league, officials }: { home: Team; away
 }
 
 /* ================= H2H ================= */
-export function H2HTab({ d, league }: { d: any; league: string }) {
+/* Resultado relativo ao time da casa desta partida:
+   V = casa venceu · E = empate · D = casa perdeu */
+export function H2HTab({ d }: { d: any; league?: string }) {
   const games = d.h2h?.games || [];
   const m = d.match;
   const stats = useMemo(() => {
@@ -251,19 +254,60 @@ export function H2HTab({ d, league }: { d: any; league: string }) {
             <RadialDuo label="Ambas marcam" home={stats.bttsh} away={stats.bttsa} />
             <RadialDuo label="Clean sheets" home={stats.csh} away={stats.csa} />
           </div>
-          <div className="bg-panel border border-line rounded-2xl p-3 space-y-1">
-            {games.slice(0, 10).map((g: any) => (
-              <div key={g.id} className="flex items-center gap-2 py-1.5 border-b border-line/50 last:border-0 text-[11px]">
-                <span className="text-mut w-16 shrink-0">{new Date(g.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })}</span>
-                <Crest src={g.homeLogo} size={16} />
-                <span className={`flex-1 truncate ${g.homeScore > g.awayScore ? "font-bold" : "text-mut"}`}>{g.homeName}</span>
-                <span className="font-display font-bold text-sm px-1.5 bg-panel2 rounded">{g.homeScore} - {g.awayScore}</span>
-                <span className={`flex-1 truncate text-right ${g.awayScore > g.homeScore ? "font-bold" : "text-mut"}`}>{g.awayName}</span>
-                <Crest src={g.awayLogo} size={16} />
-              </div>
-            ))}
+          {/* Lista de confrontos — círculo colorido por resultado (V/E/D) */}
+          <div className="bg-panel border border-line rounded-2xl p-3 space-y-0.5">
+            {games.slice(0, 10).map((g: any) => {
+              const res =
+                g.homeScore > g.awayScore ? "V" : g.homeScore < g.awayScore ? "D" : "E";
+              const tone =
+                res === "V"
+                  ? "bg-acc/15 text-acc border-acc/60"
+                  : res === "E"
+                    ? "bg-warn/15 text-warn border-warn/60"
+                    : "bg-danger/15 text-danger border-danger/60";
+              return (
+                <div
+                  key={g.id}
+                  className="flex items-center gap-2 py-2 border-b border-line/40 last:border-0 text-[11px]"
+                >
+                  <span className="text-mut w-[52px] shrink-0 tabular-nums">
+                    {new Date(g.date).toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "2-digit",
+                    })}
+                  </span>
+                  <Crest src={g.homeLogo} size={15} />
+                  <span
+                    className={`flex-1 truncate ${res === "V" ? "font-bold" : "text-mut"}`}
+                    title={g.homeName}
+                  >
+                    {g.homeName}
+                  </span>
+                  <span className="font-display font-bold text-sm px-1.5 py-0.5 bg-panel2 rounded tabular-nums shrink-0">
+                    {g.homeScore} - {g.awayScore}
+                  </span>
+                  <span
+                    className={`flex-1 truncate text-right ${res === "D" ? "font-bold" : "text-mut"}`}
+                    title={g.awayName}
+                  >
+                    {g.awayName}
+                  </span>
+                  <Crest src={g.awayLogo} size={15} />
+                  <span
+                    aria-label={res === "V" ? "Vitória do mandante" : res === "E" ? "Empate" : "Derrota do mandante"}
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[9px] font-extrabold shrink-0 ${tone}`}
+                  >
+                    {res}
+                  </span>
+                </div>
+              );
+            })}
             <SourceFoot fonte="ESPN (season series)" amostra={games.length} />
           </div>
+          <p className="text-[9px] text-mut text-center -mt-1">
+            Círculo: <b className="text-acc">verde</b> vitória do mandante · <b className="text-warn">laranja</b> empate · <b className="text-danger">vermelho</b> derrota do mandante
+          </p>
         </>
       ) : <p className="text-xs text-mut text-center py-8 bg-panel border border-dashed border-line rounded-xl">Sem confrontos diretos recentes disponíveis nesta fonte.</p>}
 
@@ -277,17 +321,128 @@ export function H2HTab({ d, league }: { d: any; league: string }) {
 }
 
 /* ================= ESTATÍSTICAS ================= */
-export function StatsTab({ d }: { d: any }) {
-  if (!d.stats?.length) return <p className="text-xs text-mut text-center py-8 bg-panel border border-dashed border-line rounded-xl">Estatísticas disponíveis quando a partida começar (ESPN ao vivo).</p>;
+const STAT_CATS = [
+  { id: "gols", label: "Gols" },
+  { id: "assistencias", label: "Assistências" },
+  { id: "finalizacoes", label: "Finalizações" },
+  { id: "cartoes", label: "Cartões" },
+  { id: "faltas", label: "Faltas" },
+  { id: "defesas", label: "Defesas" },
+] as const;
+
+export function StatsTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {
+  const [cat, setCat] = useState<(typeof STAT_CATS)[number]["id"]>("gols");
+  const [side, setSide] = useState<"home" | "away">("home");
+  const [data, setData] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (data[side]) return;
+    let on = true;
+    fetch(`/api/matches/${matchId}/stats?league=${league}&side=${side}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (on) setData((p) => ({ ...p, [side]: j }));
+      })
+      .catch(() => {
+        if (on) setData((p) => ({ ...p, [side]: { error: "Não foi possível carregar as estatísticas agora." } }));
+      });
+    return () => {
+      on = false;
+    };
+  }, [matchId, league, side, data]);
+
+  const cur = data[side];
+  const loading = !cur;
+  const rows: PlayerStatRow[] | null = cur?.stats?.[cat] || null;
+  const reason: string | undefined = cur?.stats?.[`${cat}Reason`];
+  const team = side === "home" ? d.match.home : d.match.away;
+
   return (
-    <div className="bg-panel border border-line rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-bold text-home"><Crest src={d.match.home.logo} size={18} />{d.match.home.short || d.match.home.name}</span>
-        {d.match.live && <LiveBadge clock={d.match.clock} />}
-        <span className="flex items-center gap-1.5 text-[11px] font-bold text-away">{d.match.away.short || d.match.away.name}<Crest src={d.match.away.logo} size={18} /></span>
+    <div className="space-y-3">
+      {/* Comparativo ao vivo da partida (quando a ESPN já publicou) */}
+      {d.stats?.length > 0 && (
+        <div className="bg-panel border border-line rounded-2xl p-4">
+          <p className="text-[10px] font-bold text-mut uppercase mb-2">Estatísticas da partida</p>
+          <div className="flex items-center justify-between mb-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-home">
+              <Crest src={d.match.home.logo} size={18} />
+              {d.match.home.short || d.match.home.name}
+            </span>
+            {d.match.live && <LiveBadge clock={d.match.clock} />}
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-away">
+              {d.match.away.short || d.match.away.name}
+              <Crest src={d.match.away.logo} size={18} />
+            </span>
+          </div>
+          {d.stats.map((s: any) => (
+            <StatCompareRow key={s.key} label={s.label} home={s.home} away={s.away} />
+          ))}
+          <SourceFoot fonte="ESPN ao vivo" extra="Acesso gratuito" />
+        </div>
+      )}
+
+      {/* Seletor de time */}
+      <div className="grid grid-cols-2 gap-2">
+        {(["home", "away"] as const).map((s) => {
+          const t = s === "home" ? d.match.home : d.match.away;
+          return (
+            <button
+              key={s}
+              onClick={() => setSide(s)}
+              className={`flex items-center gap-2 p-2 rounded-xl border transition-colors ${side === s ? "border-acc bg-acc/10" : "border-line bg-panel"}`}
+            >
+              <Crest src={t.logo} size={22} />
+              <span className="text-[11px] font-bold truncate">{t.name}</span>
+            </button>
+          );
+        })}
       </div>
-      {d.stats.map((s: any) => <StatCompareRow key={s.key} label={s.label} home={s.home} away={s.away} />)}
-      <SourceFoot fonte="ESPN ao vivo" extra="Acesso gratuito" />
+
+      {/* Sub-abas de métricas */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {STAT_CATS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setCat(c.id)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors ${cat === c.id ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && !cur && (
+        <div className="space-y-2">
+          <div className="skeleton h-16" />
+          <div className="skeleton h-16" />
+          <div className="skeleton h-16" />
+          <p className="text-[10px] text-mut text-center">Lendo os jogos reais deste time…</p>
+        </div>
+      )}
+
+      {cur?.error && <PlayerStatsEmpty label={team.name} reason={cur.error} />}
+
+      {cur && !cur.error && rows && rows.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] text-mut font-bold uppercase">
+            Top {rows.length} · {STAT_CATS.find((c) => c.id === cat)?.label} · {team.name}
+          </p>
+          {rows.map((r, i) => (
+            <PlayerStatCard key={r.id} row={r} rank={i + 1} metricLabel="Média" />
+          ))}
+          <SourceFoot
+            fonte={cur.source || "ESPN"}
+            amostra={cur.sample}
+            extra="Bolinhas: verde > 0 · cinza = 0 · mais antigo → mais recente"
+          />
+        </div>
+      )}
+
+      {cur && !cur.error && (!rows || rows.length === 0) && (
+        <PlayerStatsEmpty label={`${STAT_CATS.find((c) => c.id === cat)?.label} — ${team.name}`} reason={reason} />
+      )}
+
+      {!cur && !loading && <PlayerStatsEmpty label="Estatísticas" />}
     </div>
   );
 }
@@ -487,7 +642,7 @@ export function MoneyTab({ matchId }: { matchId: string }) {
   return (
     <div className="text-center py-8 bg-panel border border-line rounded-2xl px-4">
       <span className="text-4xl">🧙‍♂️</span>
-      <p className="font-display font-bold uppercase text-lg mt-2">O Bruxo escolheu outro jogo hoje</p>
+      <p className="font-display font-bold uppercase text-lg mt-2">O Money Sênior escolheu outro jogo hoje</p>
       <p className="text-xs text-mut mt-1">{data.pick ? `Pick do dia: ${data.pick.jogo.timeCasa} x ${data.pick.jogo.timeFora}` : "Ainda calculando o pick do dia com os jogos disponíveis."}</p>
       <Link href="/money-tips" className="inline-block mt-4 px-5 py-2 rounded-full bg-purple text-white text-xs font-extrabold">VER MONEY TIPS →</Link>
     </div>

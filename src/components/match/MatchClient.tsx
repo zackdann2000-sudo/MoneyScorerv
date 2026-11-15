@@ -12,22 +12,28 @@ import { PreLiveTab, H2HTab, StatsTab, TabelaTab, LiveTab, MoneyTab, FormacoesTa
 
 const TABS = [
   { id: "oportunidades", label: "OPORTUNIDADES" },
-  { id: "ia", label: "IA ANALISTA" },
-  { id: "prelive", label: "PRÉ-LIVE" },
+  { id: "prelive", label: "PRÉ LIVE" },
   { id: "live", label: "LIVE" },
   { id: "h2h", label: "H2H" },
   { id: "jogadores", label: "JOGADORES" },
   { id: "estatisticas", label: "ESTATÍSTICAS" },
-  { id: "formacoes", label: "FORMAÇÕES" },
-  { id: "tabela", label: "CLASSIFICAÇÃO" },
-  { id: "money-tips", label: "MONEY 🧙" },
 ];
+
+/* Funcionalidades que não são abas principais, mas continuam acessíveis */
+const EXTRA_CHIPS = [
+  { id: "ia", label: "IA ANALISTA", icon: "🤖" },
+  { id: "formacoes", label: "FORMAÇÕES", icon: "📋" },
+  { id: "tabela", label: "CLASSIFICAÇÃO", icon: "🏆" },
+  { id: "money-tips", label: "MONEY 🧙", icon: "" },
+];
+
+const ALL_IDS = [...TABS.map((t) => t.id), ...EXTRA_CHIPS.map((c) => c.id)];
 
 export default function MatchClient({ id, league }: { id: string; league: string }) {
   const sp = useSearchParams();
   const router = useRouter();
   const { flags, setFlags, addToast } = useApp();
-  const [tab, setTab] = useState(sp.get("tab") && TABS.some((t) => t.id === sp.get("tab")) ? sp.get("tab")! : "oportunidades");
+  const [tab, setTab] = useState(sp.get("tab") && ALL_IDS.includes(sp.get("tab")!) ? sp.get("tab")! : "oportunidades");
   const [d, setD] = useState<any>(null);
   const [err, setErr] = useState("");
   const [bellOpen, setBellOpen] = useState(false);
@@ -138,11 +144,19 @@ export default function MatchClient({ id, league }: { id: string; league: string
         <p className="relative text-[10px] text-mut text-center mt-2">As odds podem mudar. Os valores são informativos e não garantem acerto.</p>
       </div>
 
-      {/* Abas */}
+      {/* Abas horizontais principais */}
       <div className="sticky top-14 z-40 bg-bg pt-2 pb-1 -mx-3 px-3">
         <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-line">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`shrink-0 px-3 py-2 text-[11px] font-extrabold tracking-wide border-b-2 -mb-px transition-colors ${tab === t.id ? "text-acc border-acc" : "text-mut border-transparent"}`}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`shrink-0 px-3 py-2 text-[11px] font-extrabold tracking-wide border-b-2 -mb-px transition-colors ${tab === t.id ? "text-acc border-acc" : "text-mut border-transparent"}`}>{t.label}</button>
+          ))}
+        </div>
+        {/* Chips secundários — mantém IA, Formações, Classificação e Money acessíveis */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-2 pb-0.5">
+          {EXTRA_CHIPS.map((c) => (
+            <button key={c.id} onClick={() => setTab(c.id)} aria-current={tab === c.id ? "page" : undefined} className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-extrabold border transition-colors ${tab === c.id ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}>
+              {c.icon ? `${c.icon} ` : ""}{c.label}
+            </button>
           ))}
         </div>
       </div>
@@ -154,7 +168,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
         {tab === "live" && <LiveTab d={d} matchId={id} league={league} />}
         {tab === "h2h" && <H2HTab d={d} league={league} />}
         {tab === "jogadores" && <JogadoresTab matchId={id} league={league} home={m.home} away={m.away} lineups={d.lineups} vip={d.vip} />}
-        {tab === "estatisticas" && <StatsTab d={d} />}
+        {tab === "estatisticas" && <StatsTab d={d} matchId={id} league={league} />}
         {tab === "formacoes" && <FormacoesTab d={d} matchId={id} league={league} />}
         {tab === "tabela" && <TabelaTab league={league} homeId={m.home.id} awayId={m.away.id} />}
         {tab === "money-tips" && <TipsGate><MoneyTab matchId={id} /></TipsGate>}

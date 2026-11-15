@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, boolean, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, boolean, jsonb, real, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -159,3 +159,18 @@ export const deletionRequests = pgTable("deletion_requests", {
   status: text("status").notNull().default("pendente"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/**
+ * Contador de rate limiting por janela fixa.
+ *
+ * A chave é `<escopo>:<identificador>` (ex.: `login:203.0.113.5`) e a janela é
+ * representada por `windowStart` (truncado ao início do bloco). O contador é
+ * incrementado atomicamente em src/lib/rateLimit.ts, e as linhas vencidas são
+ * apagadas pela mesma rotina — não há job de limpeza separado.
+ */
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  hits: integer("hits").notNull().default(0),
+  windowStart: timestamp("window_start").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (t) => [index("rate_limits_expires_at_idx").on(t.expiresAt)]);

@@ -5,13 +5,29 @@ import { eq } from "drizzle-orm";
 import { hashPass, createSession, getUser, TRIAL_DAYS } from "@/lib/auth";
 import { isOwnerEmail } from "@/lib/appConfig";
 import { str } from "@/lib/validate";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 /** Tetos de entrada: evitam DoS de CPU no scrypt e linhas gigantes no banco. */
 const MAX_NAME = 80;
 const MAX_EMAIL = 254; // limite prático de e-mail (RFC 5321)
 const MAX_PASS = 1024;
 
+/**
+ * Criação em massa de contas era o vetor: cada cadastro concede 2 dias de
+ * trial, então um script podia inflar a base e o custo de scrypt.
+ * 5 cadastros por IP a cada hora é generoso para uso humano e hostil para
+ * automação.
+ */
+const REGISTER_LIMIT = { limit: 5, windowSec: 3600 };
+
 export const dynamic = "force-dynamic";
+
+function tooMany(retryAfterSec: number) {
+  return NextResponse.json(
+    { error: "Muitos cadastros nesta origem. Tente novamente mais tarde." },
+    { status: 429, headers: { "Retry-After": String(retryAfterSec) } },
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +35,11 @@ export async function POST(req: NextRequest) {
     const name = str(body.name, MAX_NAME);
     const em = (str(body.email, MAX_EMAIL) || "").toLowerCase();
     const pass = typeof body.pass === "string" ? body.pass : "";
+
+    // Rate limiting ANTES do scrypt e do INSERT.
+    const ipCheck = await rateLimit("register:ip", clientIp(req), REGISTER_LIMIT);
+    if (!ipCheck.ok) return tooMany(ipCheck.retryAfterSec);
+
     if (!name || name.length < 2) return NextResponse.json({ error: "Informe seu nome." }, { status: 400 });
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return NextResponse.json({ error: "E-mail inválido." }, { status: 400 });
     // Mínimo 6 e MÁXIMO MAX_PASS: senha de 1 MB travaria o scrypt (DoS de CPU).

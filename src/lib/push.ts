@@ -7,10 +7,41 @@ import { getKey } from "./keys";
 import { cached } from "./cache";
 
 export const ONESIGNAL_APP_ID = "f06a705d-ebd0-4390-9a11-207fe769b81d";
-// Chaves VAPID inseridas diretamente no código (ambiente gerenciado não lê .env)
-export const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "BKhuZ7nBFVRlc05eRSMpZylx3OVimtudepf-5qLEHVIM83frLg50lyTz8qnHuMLA01BIw8DBAza5pONrM8sSh7M";
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "AXFUwKc7qtno7Wa06svSP0NogFYqnRwnQ1T0gGfZrRE";
-try { webpush.setVapidDetails("mailto:zackdann2000@gmail.com", VAPID_PUBLIC, VAPID_PRIVATE); } catch {}
+
+/**
+ * Chaves VAPID.
+ *
+ * SEGURANÇA: a chave PRIVADA só é lida de `process.env.VAPID_PRIVATE_KEY`.
+ * Antes havia um fallback literal no código — a chave privada ficava no
+ * histórico do git e em qualquer cópia do repositório, permitindo que
+ * terceiros assinassem pushes em nome do app. O fallback foi removido;
+ * se a variável não estiver definida, o push nativo fica desabilitado
+ * (degradação controlada) em vez de usar uma chave vazada.
+ *
+ * TODO(segurança): rotacionar o par VAPID que estava no código, pois o
+ * valor anterior deve ser considerado comprometido (`npx web-push
+ * generate-vapid-keys`).
+ *
+ * A chave PÚBLICA pode ter fallback: ela é enviada ao navegador por design.
+ */
+export const VAPID_PUBLIC =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "BKhuZ7nBFVRlc05eRSMpZylx3OVimtudepf-5qLEHVIM83frLg50lyTz8qnHuMLA01BIw8DBAza5pONrM8sSh7M";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:contato@greenscore.app";
+
+/** true quando há par VAPID válido configurado via ambiente. */
+export const VAPID_ENABLED = Boolean(VAPID_PUBLIC && VAPID_PRIVATE);
+
+if (VAPID_ENABLED) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  } catch (e) {
+    console.error("[push] VAPID malformada; push nativo desabilitado", e instanceof Error ? e.message : e);
+  }
+} else if (process.env.NODE_ENV === "production") {
+  console.warn("[push] VAPID_PRIVATE_KEY ausente — push nativo desabilitado (use OneSignal ou configure a env).");
+}
 
 /* ============ OneSignal REST (rich push) ============ */
 export async function pushOneSignal(opts: { title: string; body: string; url?: string; icon?: string; tagKey?: string; extraTags?: Record<string, string> }) {
@@ -41,6 +72,9 @@ export function siteUrl() {
 
 /* ============ Web Push nativo (VAPID) ============ */
 export async function enviarNotificacao(userId: number | null, titulo: string, mensagem: string, url = "/", icon = "/icon.png") {
+  // Sem par VAPID configurado não há como assinar o push: retorna 0 em vez de
+  // deixar o web-push lançar erro por subscription sem auth.
+  if (!VAPID_ENABLED) return 0;
   const rows = userId != null ? await db.select().from(pushSubs).where(eq(pushSubs.userId, userId)) : await db.select().from(pushSubs);
   let sent = 0;
   for (const r of rows) {
@@ -54,8 +88,8 @@ export async function enviarNotificacao(userId: number | null, titulo: string, m
   return sent;
 }
 
-/* ============ Alerta rico do MONEY TIPS (Bruxo) ============ */
-export async function enviarNotificacaoBruxo(matchId: string, jogoNome: string, pickTitulo: string, pickDescricao: string, avatarUrl?: string) {
+/* ============ Alerta rico do MONEY TIPS (Money Sênior) ============ */
+export async function enviarNotificacaoMoneySenior(matchId: string, jogoNome: string, pickTitulo: string, pickDescricao: string, avatarUrl?: string) {
   const title = "🧙‍️ Bet do Money TIPS Disponível!";
   const body = `A aposta do Money TIPS para ${jogoNome}: ${pickTitulo}. ${pickDescricao} Clique para ver.`;
   const url = `/jogos/${matchId}?tab=money-tips`;

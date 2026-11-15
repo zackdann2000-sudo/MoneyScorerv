@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoveHorizontal, BarChart3, ListOrdered } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
 import { GoalsBars } from "@/components/charts";
+import MoneySeniorCountdown from "./MoneySeniorCountdown";
 
 type Team = { id: string; name: string; logo: string };
 
@@ -16,6 +17,7 @@ export default function OppTab({ matchId, league, home, away }: { matchId: strin
   const [expanded, setExpanded] = useState<string | null>(null);
   const [chartOf, setChartOf] = useState<any>(null);
   const [slide, setSlide] = useState(0);
+  const [moneyPick, setMoneyPick] = useState<any>(null);
 
   const team = side === "home" ? home : away;
   const load = useCallback(async (s: "home" | "away") => {
@@ -42,6 +44,16 @@ export default function OppTab({ matchId, league, home, away }: { matchId: strin
     return () => clearTimeout(t);
   }, [view, duplo, hasOther, otherSide, load]);
 
+  /* Pick do dia — usado pelo banner de countdown do Money Sênior */
+  useEffect(() => {
+    let on = true;
+    fetch("/api/money-tips")
+      .then((r) => r.json())
+      .then((j) => { if (on) setMoneyPick(j); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
+
   const cur = data[side];
   const ops = cur?.oportunidades || [];
   const other = data[side === "home" ? "away" : "home"];
@@ -55,6 +67,11 @@ export default function OppTab({ matchId, league, home, away }: { matchId: strin
 
   return (
     <div>
+      {/* Banner do Money Sênior — countdown até 12:00 (Brasília) */}
+      <div className="mb-3">
+        <MoneySeniorCountdown hasPick={!!moneyPick?.pick} onReveal={() => setView("ops")} />
+      </div>
+
       {/* pílula Times / visão */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex bg-panel border border-line rounded-full p-0.5">

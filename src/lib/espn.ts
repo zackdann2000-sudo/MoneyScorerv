@@ -230,7 +230,10 @@ export function normOdds(sm: any) {
   };
 }
 
-export async function getStandings(league: string) {
+/* Classificação: Football-Data.org primária; ESPN é o fallback.
+   Mantém o mesmo shape { name, rows[] } para todos os consumidores existentes
+   (listStrategy, supertips, api/standings, TabelaTab). */
+async function espnStandings(league: string) {
   try {
     const data = await fetchJson(`https://site.api.espn.com/apis/v2/sports/soccer/${league}/standings`, {}, 1800000);
     const groups = data?.children || [];
@@ -242,6 +245,18 @@ export async function getStandings(league: string) {
       }),
     }));
   } catch { return []; }
+}
+
+export async function getStandings(league: string) {
+  const { standingsComFallback } = await import("./providers");
+  const res = await standingsComFallback(league, () => espnStandings(league));
+  return res.data;
+}
+
+/* Versão detalhada (com a trilha de qual fonte respondeu) usada pela rota. */
+export async function getStandingsComFonte(league: string) {
+  const { standingsComFallback } = await import("./providers");
+  return standingsComFallback(league, () => espnStandings(league));
 }
 
 export async function getLeaders(league: string) {

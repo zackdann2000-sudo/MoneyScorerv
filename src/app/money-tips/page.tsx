@@ -24,7 +24,7 @@ export default function MoneyTips() {
         <span className="text-3xl">🧙‍♂️</span>
         <div>
           <h1 className="font-display font-bold text-2xl uppercase tracking-wide leading-none">Money Tips</h1>
-          <p className="text-[10px] text-mut">O Bruxo analisa os últimos 10 jogos e escolhe a melhor do dia</p>
+          <p className="text-[10px] text-mut">O Money Sênior analisa os últimos 10 jogos e escolhe a melhor do dia</p>
         </div>
         <Link href="/desempenho" className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-panel border border-line text-[10px] font-extrabold text-acc"><TrendingUp size={12} /> TRACK RECORD</Link>
       </div>
@@ -37,7 +37,7 @@ export default function MoneyTips() {
 
       <DateStrip value={date} onChange={setDate} days={7} />
 
-      {loading && <div className="space-y-2 mt-3"><div className="skeleton h-28" /><div className="skeleton h-24" /><div className="skeleton h-44" /><p className="text-[10px] text-mut text-center">🧙‍♂️ O Bruxo está varrendo os jogos do dia na ESPN… (pode levar alguns segundos na primeira vez)</p></div>}
+      {loading && <div className="space-y-2 mt-3"><div className="skeleton h-28" /><div className="skeleton h-24" /><div className="skeleton h-44" /><p className="text-[10px] text-mut text-center">🧙‍♂️ O Money Sênior está varrendo os jogos do dia na ESPN… (pode levar alguns segundos na primeira vez)</p></div>}
 
       <div className="mt-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] text-ink/90">
         <b>+18.</b> Estatística não é garantia de lucro. A odd justa é uma conta da amostra, não uma cotação. Jogos já iniciados saem da oportunidade e vão para o histórico.

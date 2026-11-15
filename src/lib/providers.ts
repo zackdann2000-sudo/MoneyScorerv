@@ -1,6 +1,15 @@
 import { fetchJson } from "./cache";
 import { getKey } from "./keys";
 
+/* =======================================================================
+   NAVOR DE RESILIÊNCIA — toda cascata registra quem respondeu e por quê
+   a fonte anterior falhou. Nenhuma cascata inventa dado: se todas
+   falharem, devolve vazio + motivo.
+   ======================================================================= */
+export type Cascade<T> = { data: T; source: string; attempts: { provider: string; ok: boolean; reason?: string }[] };
+
+const motivo = (e: any) => String(e?.message || e || "falha").slice(0, 160);
+
 /* ===== Football-Data.org (token colado no Admin) ===== */
 export async function fdFetch(path: string, ttl = 600000) {
   const token = await getKey("footballdata");
@@ -23,8 +32,7 @@ export async function fdScorers(code: string, season?: number, limit = 50) {
   };
 }
 
-/* ===== Sportmonks v3 ===== */
-export async function smFetch(path: string, ttl = 120000) {
+/* ===== Sportmonks v3 ===== */export async function smFetch(path: string, ttl = 120000) {
   const token = await getKey("sportmonks");
   if (!token) throw new Error("Chave Sportmonks não configurada. Cole seu token no Admin → APIs.");
   const sep = path.includes("?") ? "&" : "?";
@@ -69,6 +77,464 @@ export async function bzFetch(path: string, ttl = 120000) {
   const token = await getKey("bzzoiro");
   if (!token) throw new Error("Chave Bzzoiro não configurada. Cole seu token no Admin → APIs.");
   return fetchJson(`https://sports.bzzoiro.com/api${path}`, { headers: { Authorization: `Bearer ${token}` } }, ttl);
+}
+
+/*
+ * Bzzoiro v2 — base e esquema de auth oficiais.
+ * A doc manda `Authorization: Token <key>`; `Bearer` segue aceito por
+ * integrações legadas, então tentamos na ordem e memorizamos o que funcionou.
+ */
+let bzAuthScheme: "Token" | "Bearer" = "Token";
+
+export async function bzFetchV2(path: string, ttl = 60000) {
+  const token = await getKey("bzzoiro");
+  if (!token) throw new Error("Chave Bzzoiro não configurada. Cole seu token no Admin → APIs.");
+  const url = `https://sports.bzzoiro.com/api/v2${path}`;
+  try {
+    return await fetchJson(url, { headers: { Authorization: `${bzAuthScheme} ${token}`, Accept: "application/json" } }, ttl, `bz2:${bzAuthScheme}:${path}`);
+  } catch (e) {
+    const alt = bzAuthScheme === "Token" ? "Bearer" : "Token";
+    try {
+      const r = await fetchJson(url, { headers: { Authorization: `${alt} ${token}`, Accept: "application/json" } }, ttl, `bz2:${alt}:${path}`);
+      bzAuthScheme = alt as "Token" | "Bearer";
+      return r;
+    } catch {
+      throw e;
+    }
+  }
+}
+
+/* =======================================================================
+   CLASSIFICAÇÃO — Football-Data.org primária, ESPN como fallback
+   ======================================================================= */
+const FD_COMP: Record<string, string> = {
+  "eng.1": "PL", "esp.1": "PD", "ita.1": "SA", "ger.1": "BL1", "fra.1": "FL1",
+  "bra.1": "BSA", "por.1": "PPL", "ned.1": "DED", "uefa.champions": "CL",
+  "eng.2": "ELC", "ger.2": "BL2", "fra.2": "FL2", "ita.2": "SA_AUS",
+};
+
+export const fdCompetitionCode = (league: string) => FD_COMP[league] || null;
+
+export type StandingRow = {
+  teamId: string; name: string; short: string; logo: string;
+  rank: number; teamRef?: string; teamShort?: string;
+  gp: number; w: number; d: number; l: number;
+  gf: number; ga: number; gd: number; pts: number; form?: string;
+};
+export type StandingGroup = { name: string; rows: StandingRow[] };
+
+export async function fdStandings(league: string): Promise<StandingGroup[]> {
+  const code = fdCompetitionCode(league);
+  if (!code) throw new Error(`Competição ${league} não mapeada no Football-Data.org.`);
+  const d = await fdFetch(`/competitions/${code}/standings`, 900000);
+  const standings = d?.standings || [];
+  return standings
+    .filter((s: any) => (s?.type || "TOTAL") === "TOTAL")
+    .map((s: any, gi: number) => ({
+      name: s?.group || (standings.length > 1 ? `Grupo ${gi + 1}` : "Classificação"),
+      rows: (s?.table || []).map((t: any) => ({
+        /* IDs do FD são outro espaço de nomes — guardamos o nome p/ reconciliação */
+        teamId: String(t?.team?.id ?? ""),
+        teamRef: t?.team?.name || "",
+        teamShort: t?.team?.tla || t?.team?.shortName || "",
+        name: t?.team?.name || "",
+        short: t?.team?.tla || t?.team?.shortName || "",
+        logo: t?.team?.crest || "",
+        rank: Number(t?.position ?? 0),
+        gp: Number(t?.playedGames ?? 0),
+        w: Number(t?.won ?? 0), d: Number(t?.draw ?? 0), l: Number(t?.lost ?? 0),
+        gf: Number(t?.goalsFor ?? 0), ga: Number(t?.goalsAgainst ?? 0),
+        gd: Number(t?.goalDifference ?? 0), pts: Number(t?.points ?? 0),
+        form: t?.form || "",
+      })),
+    }))
+    .filter((g: StandingGroup) => g.rows.length > 0);
+}
+
+/* Normalização de nome de clube para reconciliação entre fontes.
+   Remove sufixos societários (FC/CF/SC/AC/FR/EC/SA/CD/FBC/FBPA) e siglas
+   de estado brasileiras (Atlético-MG ↔ Atlético Mineiro). */
+const CLUB_NOISE = /\b(fc|cf|sc|ac|afc|ec|fr|cd|sa|sad|fbc|fbpa|club|clube|de|da|do|the|mg|sp|rj|rs|pr|ba|pe|ce|go|mt|ms|pa|am|es|df|al|pb|rn|pi|ma|to|ro|rr|ap)\b/g;
+
+const clubKey = (s: string) =>
+  String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(CLUB_NOISE, " ")
+    .replace(/\s+/g, "")
+    .trim();
+
+/*
+ * Apelidos: nomes que NÃO compartilham raiz entre Football-Data e ESPN.
+ * Casos reais do Brasileirão e principais ligas europeias.
+ * Chave = forma normalizada → valor = chave canônica única.
+ */
+const CLUB_ALIAS: Record<string, string> = {
+  /* --- Brasil: FD usa nome societário, ESPN usa apelido --- */
+  caparanaense: "athleticoparanaense",
+  athleticoparanaense: "athleticoparanaense",
+  camineiro: "atleticomg",
+  atleticomineiro: "atleticomg",
+  atleticomg: "atleticomg",
+  rbbragantino: "bragantino",
+  redbullbragantino: "bragantino",
+  bragantino: "bragantino",
+  cluberemo: "remo",
+  remo: "remo",
+  /* --- Europa --- */
+  wolves: "wolverhampton",
+  wolverhamptonwanderers: "wolverhampton",
+  spurs: "tottenham",
+  tottenhamhotspur: "tottenham",
+  brightonhovealbion: "brighton",
+  westhamunited: "westham",
+  westham: "westham",
+  bayernmunich: "bayern",
+  bayernmunchen: "bayern",
+  bayern: "bayern",
+  inter: "internazionale",
+  intermilan: "internazionale",
+  internazionale: "internazionale",
+  acmilan: "acmilan",
+  psg: "parissaintgermain",
+  parissaintgermain: "parissaintgermain",
+  newcastleunited: "newcastle",
+  nottinghamforest: "nottinghamforest",
+};
+
+const clubAlias = (k: string) => CLUB_ALIAS[k] || k;
+
+/**
+ * Reescreve as linhas do Football-Data com o teamId/logo da ESPN, casando por nome.
+ * Sem isso, listStrategy/supertips/TabelaTab (que buscam por ID da ESPN)
+ * passariam a não achar o time e as estratégias sumiriam sem erro.
+ */
+async function reconciliarComEspn(
+  groups: StandingGroup[],
+  espnFetcher: () => Promise<StandingGroup[]>
+): Promise<{ groups: StandingGroup[]; reconciled: number; total: number }> {
+  const total = groups.reduce((s, g) => s + g.rows.length, 0);
+  let espnGroups: StandingGroup[] = [];
+  try {
+    espnGroups = await espnFetcher();
+  } catch {
+    espnGroups = [];
+  }
+  const byName = new Map<string, { teamId: string; logo: string; short: string }>();
+  for (const g of espnGroups) {
+    for (const r of g.rows || []) {
+      if (!r?.teamId) continue;
+      const k = clubAlias(clubKey(r.name));
+      /* preferimos a forma exata; guarda a primeira e uma versão "começa com"
+         (sem sigla de estado) como segundo passe. */
+      if (!byName.has(k)) byName.set(k, { teamId: String(r.teamId), logo: r.logo || "", short: r.short || "" });
+    }
+  }
+  let reconciled = 0;
+  const out = groups.map((g) => ({
+    ...g,
+    /* groupName do FD → nome amigável preservado */
+    rows: g.rows.map((r) => {
+      const k1 = clubAlias(clubKey(r.name));
+      const k2 = clubAlias(clubKey(r.teamRef || ""));
+      let hit = byName.get(k1) || byName.get(k2);
+      if (!hit) {
+        /* último passe: um nome contido no outro, mas só com ≥5 chars para
+           evitar falso positivo (ex.: "Sport" ⊂ "Sporting"). */
+        for (const [k, v] of byName) {
+          if (k.length >= 5 && k1.length >= 5 && (k.includes(k1) || k1.includes(k))) {
+            hit = v;
+            break;
+          }
+        }
+      }
+      if (!hit) return r;
+      reconciled++;
+      return { ...r, teamId: hit.teamId, logo: r.logo || hit.logo, short: r.short || hit.short };
+    }),
+  }));
+  return { groups: out, reconciled, total };
+}
+
+export async function standingsComFallback(
+  league: string,
+  espnFetcher: () => Promise<StandingGroup[]>,
+  opts: { reconcile?: boolean } = {}
+): Promise<Cascade<StandingGroup[]>> {
+  const attempts: Cascade<StandingGroup[]>["attempts"] = [];
+  let fdKey: string | null = null;
+  try {
+    fdKey = await getKey("footballdata");
+  } catch {
+    fdKey = null;
+  }
+  if (fdKey && fdCompetitionCode(league)) {
+    try {
+      const raw = await fdStandings(league);
+      if (raw.length) {
+        attempts.push({ provider: "footballdata", ok: true });
+        if (opts.reconcile === false) return { data: raw, source: "Football-Data.org", attempts };
+        const { groups, reconciled, total } = await reconciliarComEspn(raw, espnFetcher);
+        /* Se quase nada casou, os IDs ficariam órfãos: melhor a tabela da ESPN. */
+        const cobertura = total ? reconciled / total : 0;
+        if (cobertura < 0.5) {
+          attempts.push({ provider: "footballdata", ok: false, reason: `só ${reconciled}/${total} times casaram com a ESPN` });
+        } else {
+          return {
+            data: groups,
+            source: reconciled === total ? "Football-Data.org" : `Football-Data.org (${reconciled}/${total} casados c/ ESPN)`,
+            attempts,
+          };
+        }
+      } else {
+        attempts.push({ provider: "footballdata", ok: false, reason: "tabela vazia" });
+      }
+    } catch (e) {
+      attempts.push({ provider: "footballdata", ok: false, reason: motivo(e) });
+    }
+  } else {
+    attempts.push({
+      provider: "footballdata",
+      ok: false,
+      reason: !fdKey ? "chave não configurada" : `competição ${league} não mapeada`,
+    });
+  }
+  try {
+    const data = await espnFetcher();
+    attempts.push({ provider: "espn", ok: data.length > 0, reason: data.length ? undefined : "tabela vazia" });
+    return { data, source: "ESPN (fallback)", attempts };
+  } catch (e) {
+    attempts.push({ provider: "espn", ok: false, reason: motivo(e) });
+    return { data: [], source: "indisponível", attempts };
+  }
+}
+
+/* =======================================================================
+   LIVE GAMES — ESPN prioritária, Bzzoiro como fallback imediato
+   ======================================================================= */
+export type LiveGame = {
+  id: string; leagueId: string; homeTeam: string; awayTeam: string;
+  homeScore: number | null; awayScore: number | null;
+  status: string; minute: string | null; date: string | null;
+  homeLogo?: string; awayLogo?: string; raw?: any;
+};
+
+export async function bzLiveGames(): Promise<LiveGame[]> {
+  const d = await bzFetchV2("/events/live/", 20000);
+  const rows: any[] = d?.results || d?.data || (Array.isArray(d) ? d : []);
+  return rows.map((e: any) => ({
+    id: String(e?.id ?? ""),
+    leagueId: String(e?.league_id ?? ""),
+    homeTeam: e?.home_team?.name || e?.home_team || "",
+    awayTeam: e?.away_team?.name || e?.away_team || "",
+    homeScore: e?.home_score ?? null,
+    awayScore: e?.away_score ?? null,
+    status: String(e?.status || "live"),
+    minute: e?.minute != null ? String(e.minute) : e?.time_elapsed != null ? `${e.time_elapsed}'` : null,
+    date: e?.event_date || null,
+    homeLogo: e?.home_team?.logo || e?.home_team_logo || undefined,
+    awayLogo: e?.away_team?.logo || e?.away_team_logo || undefined,
+    raw: e,
+  }));
+}
+
+/** ESPN primeiro; se ela falhar ou devolver vazio o Bzzoiro assume na hora. */
+export async function liveMatchesComFallback(
+  espnFetcher: () => Promise<LiveGame[]>
+): Promise<Cascade<LiveGame[]>> {
+  const attempts: Cascade<LiveGame[]>["attempts"] = [];
+  try {
+    const data = await espnFetcher();
+    attempts.push({ provider: "espn", ok: data.length > 0, reason: data.length ? undefined : "sem jogos ao vivo" });
+    if (data.length) return { data, source: "ESPN", attempts };
+  } catch (e) {
+    attempts.push({ provider: "espn", ok: false, reason: motivo(e) });
+  }
+  try {
+    const data = await bzLiveGames();
+    attempts.push({ provider: "bzzoiro", ok: data.length > 0, reason: data.length ? undefined : "sem jogos ao vivo" });
+    return { data, source: data.length ? "Bzzoiro (fallback)" : "indisponível", attempts };
+  } catch (e) {
+    attempts.push({ provider: "bzzoiro", ok: false, reason: motivo(e) });
+    return { data: [], source: "indisponível", attempts };
+  }
+}
+
+/* =======================================================================
+   ESTATÍSTICAS POR JOGADOR — Sportmonks → Bzzoiro → indisponível
+   ======================================================================= */
+export type PlayerStatRow = {
+  id: string; name: string; team?: string; photo?: string; position?: string;
+  total: number; average: number | null; values: (number | null)[];
+  gameCount?: number; source: string;
+};
+
+/* Métricas pedidas → nome EXATO do campo no log por partida do Bzzoiro.
+   Confirmados em /api/v2/players/{id}/stats/ (75 campos):
+   total_shots · fouls · saves · goals · goal_assist · yellow_card · red_card */
+const BZ_METRICS: Record<string, string[]> = {
+  finalizacoes: ["total_shots", "shots_on_target"],
+  faltas: ["fouls", "was_fouled"],
+  defesas: ["saves"],
+  gols: ["goals"],
+  assistencias: ["goal_assist"],
+  cartoes: ["yellow_card", "red_card"],
+};
+
+/* Soma métricas de cards (amarelo + vermelho) em vez de pegar a primeira. */
+const BZ_SUM_MULTI = new Set<string>(["cartoes"]);
+
+function pickMetric(row: any, cat: string): number | null {
+  const keys = BZ_METRICS[cat] || [];
+  const get = (k: string): number | null => {
+    const v = row?.[k] ?? row?.stats?.[k];
+    if (v == null || Number.isNaN(Number(v))) return null;
+    return Number(v);
+  };
+  if (BZ_SUM_MULTI.has(cat)) {
+    const vals = keys.map(get).filter((v): v is number => v != null);
+    return vals.length ? vals.reduce((s, v) => s + v, 0) : null;
+  }
+  for (const k of keys) {
+    const v = get(k);
+    if (v != null) return v;
+  }
+  return null;
+}
+
+/**
+ * Log de estatísticas por jogador vindo do Bzzoiro.
+ * Resolve o elenco por nome do time e lê /players/{id}/stats/ de cada atleta.
+ * Devolve [] (nunca números inventados) se a fonte recusar/vier vazia.
+ */
+export async function bzPlayerStatLog(
+  cat: string,
+  teamName: string,
+  limit = 5
+): Promise<PlayerStatRow[]> {
+  if (!teamName) return [];
+
+  /* 1) achar o time no Bzzoiro (match por nome, tolerante a caixa/acento) */
+  const norm = (s: string) =>
+    String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const teamRes = await bzFetchV2(`/teams/?name=${encodeURIComponent(teamName)}&limit=5`, 3600000);
+  const teams: any[] = teamRes?.results || teamRes?.data || [];
+  const team =
+    teams.find((t: any) => norm(t?.name) === norm(teamName)) ||
+    teams.find((t: any) => norm(t?.name).includes(norm(teamName).split(" ")[0]));
+  if (!team?.id) return [];
+
+  /* 2) elenco — a rota /squad/ devolve { team_id, count, players:[] },
+     /players/ devolve { count, results:[] }. Cobrimos os dois formatos. */
+  const squadRes = await bzFetchV2(`/teams/${team.id}/squad/`, 1800000);
+  const squad: any[] =
+    squadRes?.players ||
+    squadRes?.results ||
+    squadRes?.data ||
+    (Array.isArray(squadRes) ? squadRes : []);
+  if (!squad.length) return [];
+
+  /* 3) log por atleta. Para "defesas" só goleiros interessam; nas demais,
+     varremos o elenco em ordem de posição (ataque/meio primeiro). */
+  const isGK = (p: any) => String(p?.specific_position || p?.position || "").toUpperCase().startsWith("G");
+  const ordered = cat === "defesas"
+    ? squad.filter(isGK)
+    : [...squad].filter((p) => String(p?.position || "").toUpperCase() !== "G");
+  const cand = ordered.slice(0, 12);
+  if (!cand.length) return [];
+
+  const out: PlayerStatRow[] = [];
+  let effective = 0;
+  await Promise.all(
+    cand.map(async (p: any) => {
+      try {
+        const log = await bzFetchV2(`/players/${p.id}/stats/?limit=10`, 1800000);
+        const rows: any[] = log?.results || log?.data || (Array.isArray(log) ? log : []);
+        if (!rows.length) return;
+        const vals = rows
+          .slice(0, 10)
+          .map((r: any) => pickMetric(r, cat))
+          .filter((v: number | null): v is number => v != null);
+        if (!vals.length) return;
+        effective++;
+        const chronological = [...vals].reverse();
+        const total = chronological.reduce((s, v) => s + v, 0);
+        out.push({
+          id: String(p.id),
+          name: p?.name || p?.display_name || "—",
+          team: team?.name || teamName,
+          photo: p?.photo || p?.image || (p?.id ? `https://sports.bzzoiro.com/img/player/${p.id}/` : ""),
+          position: p?.position || "",
+          total,
+          average: chronological.length ? +(total / chronological.length).toFixed(2) : null,
+          values: chronological,
+          gameCount: chronological.length,
+          source: "Bzzoiro",
+        });
+      } catch {
+        /* atleta sem log neste plano — segue */
+      }
+    })
+  );
+
+  if (!effective) return [];
+  /* Goleiros que não atuaram (total 0) poluem a lista de Defesas — removidos.
+     Aplicado a todas as categorias por consistência: card com zero não informa. */
+  const positivos = out.filter((r) => r.total > 0);
+  if (!positivos.length) return [];
+  return positivos.sort((a, b) => b.total - a.total).slice(0, limit);
+}
+
+/** Cascata das 3 métricas que nenhuma outra fonte entrega por jogador. */
+export async function playerStatsComFallback(
+  cat: string,
+  teamName: string,
+  smFetcher: () => Promise<PlayerStatRow[] | null>
+): Promise<Cascade<PlayerStatRow[] | null>> {
+  const attempts: Cascade<PlayerStatRow[] | null>["attempts"] = [];
+  let smKey: string | null = null;
+  try {
+    smKey = await getKey("sportmonks");
+  } catch {
+    smKey = null;
+  }
+  if (smKey) {
+    try {
+      const rows = await smFetcher();
+      if (rows && rows.length) {
+        attempts.push({ provider: "sportmonks", ok: true });
+        return { data: rows, source: "Sportmonks", attempts };
+      }
+      attempts.push({ provider: "sportmonks", ok: false, reason: "sem estatística por jogador" });
+    } catch (e) {
+      attempts.push({ provider: "sportmonks", ok: false, reason: motivo(e) });
+    }
+  } else {
+    attempts.push({ provider: "sportmonks", ok: false, reason: "chave não configurada" });
+  }
+  let bzKey: string | null = null;
+  try {
+    bzKey = await getKey("bzzoiro");
+  } catch {
+    bzKey = null;
+  }
+  if (bzKey) {
+    try {
+      const rows = await bzPlayerStatLog(cat, teamName);
+      if (rows.length) {
+        attempts.push({ provider: "bzzoiro", ok: true });
+        return { data: rows, source: "Bzzoiro", attempts };
+      }
+      attempts.push({ provider: "bzzoiro", ok: false, reason: "sem dado para esta métrica" });
+    } catch (e) {
+      attempts.push({ provider: "bzzoiro", ok: false, reason: motivo(e) });
+    }
+  } else {
+    attempts.push({ provider: "bzzoiro", ok: false, reason: "chave não configurada" });
+  }
+  return { data: null, source: "indisponível", attempts };
 }
 
 /* ===== Teste de conexão usado pelo Admin ===== */

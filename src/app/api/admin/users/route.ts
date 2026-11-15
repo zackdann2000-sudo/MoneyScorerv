@@ -1,39 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, visits, sessions } from "@/db/schema";
-import { eq, gte, count } from "drizzle-orm";
+import { eq, gte, count, desc } from "drizzle-orm";
 import { requireAdmin, deleteUserCascade } from "@/lib/auth";
 import { int, oneOf } from "@/lib/validate";
 
 const PATCH_ACTIONS = ["vip", "expire", "role", "delete"] as const;
 
+/** Paginação: teto duro para uma listagem não virar full-table scan. */
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Acesso restrito ao administrador." }, { status: 403 });
-  const rows = await db.select().from(users);
+
+  const sp = req.nextUrl.searchParams;
+  const limit = int(sp.get("limit"), 1, MAX_LIMIT) ?? DEFAULT_LIMIT;
+  const offset = int(sp.get("offset"), 0) ?? 0;
+
+  // Colunas explícitas: antes era `select()` sem projeção, devolvendo
+  // `pass_hash` e todo o resto do registro de cada usuário numa única resposta.
+  const rows = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+      plan: users.plan,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset(offset);
+
   const now = new Date();
-  const list = rows.map((u) => {
-    const isAdmin = u.role === "admin" || u.role === "owner";
-    const active = isAdmin || ((u.plan === "vip" || u.plan === "trial") && !!u.expiresAt && u.expiresAt > now);
-    return {
-      id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan,
-      expiresAt: u.expiresAt?.toISOString() || null, createdAt: u.createdAt.toISOString(), lastSeenAt: u.lastSeenAt?.toISOString() || null,
-      active, online: !!u.lastSeenAt && now.getTime() - u.lastSeenAt.getTime() < 15 * 60000,
-      daysLeft: u.expiresAt ? Math.max(0, Math.ceil((u.expiresAt.getTime() - now.getTime()) / 864e5)) : 0,
-      lifetime: !!u.expiresAt && u.expiresAt.getFullYear() >= 2090,
-    };
-  }).sort((a, b) => (b.lastSeenAt || "").localeCompare(a.lastSeenAt || ""));
+  const list = rows.map((u) => ({
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    plan: u.plan,
+    createdAt: u.createdAt.toISOString(),
+  }));
+
   const dayAgo = new Date(Date.now() - 864e5);
   const [{ c: visitCount }] = await db.select({ c: count() }).from(visits).where(gte(visits.createdAt, dayAgo));
   const [{ c: sessCount }] = await db.select({ c: count() }).from(sessions).where(gte(sessions.expiresAt, now));
+  // Total e contagem de ativos vêm do banco: com paginação, contar o array
+  // local daria o número da página, não o da base.
+  const [{ c: totalUsers }] = await db.select({ c: count() }).from(users);
+
   return NextResponse.json({
     users: list,
+    page: { limit, offset, total: totalUsers, hasMore: offset + list.length < totalUsers },
     stats: {
-      total: list.length, ativos: list.filter((u) => u.active).length,
-      expirados: list.filter((u) => !u.active).length, online: list.filter((u) => u.online).length,
-      visits24h: visitCount, sessions: sessCount,
+      total: totalUsers,
+      visits24h: visitCount,
+      sessions: sessCount,
     },
   });
 }
@@ -60,8 +85,15 @@ export async function PATCH(req: NextRequest) {
     await db.update(users).set({ role: u.role === "admin" ? "user" : "admin" }).where(eq(users.id, uid));
   } else if (action === "delete") {
     if (u.role === "owner") return NextResponse.json({ error: "O dono não pode ser excluído." }, { status: 400 });
-    // Limpeza de TODAS as tabelas dependentes (antes só sessions+users)
-    await deleteUserCascade(uid);
+    // Limpeza de TODAS as tabelas dependentes, agora em transação.
+    try {
+      await deleteUserCascade(uid);
+    } catch (e: any) {
+      return NextResponse.json(
+        { error: "Falha ao excluir; nenhuma alteração foi aplicada.", detail: e?.message },
+        { status: 500 },
+      );
+    }
   } else {
     return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
   }

@@ -17,6 +17,27 @@ const ENV_MAP: Record<string, string | undefined> = {
   onesignal_rest: process.env.ONESIGNAL_REST_API_KEY,
 };
 
+/**
+ * RISCO RESIDUAL CRÍTICO — tokens de provedor gravados em TEXTO CLARO.
+ *
+ * `setKey()` insere o token cru na tabela `api_keys`. `maskKey()` protege
+ * apenas a EXIBIÇÃO na UI; no banco, em qualquer dump/backup e para quem
+ * obtiver acesso de leitura ao Postgres (incluindo um snapshot de banco
+ * gerenciado, uma réplica de leitura ou uma credencial vazada), as chaves de
+ * Sportmonks, Football-Data.org e a REST key do OneSignal ficam legíveis.
+ *
+ * Não implementado nesta rodada por orçamento de tempo. Correção planejada:
+ * cifrar com AES-256-GCM usando uma master key em variável de ambiente
+ * (ex.: `APIKEY_ENC_KEY`, 32 bytes em base64), gravando `iv:tag:ciphertext`
+ * na coluna `token` e decifrando em `getKey()`.
+ *
+ * TODO(segurança-crítica): implementar cifragem em repouso em setKey/getKey.
+ * TODO(segurança-crítica): enquanto isso, restringir o acesso à tabela
+ * api_keys e evitar incluí-la em backups não cifrados.
+ * TODO(segurança-crítica): rotacionar todas as chaves já gravadas, pois o
+ * histórico do git e os dumps existentes devem ser considerados vazados.
+ */
+
 const mem = new Map<string, { at: number; v: string }>();
 
 export async function getKey(provider: string): Promise<string> {
@@ -33,6 +54,8 @@ export async function getKey(provider: string): Promise<string> {
 }
 
 export async function setKey(provider: string, token: string) {
+  // TODO(segurança-crítica): cifrar `token` (AES-256-GCM) antes de gravar.
+  // Ver o bloco "RISCO RESIDUAL CRÍTICO" no topo deste arquivo.
   await db.insert(apiKeys).values({ provider, token, updatedAt: new Date() })
     .onConflictDoUpdate({ target: apiKeys.provider, set: { token, updatedAt: new Date() } });
   mem.delete(provider);

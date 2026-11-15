@@ -12,6 +12,12 @@ export const OWNER_EMAIL = "admin@greenscore.app";
 export { TRIAL_DAYS };
 export const COOKIE = "gs_session";
 
+/**
+ * Tipo do handle transacional do Drizzle. Usado para tipar os passos de
+ * `deleteUserCascade` sem recorrer a `any`.
+ */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export function hashPass(pass: string) {
   const salt = randomBytes(16).toString("hex");
   return salt + ":" + scryptSync(pass, salt, 64).toString("hex");
@@ -85,33 +91,56 @@ export async function requireAdmin() {
  *
  * As FKs com ON DELETE CASCADE em schema.ts já fazem isso no banco; esta
  * função mantém o comportamento correto mesmo em bancos ainda não migrados.
- * `deletionRequests` NÃO é apagada: é registro legal (FK com SET NULL).
+ * `deletion_requests` NÃO é apagada: é registro legal (FK com SET NULL).
  *
- * Retorna a contagem por tabela para auditoria/log.
+ * ATOMICIDADE: tudo roda dentro de uma transação. Se qualquer passo falhar,
+ * nada é confirmado — antes, uma falha no `delete(users)` final deixava o
+ * usuário com conta viva e sessões/favoritos já apagados (estado inconsistente).
+ *
+ * Retorna a contagem REAL de linhas afetadas por tabela, para auditoria/log.
+ * Uma tabela ausente em banco antigo aparece como 0 e não interrompe as demais
+ * (dentro de uma transação no Postgres, um erro abortaria o bloco inteiro).
  */
 export async function deleteUserCascade(userId: number): Promise<Record<string, number>> {
   const deleted: Record<string, number> = {};
-  // Ordem: filhos antes do pai. Cada delete é isolado para que uma tabela
-  // ausente/legada não interrompa a limpeza das demais.
-  const steps: [string, () => Promise<unknown>][] = [
-    ["sessions", () => db.delete(sessions).where(eq(sessions.userId, userId))],
-    ["favorites", () => db.delete(favorites).where(eq(favorites.userId, userId))],
-    ["alertPrefs", () => db.delete(alertPrefs).where(eq(alertPrefs.userId, userId))],
-    ["pushSubs", () => db.delete(pushSubs).where(eq(pushSubs.userId, userId))],
-    ["tipComments", () => db.delete(tipComments).where(eq(tipComments.userId, userId))],
-    ["visits", () => db.delete(visits).where(eq(visits.userId, userId))],
-    ["tickets", () => db.delete(tickets).where(eq(tickets.userId, userId))],
-    ["consents", () => db.delete(consents).where(eq(consents.userId, userId))],
-  ];
-  for (const [name, run] of steps) {
-    try {
-      await run();
-      deleted[name] = 1;
-    } catch {
-      deleted[name] = 0; // tabela ausente em banco antigo: segue adiante
-    }
+
+  try {
+    await db.transaction(async (tx) => {
+      // Ordem: filhos antes do pai.
+      const steps: [string, (t: Tx) => Promise<{ rowCount: number | null }>][] = [
+        ["sessions", (t) => t.delete(sessions).where(eq(sessions.userId, userId))],
+        ["favorites", (t) => t.delete(favorites).where(eq(favorites.userId, userId))],
+        ["alertPrefs", (t) => t.delete(alertPrefs).where(eq(alertPrefs.userId, userId))],
+        ["pushSubs", (t) => t.delete(pushSubs).where(eq(pushSubs.userId, userId))],
+        ["tipComments", (t) => t.delete(tipComments).where(eq(tipComments.userId, userId))],
+        ["visits", (t) => t.delete(visits).where(eq(visits.userId, userId))],
+        ["tickets", (t) => t.delete(tickets).where(eq(tickets.userId, userId))],
+        ["consents", (t) => t.delete(consents).where(eq(consents.userId, userId))],
+      ];
+
+      for (const [name, run] of steps) {
+        // Savepoint: uma tabela ausente em banco não migrado não aborta a
+        // transação inteira; o rollback volta até o savepoint e seguimos.
+        try {
+          await tx.transaction(async (sp) => {
+            const res = await run(sp as unknown as Tx);
+            deleted[name] = res?.rowCount ?? 0;
+          });
+        } catch {
+          deleted[name] = 0;
+        }
+      }
+
+      const parent = await tx.delete(users).where(eq(users.id, userId));
+      deleted["users"] = parent.rowCount ?? 0;
+    });
+  } catch (e) {
+    // Rollback já aconteceu: relatamos o erro em vez de fingir sucesso.
+    console.error("[deleteUserCascade] falhou; transação revertida", {
+      userId, error: e instanceof Error ? e.message : String(e),
+    });
+    throw e;
   }
-  await db.delete(users).where(eq(users.id, userId));
-  deleted["users"] = 1;
+
   return deleted;
 }

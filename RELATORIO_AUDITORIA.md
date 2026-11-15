@@ -615,3 +615,85 @@ new Pool({ connectionString: databaseUrl, max: 1, idleTimeoutMillis: 10000 })
 - [ ] `zackdann2000@gmail.com` removido de `OWNER_EMAILS` se não for mais o dono
 - [ ] Pool `max: 1` se for serverless (§10.6)
 - [ ] `public/banner-vip.jpg` adicionado (referenciado em `/config`, inexistente)
+
+---
+
+## 11. Rodada de Correções 11/02 — Rate limiting, VAPID, transação e vazamento admin
+
+Unidade de aplicação: auditoria da rodada anterior (seções 1-10) confrontada com o código atual. Confirmou-se que **tudo o que o relatório declarava corrigido está corrigido** (9 FKs, `deleteUserCascade` chamado pelos 2 caminhos, `validate.ts` sem Zod, cookie `secure`, `/api/testar-alerta` restrito). Os 4 pontos abaixo eram as pendências reais confirmadas (rate limiting ausente, VAPID privada vazada, transação inexistente na exclusão, e listagem admin sem projeção nem paginação).
+
+### 11.1 Rate limiting (Abordagem A — Postgres, janela fixa) 🔴→✅
+
+Nova tabela `rate_limits` (`key` PK, `hits`, `window_start`, `expires_at` + índice em `expires_at`) — migration `drizzle/0002_cuddly_mentor.sql` gerada com `drizzle-kit generate`.
+
+Novo `src/lib/rateLimit.ts` (fail-open):
+- Incremento **atômico**: um único `INSERT ... ON CONFLICT DO UPDATE` com `RETURNING` — sem a corrida de read-then-write.
+- Virada de janela reinicia o contador por `CASE WHEN window_start < ?` no mesmo statement.
+- Limpeza oportunista de linhas vencidas (`expires_at < now()`), sem job.
+- `clientIp()` respeita `X-Forwarded-For`/`X-Real-IP`, com fallback `"unknown"` (agrupa anônimos na mesma chave).
+- **Fail-open explícito**: se o banco falhar, a requisição passa e o erro entra no log. Decisão documentada no arquivo: derrubar o login por causa do contador é pior que a defesa secundária ser contornada por um período curto.
+
+Aplicação:
+- `POST /api/auth/login` — 2 camadas, **antes** do scrypt: `login:ip` = 10 / 5 min e `login:email` = 5 / 15 min (password spray distribuído precisa de janela maior). Resposta 429 com `Retry-After`, mensagem neutra (não revela se o e-mail existe).
+- `POST /api/auth/register` — `register:ip` = 5 / 1 hora (cada conta dá 2 dias de trial; era vetor de farm de contas).
+
+### 11.2 VAPID — fallback privado removido 🟠→✅
+
+`src/lib/push.ts`: a linha `const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "AXFU..."` **não existe mais**. Verificado por grep: a string `AXFU...` sumiu de `src/`.
+
+- `VAPID_PRIVATE` = só `process.env.VAPID_PRIVATE_KEY` (sem fallback).
+- Nova flag `VAPID_ENABLED`; `enviarNotificacao()` retorna 0 (não lança) sem par configurado.
+- `setVapidDetails` só roda com par válido; `mailto:` agora vem de `VAPID_SUBJECT` (default não-sensível).
+- A chave **pública** mantém fallback — é enviada ao navegador por design.
+
+⚠️ **Ação manual ainda pendente:** rotacionar o par VAPID antigo (`npx web-push generate-vapid-keys`) — o valor privado esteve no histórico do git e deve ser considerado comprometido. TODO(segurança) deixado em `push.ts`.
+
+### 11.3 `deleteUserCascade` transacional 🟠→✅
+
+`src/lib/auth.ts`: toda a exclusão agora roda dentro de `db.transaction`. Se qualquer passo falhar, **rollback de tudo** — antes, uma falha no `delete(users)` final deixava o usuário com conta viva e sessões/favoritos já apagados (estado inconsistente).
+
+- Foi usada a forma `tx.transaction(async (sp) => ...)` — isto é, `BEGIN`/`COMMIT` explícito com `SAVEPOINT`, e **não** o nested `db.transaction` (que só comita/`ROLLBACK` a transação inteira e não tem savepoints). Assim, uma tabela ausente em banco não migrado não aborta a limpeza das demais, mas um erro real ainda reverte tudo.
+- Contadores honestos: `deleted[name] = res.rowCount` (número real de linhas), não `1` fixo.
+- Erro propaga com `console.error` — as rotas (`/api/conta` e `/api/admin/users`) capturam e retornam 500 informando que **nada foi aplicado**.
+
+### 11.4 Listagem admin sem vazamento 🟠→✅
+
+`src/app/api/admin/users/route.ts` GET:
+- **Antes:** `db.select().from(users)` — devolvia `pass_hash` e tudo mais de **todos** os usuários, sem projeção nem paginação.
+- **Agora:** projeção explícita (`id, email, role, plan, createdAt`), `orderBy createdAt desc`, `limit`/`offset` (default 50, max 200 via `int()`), e `hasMore`/`total` calculados no banco com `count()` — não no array da página.
+- O PATCH `delete` agora também captura o erro da transação e responde 500 "nenhuma alteração foi aplicada".
+
+> Nota: os clientes do painel que consumiam os campos removidos (`name`, `expiresAt`, `lastSeenAt`, `active`, `online`, `daysLeft`, `lifetime`) precisarão ser ajustados para os novos campos. O back-end é que não pode mais expor o que não é necessário.
+
+### 11.5 Risco residual CRÍTICO — tokens de provedor em texto claro ⏳
+
+Não corrigido nesta rodada (orçamento de tempo) — **documentado como risco residual**:
+- `src/lib/keys.ts` grava o token cru na tabela `api_keys` (`setKey`). `maskKey()` só protege a UI.
+- Em um dump/backup/leitura do Postgres, as chaves de Sportmonks, Football-Data e OneSignal Rest ficam legíveis.
+- TODO(segurança-crítica) adicionado em `keys.ts`: cifragem AES-256-GCM com master key em env + rotação das chaves já gravadas.
+
+### 11.6 Verificação executada
+
+| Checagem | Resultado |
+|---|---|
+| `npx tsc --noEmit` | ✅ 0 erros |
+| `npx eslint .` | ✅ 0 erros, 16 avisos (pré-existentes, mesmos da §4.4) |
+| `drizzle-kit generate` | ✅ migration `0002_cuddly_mentor.sql` (rate_limits + índice) |
+| Teste funcional da lógica de janela (script Node isolado) | ✅ 10/10 (incremento, bloqueio no 4º hit, janela reinicia, retryAfter, escopos independentes, fallback de IP) |
+| Grep `AXFU...` (VAPID privada) em `src/` | ✅ ausente |
+
+**Não verificado (exige banco):** a migration `0002` aplicada num Postgres real e o comportamento em produção do `ON CONFLICT` (tipicamente: `npm run db:push` ou `psql -f drizzle/0002_cuddly_mentor.sql`).
+
+### 11.7 Checklist de go-live — atualizado
+
+- [x] **Rate limiting** em login/register (§11.1)
+- [x] **VAPID privada** sem fallback no código (§11.2)
+- [ ] **Rotacionar** o par VAPID antigo (comprometido por histórico do git)
+- [x] **deleteUserCascade** transacional (§11.3)
+- [x] **admin/users** com projeção mínima + paginação (§11.4)
+- [ ] **Cifrar** tokens de provedor em repouso (§11.5) — **risco residual crítico**
+- [ ] `NEXT_PUBLIC_SITE_URL` = domínio real
+- [ ] `zackdann2000@gmail.com` removido de `OWNER_EMAILS` se não for mais o dono
+- [ ] Pool `max: 1` se for serverless (§10.6)
+- [ ] `public/banner-vip.jpg` adicionado (referenciado em `/config`, inexistente)
+- [ ] Ajustar clientes do painel `/admin` para os campos retornados (§11.4)
