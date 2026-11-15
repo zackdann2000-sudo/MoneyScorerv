@@ -316,6 +316,30 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const result: Record<string, any> = {};
     const usadas = new Set<string>(["ESPN"]);
 
+    /* ===================================================================
+       PARTIDA NÃO INICIADA (Pendente) — corta ANTES de consumir a API.
+       A API-Football devolve `results: 0` em /fixtures/players enquanto o
+       jogo está em `NS`, e o ESPN ainda não publicou nada. Sem este corte
+       o usuário lê "requer API-Football", que é falso: o problema não é a
+       fonte, é o jogo não ter começado. Economiza também 1 req da cota.
+       =================================================================== */
+    if (!match.live && !match.finished) {
+      return NextResponse.json({
+        pendente: true,
+        mensagem: "As estatísticas de jogadores serão exibidas assim que a bola rolar.",
+        team: { id: team.id, name: team.name, logo: team.logo },
+        opponent: { id: adversario.id, name: adversario.name, logo: adversario.logo },
+        cats: CATS,
+        sample,
+        baseParcial: hist.baseParcial,
+        sportmonks: false,
+        stats: {},
+        source: "indisponível",
+        fontes: ["ESPN"],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
     /* --- Fonte primária: API-Football (cacheada em banco) --- */
     const encerrada = !!match.finished;
     const partida = await statsDaPartida(

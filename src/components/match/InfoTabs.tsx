@@ -427,9 +427,25 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
         </div>
       )}
 
+      {/* Partida ainda não iniciada: a fonte não tem o dado porque o jogo não
+          começou — mensagem própria, diferente de "indisponível". */}
+      {cur?.pendente && (
+        <div className="bg-panel border border-line rounded-2xl px-4 py-8 flex flex-col items-center text-center gap-2">
+          <span className="text-2xl" aria-hidden>
+            ⏱️
+          </span>
+          <p className="text-[12px] font-bold text-ink">
+            As estatísticas de jogadores serão exibidas assim que a bola rolar.
+          </p>
+          <p className="text-[10px] text-mut max-w-[280px]">
+            Este jogo ainda não começou. Os números aparecem automaticamente quando a partida entrar em andamento.
+          </p>
+        </div>
+      )}
+
       {cur?.error && <PlayerStatsEmpty label={team.name} reason={cur.error} />}
 
-      {cur && !cur.error && rows && rows.length > 0 && (
+      {cur && !cur.error && !cur.pendente && rows && rows.length > 0 && (
         <div className="space-y-2">
           <p className="text-[10px] text-mut font-bold uppercase">
             Top {rows.length} · {STAT_CATS.find((c) => c.id === cat)?.label} · {team.name}
@@ -445,7 +461,7 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
         </div>
       )}
 
-      {cur && !cur.error && (!rows || rows.length === 0) && (
+      {cur && !cur.error && !cur.pendente && (!rows || rows.length === 0) && (
         <PlayerStatsEmpty label={`${STAT_CATS.find((c) => c.id === cat)?.label} — ${team.name}`} reason={reason} />
       )}
 
