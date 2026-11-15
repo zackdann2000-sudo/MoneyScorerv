@@ -5,6 +5,48 @@ import { VipLock, SourceFoot } from "@/components/ui";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
+/** Tooltip acessível do modelo: abre no clique, fecha no clique fora/Esc. */
+function ModelTooltip() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const fora = () => setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("click", fora);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("click", fora);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="O que é o modelo Dixon-Coles/Poisson?"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation(); /* não deixa o listener global fechar na hora */
+          setOpen((v) => !v);
+        }}
+        className="w-4 h-4 rounded-full border border-line bg-panel2 text-mut hover:text-acc hover:border-acc/60 flex items-center justify-center text-[9px] font-extrabold leading-none transition-colors"
+      >
+        ?
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute left-0 top-6 z-40 w-56 rounded-xl border border-line bg-panel2 px-3 py-2 text-[10px] leading-relaxed text-ink shadow-lg"
+        >
+          Modelo estatístico para prever gols esperados com base no histórico.
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function IaTab({ matchId, league, odds }: { matchId: string; league: string; odds: any }) {
   const [a, setA] = useState<any>(null);
   const [err, setErr] = useState("");
@@ -107,7 +149,12 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
 
       {/* Narrativa estruturada */}
       <div className="bg-panel border border-line rounded-2xl p-4 space-y-3">
-        <p className="text-[10px] font-bold text-mut uppercase">Relatório inteligente</p>
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] font-bold text-mut uppercase">Relatório inteligente</p>
+          <span className="text-[9px] text-mut/50">·</span>
+          <span className="text-[9px] font-bold text-mut">Dixon-Coles/Poisson</span>
+          <ModelTooltip />
+        </div>
         <div><p className="text-[11px] font-extrabold text-acc uppercase mb-0.5">Resumo do confronto</p><p className="text-[12px] leading-relaxed text-ink/90">{a.narrative.resumo}</p></div>
         <div><p className="text-[11px] font-extrabold text-home uppercase mb-0.5">Pontos fortes · Mandante</p><p className="text-[12px] leading-relaxed text-ink/90">{a.narrative.mandante}</p></div>
         <div><p className="text-[11px] font-extrabold text-away uppercase mb-0.5">Pontos fortes · Visitante</p><p className="text-[12px] leading-relaxed text-ink/90">{a.narrative.visitante}</p></div>

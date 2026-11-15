@@ -71,7 +71,7 @@ export function PlayerRadar({ attrs }: { attrs: { label: string; player: number;
 /* Momentum: pressão por lances (ESPN) — área espelhada */
 export function Momentum({ data, illustrative }: { data: { min: number; home: number; away: number }[]; illustrative?: boolean }) {
   return (
-    <div>
+    <div className="relative">
       <ResponsiveContainer width="100%" height={130}>
         <AreaChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#1d3626" strokeDasharray="2 4" vertical={false} />
@@ -82,7 +82,20 @@ export function Momentum({ data, illustrative }: { data: { min: number; home: nu
           <Area type="monotone" dataKey="away" stroke={AWAY} fill={AWAY} fillOpacity={0.45} name="Visitante" />
         </AreaChart>
       </ResponsiveContainer>
-      {illustrative && <p className="text-[9px] text-mut text-center">⚠︎ Visual ilustrativo — a API atual não fornece momentum minuto a minuto. Conecte Sportmonks para dados reais de pressão.</p>}
+
+      {/* Sem dados reais minuto a minuto: escurece o gráfico e bloqueia a leitura,
+          em vez de mostrar uma curva sintética como se fosse real. */}
+      {illustrative && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/70 backdrop-blur-[1px]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-mut" aria-hidden>
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <p className="text-[10px] font-bold text-ink text-center px-3 leading-snug">
+            Dados minuto a minuto indisponíveis
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -321,6 +321,42 @@ export function H2HTab({ d }: { d: any; league?: string }) {
 }
 
 /* ================= ESTATÍSTICAS ================= */
+/* Skeleton da matriz: espelha o formato real (abas, filtros, cards com 10
+   bolinhas) para o layout não "pular" quando os dados chegam. */
+function MatrixSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Carregando matriz de jogadores">
+      {/* Pills de categoria */}
+      <div className="flex gap-1.5 overflow-hidden">
+        {[64, 52, 92, 72, 76].map((w, i) => (
+          <div key={i} className="skeleton rounded-full h-6 shrink-0" style={{ width: w }} />
+        ))}
+      </div>
+      {/* Cabeçalho de colunas */}
+      <div className="skeleton rounded h-8 w-full" />
+      {/* Cards de jogador */}
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="bg-panel border border-line rounded-xl p-2.5">
+          <div className="flex items-center gap-2">
+            <div className="skeleton rounded h-4 w-6" />
+            <div className="flex-1 space-y-1">
+              <div className="skeleton rounded h-3 w-2/5" />
+              <div className="skeleton rounded h-2 w-3/5" />
+            </div>
+            <div className="skeleton rounded h-5 w-7" />
+          </div>
+          <div className="flex gap-1 mt-2 justify-between">
+            {Array.from({ length: 10 }).map((_, j) => (
+              <div key={j} className="skeleton rounded-full w-6 h-6" />
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="text-[10px] text-mut text-center">Lendo os últimos 10 jogos reais deste time…</p>
+    </div>
+  );
+}
+
 const STAT_CATS = [
   { id: "gols", label: "Gols" },
   { id: "assistencias", label: "Assistências" },
@@ -570,7 +606,7 @@ export function JogadoresTab({ matchId, league, home, away, lineups, vip }: { ma
         <button onClick={() => setView("matriz")} className={`px-4 py-1.5 rounded-full text-[11px] font-extrabold ${view === "matriz" ? "bg-acc text-black" : "text-mut"}`}>MATRIZ LAST 10</button>
         <button onClick={() => setView("campo")} className={`px-4 py-1.5 rounded-full text-[11px] font-extrabold ${view === "campo" ? "bg-acc text-black" : "text-mut"}`}>CAMPO</button>
       </div>
-      {view === "matriz" && (!cur ? <div className="space-y-2"><div className="skeleton h-24" /><div className="skeleton h-24" /><div className="skeleton h-24" /></div> : <Last10Matrix rows={cur.matrix || []} teamName={team.name} xiNames={xi} />)}
+      {view === "matriz" && (!cur ? <MatrixSkeleton /> : <Last10Matrix rows={cur.matrix || []} teamName={team.name} xiNames={xi} />)}
       {view === "campo" && (vip ? (
         lineups?.home?.xi?.length ? <div className="bg-panel border border-line rounded-2xl p-3"><LineupPitch home={lineups.home} away={lineups.away} homeName={home.name} awayName={away.name} /></div>
           : <p className="text-xs text-mut text-center py-6">Escalação não divulgada — veja a provável na aba FORMAÇÕES.</p>

@@ -19,7 +19,7 @@ function coords(formation: string, xi: P[]) {
 function PlayerDot({ p, color, flip }: { p: P; color: string; flip?: boolean }) {
   const last = (p.short || p.name || "").split(" ").slice(-1)[0];
   return (
-    <div className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-14" style={{}}>
+    <div className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-11 pointer-events-none" style={{}}>
       <div className="relative">
         {p.photo ? (
           <img src={p.photo} alt={p.name} className="w-8 h-8 rounded-full object-cover bg-panel" style={{ border: `2px solid ${color}` }} />
@@ -28,7 +28,8 @@ function PlayerDot({ p, color, flip }: { p: P; color: string; flip?: boolean }) 
         )}
         {p.captain && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-warn text-black text-[8px] font-extrabold flex items-center justify-center">C</span>}
       </div>
-      <span className={`text-[8px] font-semibold text-white bg-black/50 rounded px-1 mt-0.5 max-w-14 truncate ${flip ? "" : ""}`}>{last}</span>
+      {/* Nome com fundo sólido e largura fixa: evita que textos vizinhos se sobreponham. */}
+      <span className={`block text-[8px] font-semibold text-white bg-black/80 rounded px-1 mt-0.5 w-11 truncate text-center ${flip ? "" : ""}`}>{last}</span>
     </div>
   );
 }
@@ -44,17 +45,20 @@ export default function LineupPitch({ home, away, homeName, awayName, single }: 
         {!single && away && <span className="text-away">{awayName} · {away.formation}</span>}
       </div>
       <div className="pitch relative rounded-xl border border-line overflow-hidden" style={{ height: single ? 340 : 520 }}>
-        <div className="absolute inset-x-0 top-1/2 h-px bg-white/25" />
+        {/* Linha central grossa e branca — separa nitidamente as duas metades. */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)] z-10" />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-white/25" />
         <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-40 h-14 border border-white/25 border-b-0" />
         {!single && <div className="absolute left-1/2 top-0 -translate-x-1/2 w-40 h-14 border border-white/25 border-t-0" />}
+        {/* Casa: metade INFERIOR. y=7 (perto do próprio gol) → 100-y = 93 (base). */}
         {hCoords.map(({ p, x, y }, i) => (
-          <div key={i} className="absolute" style={{ left: `${x}%`, top: `${single ? 100 - y * 2 : 100 - y}%` }}>
+          <div key={`h-${i}`} className="absolute z-20" style={{ left: `${x}%`, top: `${single ? 100 - y * 2 : 100 - y}%` }}>
             <PlayerDot p={p} color="#4d9fff" />
           </div>
         ))}
+        {/* Fora: metade SUPERIOR. y=7 → 7% (topo), sempre acima da linha central. */}
         {!single && aCoords.map(({ p, x, y }, i) => (
-          <div key={i} className="absolute" style={{ left: `${100 - x}%`, top: `${y}%` }}>
+          <div key={`a-${i}`} className="absolute z-20" style={{ left: `${100 - x}%`, top: `${y}%` }}>
             <PlayerDot p={p} color="#ff8a4d" flip />
           </div>
         ))}

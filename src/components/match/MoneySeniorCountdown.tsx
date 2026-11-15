@@ -53,6 +53,19 @@ function isPastCutoff(now: Date): boolean {
   return h >= CUTOFF_HOUR;
 }
 
+/* Horário do próximo pick em Brasília (ex.: "12:00" ou "12:00 de amanhã").
+   O cutoff é sempre 12:00; quando já passou, refere-se ao dia seguinte. */
+function horaProximoPick(now: Date): string {
+  const alvo = new Date(nextCutoff(now));
+  const hora = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(alvo);
+  return isPastCutoff(now) ? `${hora} de amanhã` : hora;
+}
+
 function pad(n: number) {
   return String(Math.max(0, n)).padStart(2, "0");
 }
@@ -113,7 +126,7 @@ export default function MoneySeniorCountdown({
             Aguardando novo pick
           </p>
           <p className="text-[11px] text-mut leading-tight">
-            O horário das 12:00 já passou e ainda não há pick publicado para hoje.
+            O próximo pick será liberado às {horaProximoPick(now)}.
           </p>
         </div>
       </div>
