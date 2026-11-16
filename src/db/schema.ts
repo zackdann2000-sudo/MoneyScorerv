@@ -240,3 +240,22 @@ export const matchTeamStatsCache = pgTable("match_team_stats_cache", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [index("match_team_stats_updated_idx").on(t.updatedAt)]);
+
+/**
+ * Cache persistido da API pública do GameRead (módulo ISOLADO /gameread).
+ *
+ * Motivo: a API é de terceiros, sem contrato e sem SLA. Sem cache, cada visita
+ * da tela vira uma requisição pesada lá (o props-radar devolve ~280 KB/624
+ * props); com tráfego real isso rende bloqueio de IP. TTL de 15min aplicado na
+ * rota, não aqui — a tabela só guarda o último payload conhecido.
+ *
+ * `cacheKey` já embute o endpoint e a data/id ("props_radar:2026-11-16"), então
+ * a mesma tabela serve jogos do dia, props, linhas e comparação.
+ */
+export const gamereadCache = pgTable("gameread_cache", {
+  cacheKey: text("cache_key").primaryKey(),
+  endpoint: text("endpoint").notNull().default(""),
+  dateKey: text("date_key"),
+  payload: jsonb("payload").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("gameread_cache_updated_idx").on(t.updatedAt)]);
