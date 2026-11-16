@@ -1,0 +1,70 @@
+# Sincronização diária do apitou — PLANO B (independente da Vercel).
+#
+# Por que existe, se já há Vercel Cron:
+#  - Não depende do limite de duração da função (o plano Hobby permite 300s e o
+#    sync leva ~36s hoje, mas isso pode mudar com mais ligas).
+#  - Roda o script completo (scripts/apitou-sync.mjs) na máquina do runner,
+#    com memória folgada e sem timeout de plataforma.
+#  - Guarda log de cada execução.
+#
+# Configure em: Settings > Secrets and variables > Actions
+#   DATABASE_URL   (obrigatório) connection string do Neon
+#   APITOU_SYNC_KEY (opcional)  se quiser também bater na rota da Vercel
+#
+# O horário é UTC: 06:00 UTC = 03:00 em Brasília (UTC-3).
+name: apitou sync
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  # Permite disparar à mão pela aba Actions para testar.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Apenas baixar e validar, sem gravar no banco"
+        type: boolean
+        default: false
+
+# Uma execução por vez: dois syncs simultâneos gravariam o mesmo registro.
+concurrency:
+  group: apitou-sync
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Só o necessário para o script: ele importa `pg` e `dotenv`, e compila
+      # o fonte.ts com o tsc local.
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Rodar sincronização
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APITOU_SYNC_KEY: ${{ secrets.APITOU_SYNC_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "→ modo dry-run (não grava)"
+            node --max-old-space-size=1024 scripts/apitou-sync.mjs --dry-run
+          else
+            node --max-old-space-size=1024 scripts/apitou-sync.mjs
+          fi
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "### apitou sync" >> "$GITHUB_STEP_SUMMARY"
+          echo "- status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- quando: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "- modo: ${{ inputs.dry_run == 'true' && 'dry-run' || 'gravação' }}" >> "$GITHUB_STEP_SUMMARY"

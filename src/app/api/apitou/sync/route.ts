@@ -1,46 +1,93 @@
 /**
  * Sincronização das fontes do apitou.
  *
- * POST /api/apitou/sync   (protegido por header x-apitou-key)
+ * GET  /api/apitou/sync   -> dispara o sync (usado pelo Vercel Cron)
+ * POST /api/apitou/sync   -> idem (para chamadas manuais/curl)
+ * GET  /api/apitou/sync?estado=1 -> só informa o estado, não baixa nada
  *
- * Roda o download dos 22 MB e grava o resumo no Neon. Fica FORA do fluxo do
- * usuário: a tela nunca espera esse download. Chame pelo cron da Vercel ou
- * manualmente após o deploy.
+ * Duas formas de autorizar:
+ *  1. Vercel Cron: envia `Authorization: Bearer $CRON_SECRET` automaticamente
+ *     quando a env CRON_SECRET existe. É o caminho recomendado em produção.
+ *  2. Manual: header `x-apitou-key` (ou ?key=) igual a APITOU_SYNC_KEY.
  *
- * Proteção: compara o header com APITOU_SYNC_KEY. Sem a env configurada a rota
- * responde 503 — falha fechada, para ninguém conseguir disparar downloads em
- * loop contra o site de origem.
+ * Duração: o download é de ~22 MB e leva ~36s no total. O plano Hobby da Vercel
+ * permite 300s por invocação com Fluid Compute (default e máximo), então cabe
+ * com folga. `maxDuration` abaixo existe para deixar isso explícito — sem ele,
+ * o default de alguns ambientes ainda pode ser 10s e a função morreria no meio.
+ *
+ * O plano B (GitHub Actions) está em .github/workflows/apitou-sync.yml, para o
+ * caso de o limite de duração mudar ou de o projeto migrar de plano.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { sincronizarEGravar, lerResumo } from "@/lib/apitou/store";
 
 export const dynamic = "force-dynamic";
+// 300s = teto do Hobby. O sync real leva ~36s; a margem é para o pior caso
+// (origem lenta ou arquivo maior em semana de muitas ligas).
 export const maxDuration = 300;
 
-function autorizado(req: NextRequest): boolean {
-  const esperado = process.env.APITOU_SYNC_KEY;
-  if (!esperado) return false;
-  const enviado = req.headers.get("x-apitou-key") ?? req.nextUrl.searchParams.get("key");
-  // Comparação simples: a chave é um segredo de operação, não de usuário.
-  return enviado === esperado;
+/**
+ * Compara em tempo constante para não vazar o tamanho/prefixo do segredo por
+ * diferença de tempo de resposta. Simples, mas é o mínimo para um segredo.
+ */
+function iguaisSeguro(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
-export async function POST(req: NextRequest) {
-  if (!process.env.APITOU_SYNC_KEY) {
+/** Motivo da autorização, ou null se não autorizado. */
+function motivoAutorizado(req: NextRequest): "cron" | "chave" | null {
+  // 1) Vercel Cron com CRON_SECRET configurada.
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth = req.headers.get("authorization") ?? "";
+    if (auth.startsWith("Bearer ") && iguaisSeguro(auth.slice(7), cronSecret)) return "cron";
+  }
+
+  // 2) Chave manual (operador).
+  const chave = process.env.APITOU_SYNC_KEY;
+  const enviada = req.headers.get("x-apitou-key") ?? req.nextUrl.searchParams.get("key") ?? "";
+  if (chave && enviada && iguaisSeguro(enviada, chave)) return "chave";
+
+  return null;
+}
+
+async function executarSync(req: NextRequest) {
+  const motivo = motivoAutorizado(req);
+
+  // Falha fechada: sem nenhum segredo configurado, ninguém dispara download.
+  if (!motivo) {
+    const nadaConfigurado = !process.env.CRON_SECRET && !process.env.APITOU_SYNC_KEY;
     return NextResponse.json(
-      { error: "APITOU_SYNC_KEY não configurada; sincronização desabilitada" },
-      { status: 503 },
+      nadaConfigurado
+        ? { error: "nenhum segredo configurado (CRON_SECRET ou APITOU_SYNC_KEY)" }
+        : { error: "não autorizado" },
+      { status: nadaConfigurado ? 503 : 401 },
     );
   }
-  if (!autorizado(req)) {
-    return NextResponse.json({ error: "não autorizado" }, { status: 401 });
+
+  // ?estado=1: só consulta, nunca baixa. Útil para o cron verificar saúde.
+  if (req.nextUrl.searchParams.get("estado") === "1") {
+    const r = await lerResumo();
+    return NextResponse.json({
+      existe: Boolean(r),
+      geradoEm: r?.geradoEm ?? null,
+      salvadoEm: r ? new Date(r.salvadoEm).toISOString() : null,
+      idadeMin: r ? Math.round((Date.now() - r.salvadoEm) / 60000) : null,
+      jogos: r?.jogos.length ?? 0,
+      avisos: r?.avisos.length ?? 0,
+    });
   }
 
   try {
     const t0 = Date.now();
     const dados = await sincronizarEGravar();
+    console.log(`[apitou/sync] origem=${motivo} em ${Date.now() - t0}ms`);
     return NextResponse.json({
       ok: true,
+      origem: motivo,
       duracaoMs: Date.now() - t0,
       geradoEm: dados.geradoEm,
       jogos: dados.jogos.length,
@@ -57,19 +104,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** Estado atual da sincronização (sem disparar download). */
+/** O Vercel Cron chama com GET. */
 export async function GET(req: NextRequest) {
-  if (!autorizado(req)) {
-    return NextResponse.json({ error: "não autorizado" }, { status: 401 });
-  }
-  const r = await lerResumo();
-  if (!r) return NextResponse.json({ existe: false });
-  return NextResponse.json({
-    existe: true,
-    geradoEm: r.geradoEm,
-    salvadoEm: new Date(r.salvadoEm).toISOString(),
-    idadeMin: Math.round((Date.now() - r.salvadoEm) / 60000),
-    jogos: r.jogos.length,
-    avisos: r.avisos.length,
-  });
+  return executarSync(req);
+}
+
+/** Chamadas manuais e integrações preferem POST. */
+export async function POST(req: NextRequest) {
+  return executarSync(req);
 }
