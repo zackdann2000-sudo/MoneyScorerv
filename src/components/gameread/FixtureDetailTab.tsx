@@ -20,9 +20,12 @@ type LinesResp = {
 export default function FixtureDetailTab({
   fixtureId,
   onBack,
+  backLabel = "Voltar",
 }: {
   fixtureId: string;
   onBack: () => void;
+  /** Para onde o botão volta ("Jogos do Dia" ou "Props Radar"). */
+  backLabel?: string;
 }) {
   const [tab, setTab] = useState<"lines" | "comparison">("lines");
 
@@ -32,7 +35,7 @@ export default function FixtureDetailTab({
         onClick={onBack}
         className="inline-flex items-center gap-1.5 text-[11px] font-bold text-mut hover:text-ink"
       >
-        <ArrowLeft size={13} /> Voltar
+        <ArrowLeft size={13} /> {backLabel}
       </button>
 
       <div className="flex gap-2">

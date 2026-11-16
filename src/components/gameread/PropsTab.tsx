@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, Pin, PinOff, Search, Sparkles, Target } from "lucide-react";
+import Link from "next/link";
+import { Filter, Lock, Pin, PinOff, Search, Sparkles, Target } from "lucide-react";
 import { useApi } from "./useApi";
 import { usePins } from "./usePins";
+import { useApp } from "@/context/AppContext";
+import { FREE_VISIBLE, GOLD_SCORE, LockedCard, PaywallBanner } from "./Paywall";
 import { CacheBadge, EmptyBox, ErrorBox, HitPill, Last10Bar, Spinner, TeamBadge } from "./Ui";
 import { fmtTime, GROUPS, hitTone, lineLabel, scoreTone, type CacheInfo, type PropRowUI } from "./types";
 
@@ -46,6 +49,11 @@ export default function PropsTab({
   const { keys: pinnedKeys, toggle: togglePin, anon, error: pinError } = usePins();
   const [onlyPinned, setOnlyPinned] = useState(false);
 
+  // Paywall: usa o auth que já existe no projeto (AppContext). `vip` é
+  // isAdmin || acesso ativo. Sem acesso, libera só as top FREE_VISIBLE.
+  const { vip } = useApp();
+  const hasFullAccess = vip === true;
+
   const filtered = useMemo(() => {
     let rows = data?.props ?? [];
     if (!showAll) rows = rows.filter((r) => r.score >= GOLD);
@@ -65,6 +73,10 @@ export default function PropsTab({
     }
     return rows;
   }, [data, showAll, group, market, search, minOdd, onlyPinned, pinnedKeys]);
+
+  // Corte do paywall: quem não tem acesso total só recebe as N primeiras.
+  const previewRows = hasFullAccess ? filtered : filtered.slice(0, FREE_VISIBLE);
+  const hiddenCount = hasFullAccess ? 0 : Math.max(0, filtered.length - FREE_VISIBLE);
 
   const goldCount = (data?.props ?? []).filter((r) => r.score >= GOLD).length;
   const totalCount = data?.props.length ?? 0;
@@ -93,14 +105,29 @@ export default function PropsTab({
             <span className={`px-1.5 rounded-md text-[10px] ${!showAll ? "bg-acc/20" : "bg-panel2"}`}>{goldCount}</span>
           </button>
           <button
-            onClick={() => setShowAll(true)}
+            onClick={() => {
+              if (!hasFullAccess) return;
+              setShowAll(true);
+            }}
+            aria-disabled={!hasFullAccess}
             className={`flex-1 h-10 rounded-xl border text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition-colors ${
-              showAll ? "border-acc2 text-acc2 bg-acc2/10" : "border-line text-mut"
+              !hasFullAccess
+                ? "border-line text-mut opacity-60"
+                : showAll
+                  ? "border-acc2 text-acc2 bg-acc2/10"
+                  : "border-line text-mut"
             }`}
           >
-            <Target size={14} /> Ver todos
-            <span className={`px-1.5 rounded-md text-[10px] ${showAll ? "bg-acc2/20" : "bg-panel2"}`}>{totalCount}</span>
+            {hasFullAccess ? <Target size={14} /> : <Lock size={14} />} Ver todos
+            <span className={`px-1.5 rounded-md text-[10px] ${showAll ? "bg-acc2/20" : "bg-panel2"}`}>
+              {totalCount}
+            </span>
           </button>
+          {!hasFullAccess && (
+            <p className="w-full text-[9px] text-mut text-center -mt-0.5">
+              Lista completa disponível para assinantes
+            </p>
+          )}
         </div>
 
         {/* Busca */}
@@ -182,7 +209,7 @@ export default function PropsTab({
       {data && (
         <div className="flex items-center justify-between text-[11px] text-mut px-1">
           <span className="inline-flex items-center gap-1">
-            <Filter size={11} /> {filtered.length} prop{filtered.length === 1 ? "" : "s"}
+            <Filter size={11} /> {previewRows.length} prop{previewRows.length === 1 ? "" : "s"}
             {!showAll && " · score ≥ 90"}
           </span>
           <span>ordenado por score</span>
@@ -199,11 +226,25 @@ export default function PropsTab({
 
       {/* Lista */}
       <ul className="space-y-2">
-        {filtered.map((p) => {
+        {previewRows.map((p, index) => {
           const tone = scoreTone(p.score);
+          // Props "ouro" (score acima do teto) ficam desfocadas para quem não
+          // tem acesso. `relative` no <li> ancora o overlay do cadeado.
+          //
+          // EXCEÇÃO NECESSÁRIA: as FREE_VISIBLE primeiras são sempre as de maior
+          // score — na prática todas acima de 105. Se o blur valesse para elas,
+          // o visitante veria ZERO cards, o oposto de "só vê as top 3". Então o
+          // que está dentro da cota gratuita nunca é desfocado; o blur de score
+          // age da cota em diante (trava extra quando o usuário filtra/busca).
+          const inFreeQuota = !hasFullAccess && index < FREE_VISIBLE;
+          const locked = !hasFullAccess && !inFreeQuota && p.score > GOLD_SCORE;
           return (
-            <li key={p.id}>
-              <div className={`rounded-2xl border bg-panel overflow-hidden ${tone.border}`}>
+            <li key={p.id} className="relative">
+              <div
+                className={`rounded-2xl border bg-panel overflow-hidden ${tone.border} ${
+                  locked ? "blur-[4px] opacity-60 select-none pointer-events-none" : ""
+                }`}
+              >
                 {/* Cabeçalho: score + mercado */}
                 <div className={`flex items-center gap-2 px-3 py-1.5 ${tone.bg}`}>
                   {/* Estrela: fixa/desafixa a prop (fora do <button> do card,
@@ -295,10 +336,31 @@ export default function PropsTab({
                   )}
                 </button>
               </div>
+              {locked && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-bg/30">
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg bg-acc text-bg text-[10px] font-extrabold shadow-lg shadow-acc/20"
+                  >
+                    <Lock size={11} /> Oportunidade VIP
+                  </Link>
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
+
+      {/* Paywall: aviso + cards desfocados no fim da lista liberada */}
+      {!hasFullAccess && hiddenCount > 0 && (
+        <>
+          <PaywallBanner visible={previewRows.length} total={filtered.length} />
+          <div className="space-y-2">
+            <LockedCard />
+            <LockedCard compact />
+          </div>
+        </>
+      )}
 
       {data && <CacheBadge cache={data.cache} onRefresh={() => refresh(true)} />}
       {data && <p className="text-[10px] text-mut text-center px-4 pb-2">{data.disclaimer}</p>}
