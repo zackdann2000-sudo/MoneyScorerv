@@ -259,3 +259,33 @@ export const gamereadCache = pgTable("gameread_cache", {
   payload: jsonb("payload").notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [index("gameread_cache_updated_idx").on(t.updatedAt)]);
+
+/**
+ * Props fixadas pelo usuário no radar do GameRead (módulo ISOLADO /gameread).
+ *
+ * `propKey` é o id estável montado pela lib (fixture:mercado:dono:linha:seleção),
+ * então a mesma prop continua "pinada" entre uma sincronização e outra da API.
+ * O payload relevante é denormalizado: se a API de terceiros sair do ar ou
+ * mudar de formato, a lista do usuário continua legível.
+ */
+export const gamereadPinnedProps = pgTable("gameread_pinned_props", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  propKey: text("prop_key").notNull(),
+  market: text("market").notNull().default(""),
+  marketLabel: text("market_label").notNull().default(""),
+  selection: text("selection").notNull().default(""),
+  line: real("line"),
+  odd: real("odd"),
+  bookmaker: text("bookmaker").notNull().default(""),
+  subjectName: text("subject_name").notNull().default(""),
+  subjectPhoto: text("subject_photo").notNull().default(""),
+  homeName: text("home_name").notNull().default(""),
+  awayName: text("away_name").notNull().default(""),
+  leagueName: text("league_name").notNull().default(""),
+  fixtureId: text("fixture_id").notNull().default(""),
+  kickoffUtc: text("kickoff_utc").notNull().default(""),
+  hitRateL10: real("hit_rate_l10"),
+  score: real("score"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("gr_pin_user_prop").on(t.userId, t.propKey)]);

@@ -646,7 +646,7 @@ export function JogadoresTab({ matchId, league, home, away, lineups, vip }: { ma
 }
 
 /* ================= MONEY TIPS (pick card reutilizável) ================= */
-const STATUS_L: Record<string, string> = { pendente: "Pendente", ao_vivo: "Ao vivo", green: "Green", red: "Red", anulada: "Anulada" };
+const STATUS_L: Record<string, string> = { pendente: "Aguardando início", ao_vivo: "Ao vivo", green: "Green", red: "Red", anulada: "Anulada" };
 const STATUS_C: Record<string, string> = { pendente: "bg-panel2 text-mut", ao_vivo: "bg-danger/15 text-danger", green: "bg-acc/15 text-acc", red: "bg-danger/15 text-danger", anulada: "bg-warn/15 text-warn" };
 
 export function PickCard({ pick, compact }: { pick: any; compact?: boolean }) {

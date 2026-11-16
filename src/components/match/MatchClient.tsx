@@ -141,7 +141,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
             </div>
             {spec.strategy.result === "green" && <span className="text-acc text-xl font-bold" aria-label="Acertou">✓</span>}
             {spec.strategy.result === "red" && <span className="text-danger text-xl font-bold" aria-label="Errou">✗</span>}
-            {!spec.strategy.result && <span className="text-[10px] font-bold text-mut">Pendente</span>}
+            {!spec.strategy.result && <span className="text-[10px] font-bold text-mut">Aguardando início</span>}
           </div>
         )}
         {!specLoading && spec?.alternatives?.length > 0 && (

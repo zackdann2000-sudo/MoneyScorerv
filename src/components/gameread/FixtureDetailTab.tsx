@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, BarChart3, ListOrdered } from "lucide-react";
 import { useApi } from "./useApi";
-import { CacheBadge, EmptyBox, ErrorBox, Last10Bar, Spinner, TeamBadge } from "./Ui";
-import { fmtDay, fmtTime, formArray, hitTone, lineLabel, type CacheInfo, type ComparisonUI, type LineUI } from "./types";
+import { CacheBadge, EmptyBox, ErrorBox, Spinner, TeamBadge } from "./Ui";
+import TeamHistoryChart from "./TeamHistoryChart";
+import { fmtDay, fmtTime, formArray, hitTone, lineLabel, statusLabel, type CacheInfo, type ComparisonUI, type LineUI } from "./types";
 
 type LinesResp = {
   fixtureId: string;
@@ -202,6 +203,7 @@ function ComparisonSection({ fixtureId }: { fixtureId: string }) {
   const { data, loading, error, refresh } = useApi<ComparisonUI>(
     `/api/gameread/fixtures/${fixtureId}/comparison`,
   );
+  const [historySide, setHistorySide] = useState<"home" | "away">("home");
 
   if (loading && !data) return <Spinner label="Calculando comparativo..." />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
@@ -221,6 +223,9 @@ function ComparisonSection({ fixtureId }: { fixtureId: string }) {
             {data.fixture.league}
             {data.fixture.round ? ` · ${data.fixture.round}` : ""} · {fmtDay(data.fixture.kickoffUtc)}{" "}
             {fmtTime(data.fixture.kickoffUtc)}
+            <span className="ml-1.5 px-1.5 py-0.5 rounded-md bg-panel2 font-bold text-ink">
+              {statusLabel(data.fixture.status)}
+            </span>
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
@@ -306,6 +311,39 @@ function ComparisonSection({ fixtureId }: { fixtureId: string }) {
         </section>
       ) : (
         <EmptyBox>Comparativo estatístico ainda não disponível para este jogo.</EmptyBox>
+      )}
+
+      {/* Histórico dos últimos 10 jogos (gráfico de barras) */}
+      {(home?.id || away?.id) && (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            {home?.id && (
+              <button
+                onClick={() => setHistorySide("home")}
+                className={`flex-1 h-8 rounded-xl border text-[10px] font-bold truncate px-2 ${
+                  historySide === "home" ? "border-acc text-acc bg-acc/10" : "border-line text-mut"
+                }`}
+              >
+                Histórico {home.name}
+              </button>
+            )}
+            {away?.id && (
+              <button
+                onClick={() => setHistorySide("away")}
+                className={`flex-1 h-8 rounded-xl border text-[10px] font-bold truncate px-2 ${
+                  historySide === "away" ? "border-acc text-acc bg-acc/10" : "border-line text-mut"
+                }`}
+              >
+                Histórico {away.name}
+              </button>
+            )}
+          </div>
+          <TeamHistoryChart
+            teamId={(historySide === "home" ? home?.id : away?.id) ?? ""}
+            teamName={(historySide === "home" ? home?.name : away?.name) ?? ""}
+            lastN={10}
+          />
+        </div>
       )}
 
       <CacheBadge cache={data.cache} onRefresh={() => refresh(true)} />

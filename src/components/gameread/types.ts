@@ -158,3 +158,52 @@ export function lineLabel(selection: string, line: number | null): string {
   if (line == null) return selection;
   return `${selection} ${line}`;
 }
+
+/**
+ * Traduz o código de status da API para algo que o usuário entenda.
+ *
+ * A API devolve códigos crus da API-Football ("NS", "1H", "FT"...). Mostrar "NS"
+ * ou "Pendente" na tela faz parecer erro de sistema; "Aguardando início" deixa
+ * claro que está tudo certo e o jogo só não começou.
+ */
+export function statusLabel(status: string | null, isLive = false, elapsed?: number | null): string {
+  if (isLive) return elapsed ? `${elapsed}'` : "Ao vivo";
+  switch ((status ?? "").toUpperCase()) {
+    case "NS":
+    case "TBD":
+      return "Aguardando início";
+    case "1H":
+    case "2H":
+    case "HT":
+    case "ET":
+    case "P":
+    case "LIVE":
+    case "INT":
+      return "Ao vivo";
+    case "FT":
+    case "AET":
+    case "PEN":
+      return "Encerrado";
+    case "PST":
+      return "Adiado";
+    case "CANC":
+      return "Cancelado";
+    case "SUSP":
+      return "Suspenso";
+    case "ABD":
+      return "Abandonado";
+    case "AWD":
+      return "Decisão administrativa";
+    case "WO":
+      return "W.O.";
+    default:
+      return status ? status : "Aguardando início";
+  }
+}
+
+/** true quando a partida ainda não começou (para não parecer erro na tela). */
+export function isPending(status: string | null, isLive = false): boolean {
+  if (isLive) return false;
+  const s = (status ?? "").toUpperCase();
+  return s === "" || s === "NS" || s === "TBD";
+}

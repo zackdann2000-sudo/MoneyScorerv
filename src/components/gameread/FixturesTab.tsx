@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight, Radio } from "lucide-react";
 import { useApi } from "./useApi";
 import { CacheBadge, EmptyBox, ErrorBox, Spinner, TeamBadge } from "./Ui";
-import { fmtTime, type CacheInfo, type FixtureUI } from "./types";
+import { fmtTime, isPending, statusLabel, type CacheInfo, type FixtureUI } from "./types";
 
 type Resp = {
   date: string;
@@ -110,6 +110,14 @@ export default function FixturesTab({
                       </span>
                     ) : (
                       <span className="text-[11px] font-bold text-mut tabular-nums">{fmtTime(f.kickoffUtc)}</span>
+                    )}
+                    {!f.isLive && isPending(f.status) && (
+                      <span
+                        className="mt-0.5 block text-[8px] font-bold text-mut/80 leading-tight"
+                        title={statusLabel(f.status, f.isLive, f.elapsedMinutes)}
+                      >
+                        aguardando
+                      </span>
                     )}
                   </div>
 

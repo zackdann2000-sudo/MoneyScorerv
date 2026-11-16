@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, Search, Sparkles, Target } from "lucide-react";
+import { Filter, Pin, PinOff, Search, Sparkles, Target } from "lucide-react";
 import { useApi } from "./useApi";
+import { usePins } from "./usePins";
 import { CacheBadge, EmptyBox, ErrorBox, HitPill, Last10Bar, Spinner, TeamBadge } from "./Ui";
 import { fmtTime, GROUPS, hitTone, lineLabel, scoreTone, type CacheInfo, type PropRowUI } from "./types";
 
@@ -42,6 +43,8 @@ export default function PropsTab({
   }, [date]);
 
   const { data, loading, error, refresh } = useApi<Resp>(url);
+  const { keys: pinnedKeys, toggle: togglePin, anon, error: pinError } = usePins();
+  const [onlyPinned, setOnlyPinned] = useState(false);
 
   const filtered = useMemo(() => {
     let rows = data?.props ?? [];
@@ -49,6 +52,7 @@ export default function PropsTab({
     if (group !== "todos") rows = rows.filter((r) => r.marketGroup === group);
     if (market) rows = rows.filter((r) => r.market === market);
     if (minOdd > 1) rows = rows.filter((r) => (r.odd ?? 0) >= minOdd);
+    if (onlyPinned) rows = rows.filter((r) => pinnedKeys.has(r.id));
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -60,7 +64,7 @@ export default function PropsTab({
       );
     }
     return rows;
-  }, [data, showAll, group, market, search, minOdd]);
+  }, [data, showAll, group, market, search, minOdd, onlyPinned, pinnedKeys]);
 
   const goldCount = (data?.props ?? []).filter((r) => r.score >= GOLD).length;
   const totalCount = data?.props.length ?? 0;
@@ -128,8 +132,24 @@ export default function PropsTab({
           ))}
         </div>
 
+        {pinError && <p className="text-[10px] font-bold text-danger">Pin: {pinError}</p>}
+        {anon && (
+          <p className="text-[10px] text-mut">
+            Entre na sua conta para que as props fixadas fiquem salvas.
+          </p>
+        )}
+
         {/* Mercado + odd mínima */}
         <div className="flex gap-2">
+          <button
+            onClick={() => setOnlyPinned((v) => !v)}
+            className={`shrink-0 h-8 px-2.5 rounded-xl border text-[11px] font-bold inline-flex items-center gap-1 ${
+              onlyPinned ? "border-acc text-acc bg-acc/10" : "border-line text-mut"
+            }`}
+            title="Mostrar apenas props fixadas"
+          >
+            <Pin size={11} /> {pinnedKeys.size}
+          </button>
           <select
             value={market}
             onChange={(e) => setMarket(e.target.value)}
@@ -186,6 +206,18 @@ export default function PropsTab({
               <div className={`rounded-2xl border bg-panel overflow-hidden ${tone.border}`}>
                 {/* Cabeçalho: score + mercado */}
                 <div className={`flex items-center gap-2 px-3 py-1.5 ${tone.bg}`}>
+                  {/* Estrela: fixa/desafixa a prop (fora do <button> do card,
+                      porque botão dentro de botão é HTML inválido). */}
+                  <button
+                    onClick={() => togglePin(p)}
+                    aria-label={pinnedKeys.has(p.id) ? "Desafixar prop" : "Fixar prop no radar"}
+                    aria-pressed={pinnedKeys.has(p.id)}
+                    className={`shrink-0 -ml-0.5 w-6 h-6 rounded-lg inline-flex items-center justify-center transition-colors ${
+                      pinnedKeys.has(p.id) ? "text-acc" : "text-mut hover:text-ink"
+                    }`}
+                  >
+                    {pinnedKeys.has(p.id) ? <Pin size={13} fill="currentColor" /> : <PinOff size={13} />}
+                  </button>
                   <span className={`text-base font-extrabold tabular-nums leading-none ${tone.text}`}>
                     {p.score.toFixed(0)}
                   </span>
