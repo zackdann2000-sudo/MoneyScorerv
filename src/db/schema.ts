@@ -326,3 +326,16 @@ export const apitouPinnedDesajustes = pgTable("apitou_pinned_desajustes", {
   kickoffUtc: text("kickoff_utc").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("apt_pin_user_prop").on(t.userId, t.propKey)]);
+
+/**
+ * Eventos do Stripe já processados (idempotência do webhook).
+ *
+ * O Stripe reentrega um evento quando não recebe 2xx, e em pagamentos com
+ * retry isso é rotina. Sem este registro, cada reentrega somaria mais dias de
+ * VIP ao usuário. A PK no id do evento faz a segunda inserção falhar.
+ */
+export const stripeEventos = pgTable("stripe_eventos", {
+  id: text("id").primaryKey(),
+  tipo: text("tipo").notNull().default(""),
+  criadoEm: timestamp("criado_em").notNull().defaultNow(),
+});
