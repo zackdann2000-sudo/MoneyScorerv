@@ -113,7 +113,22 @@ function resumoProps(props: PropCalculada[]) {
 
 function resumoDesajustes(desajustes: ReturnType<typeof extrairDesajustes>) {
   return desajustes.slice(0, 100).map((d) => {
-    const { chave, mercado, linha, odd, probModelo, edge, qi, valor, nivel, jogador, home, away } = d;
-    return { chave, mercado, linha, odd, probModelo, edge, qi, valor, nivel, jogador, home, away };
+    const { chave, mercado, linha, odd, probModelo, probMercado, edge, qi, valor, nivel, jogador, home, away } = d;
+    return {
+      chave,
+      mercado,
+      linha,
+      odd,
+      probModelo,
+      // Probabilidade implícita na odd: é o que a UI mostra ao lado do modelo.
+      probMercado: Math.round(probMercado * 1000) / 1000,
+      edge,
+      qi,
+      valor,
+      nivel,
+      jogador,
+      home,
+      away,
+    };
   });
 }
