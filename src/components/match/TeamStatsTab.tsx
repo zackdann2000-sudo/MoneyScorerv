@@ -109,11 +109,17 @@ export default function TeamStatsTab({
     };
   }, [matchId, league]);
 
+  /* 1º/2º tempo só existem quando a fonte entregou o split (5Dollar).
+     Sem split, os toggles ficam travados — nunca inventamos o valor. */
+  const temSplits = !!data?.temSplits;
+
   const metricas: TeamStatMetric[] = useMemo(() => {
-    const base: TeamStatMetric[] = data?.metrics || [];
+    let base: TeamStatMetric[] = data?.metrics || [];
+    if (temSplits && tempo === "1t") base = data?.primeiroTempo || [];
+    if (temSplits && tempo === "2t") base = data?.segundoTempo || [];
     const comMedia = modo === "medias" ? comMedias(base, data?.sample || 0) : base;
     return buscar(filtrar(comMedia, filtro), busca);
-  }, [data, filtro, busca, modo]);
+  }, [data, filtro, busca, modo, tempo, temSplits]);
 
   const loading = !data && !erro;
 
@@ -137,7 +143,8 @@ export default function TeamStatsTab({
           </span>
         </div>
 
-        {/* Toggles de tempo: 1º/2º travados (plano Free não entrega split) */}
+        {/* Toggles de tempo: liberados quando a fonte entrega o split (5Dollar);
+            caso contrário seguem travados para não mostrar número inventado. */}
         <div className="flex gap-1.5">
           <button
             onClick={() => setTempo("total")}
@@ -147,20 +154,38 @@ export default function TeamStatsTab({
           >
             Total
           </button>
-          {(["1t", "2t"] as const).map((t) => (
-            <button
-              key={t}
-              disabled
-              title="Disponível no plano pago"
-              className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line bg-panel2 text-mut/50 cursor-not-allowed flex items-center justify-center gap-1"
-            >
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              {t === "1t" ? "1º tempo" : "2º tempo"}
-            </button>
-          ))}
+          {(["1t", "2t"] as const).map((t) => {
+            const rotulo = t === "1t" ? "1º tempo" : "2º tempo";
+            if (!temSplits) {
+              return (
+                <button
+                  key={t}
+                  disabled
+                  title="Disponível quando a fonte publica o split do intervalo"
+                  className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line bg-panel2 text-mut/50 cursor-not-allowed flex items-center justify-center gap-1"
+                >
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  {rotulo}
+                </button>
+              );
+            }
+            const ativo = tempo === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTempo(t)}
+                aria-pressed={ativo}
+                className={`flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border ${
+                  ativo ? "bg-acc text-black border-acc" : "bg-panel2 border-line text-mut"
+                }`}
+              >
+                {rotulo}
+              </button>
+            );
+          })}
         </div>
 
         {/* Total / Médias — "Médias" travado até termos a amostra real de jogos;
