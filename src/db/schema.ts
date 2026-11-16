@@ -289,3 +289,40 @@ export const gamereadPinnedProps = pgTable("gameread_pinned_props", {
   score: real("score"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [uniqueIndex("gr_pin_user_prop").on(t.userId, t.propKey)]);
+
+/**
+ * Cache das fontes públicas do apitou.com.br (módulo ISOLADO /apitou).
+ *
+ * O /dados.js original tem ~22 MB — não dá para baixar no request do usuário.
+ * um job protegido baixa, faz o parse e grava aqui o RESUMO do dia; as telas
+ * consomem somente este payload enxuto, com refresh sob demanda.
+ */
+export const apitouCache = pgTable("apitou_cache", {
+  cacheKey: text("cache_key").primaryKey(),
+  kind: text("kind").notNull().default(""), // "semana" | "linhas"
+  geradoEm: text("gerado_em"),
+  payload: jsonb("payload").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("apitou_cache_updated_idx").on(t.updatedAt)]);
+
+/**
+ * Desajustes fixados pelo usuário (props com vantagem modelo × mercado).
+ * `propKey` = fixtureId:mercado:selecao:linha (id estável entre refreshes).
+ */
+export const apitouPinnedDesajustes = pgTable("apitou_pinned_desajustes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  propKey: text("prop_key").notNull(),
+  mercado: text("mercado").notNull().default(""),
+  selecao: text("selecao").notNull().default(""),
+  linha: real("linha"),
+  odd: real("odd"),
+  probModelo: real("prob_modelo"),
+  edge: real("edge"),
+  qi: real("qi"),
+  homeName: text("home_name").notNull().default(""),
+  awayName: text("away_name").notNull().default(""),
+  fixtureId: text("fixture_id").notNull().default(""),
+  kickoffUtc: text("kickoff_utc").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [uniqueIndex("apt_pin_user_prop").on(t.userId, t.propKey)]);

@@ -34,3 +34,15 @@ yarn-error.log*
 
 # artefato temporário do gerador de ícone (o ícone final é public/icon.png)
 /images/
+
+# pacote de skills instalado (não faz parte do app; poluía o tsc)
+/replica-skill/
+
+# artefatos de teste do módulo apitou (fixtures são versionados, saída não)
+/.apttest/
+
+# build temporário do script de sincronização do apitou
+/.apitou-build/
+
+# skills/agentes locais (não fazem parte do app)
+/.agents/
