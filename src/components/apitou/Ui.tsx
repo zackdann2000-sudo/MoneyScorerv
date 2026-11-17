@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, Loader2, RefreshCw, Flame, TrendingUp, Minus } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, Flame, TrendingUp, Minus, Plus, Check } from "lucide-react";
+import { useBetSlip } from "@/context/BetSlipContext";
 
 /** Cor por nível de desajuste — verde forte para o melhor, neutro para o resto. */
 export function corNivel(nivel: string): { texto: string; fundo: string; borda: string; rotulo: string } {
@@ -159,4 +160,40 @@ export function horaJogo(iso: string): string {
 export function diaCurto(dia: string): string {
   const [, m, d] = dia.split("-");
   return `${d}/${m}`;
+}
+
+/**
+ * Botão "+" para colocar/tirar uma seleção da combinada.
+ *
+ * Recebe a seleção pronta (não monta sozinho) para que cada tela decida quais
+ * campos tem disponíveis. O estado "adicionado" vem do contexto, então o mesmo
+ * botão funciona em qualquer lugar sem passar props extras.
+ */
+export function AddSelecaoButton({
+  selecao,
+  className = "",
+}: {
+  selecao: import("@/context/BetSlipContext").Selecao;
+  className?: string;
+}) {
+  const { tem, alternar } = useBetSlip();
+  const dentro = tem(selecao.chave);
+  return (
+    <button
+      onClick={(e) => {
+        // Não deixa o clique subir e disparar o toggle de expandir do card.
+        e.stopPropagation();
+        alternar(selecao);
+      }}
+      aria-pressed={dentro}
+      aria-label={dentro ? "Remover da combinada" : "Adicionar à combinada"}
+      className={`shrink-0 inline-flex items-center justify-center rounded-lg border transition-colors ${
+        dentro
+          ? "bg-acc text-bg border-acc"
+          : "bg-panel2 text-ink border-line hover:border-acc/60"
+      } ${className}`}
+    >
+      {dentro ? <Check size={12} /> : <Plus size={12} />}
+    </button>
+  );
 }

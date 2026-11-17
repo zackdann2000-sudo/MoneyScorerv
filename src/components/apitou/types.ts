@@ -37,6 +37,10 @@ export type JogosResp = {
 
 export type PropAnalisada = {
   chave: string;
+  fixtureId: number;
+  home: string;
+  away: string;
+  competicao: string;
   mercado: string;
   mercadoRotulo: string;
   jogador: string;
@@ -55,6 +59,7 @@ export type PropAnalisada = {
 
 export type DesajusteItem = {
   chave: string;
+  fixtureId: number;
   mercado: string;
   linha: number;
   odd: number;

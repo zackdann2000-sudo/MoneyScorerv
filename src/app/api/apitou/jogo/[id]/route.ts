@@ -94,6 +94,12 @@ export async function GET(
 function resumoProps(props: PropCalculada[]) {
   return props.map((p) => ({
     chave: p.chave,
+    // fixtureId/home/away: necessários para o bilhete de combinada e para o
+    // card compartilhável identificarem o jogo sem depender do contexto da tela.
+    fixtureId: p.fixtureId,
+    home: p.home,
+    away: p.away,
+    competicao: p.competicao,
     mercado: p.mercado,
     mercadoRotulo: p.mercadoRotulo,
     jogador: p.jogador,
@@ -113,9 +119,10 @@ function resumoProps(props: PropCalculada[]) {
 
 function resumoDesajustes(desajustes: ReturnType<typeof extrairDesajustes>) {
   return desajustes.slice(0, 100).map((d) => {
-    const { chave, mercado, linha, odd, probModelo, probMercado, edge, qi, valor, nivel, jogador, home, away } = d;
+    const { chave, fixtureId, mercado, linha, odd, probModelo, probMercado, edge, qi, valor, nivel, jogador, home, away } = d;
     return {
       chave,
+      fixtureId,
       mercado,
       linha,
       odd,

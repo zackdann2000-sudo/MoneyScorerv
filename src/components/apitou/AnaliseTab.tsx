@@ -14,6 +14,7 @@ import {
   ProbBar,
   QiPill,
   ValorPill,
+  AddSelecaoButton,
   horaJogo,
 } from "./Ui";
 
@@ -163,6 +164,20 @@ function ListaDesajustes({ data }: { data: JogoResp }) {
               <span className="inline-flex items-center gap-3">
                 <QiPill qi={d.qi} />
                 <ValorPill valor={d.valor} />
+                <AddSelecaoButton
+                  className="w-7 h-7"
+                  selecao={{
+                    chave: d.chave,
+                    fixtureId: d.fixtureId,
+                    jogador: d.jogador,
+                    mercado: d.mercado,
+                    linha: d.linha,
+                    odd: d.odd,
+                    probModelo: d.probModelo,
+                    home: d.home,
+                    away: d.away,
+                  }}
+                />
               </span>
             </div>
           </li>
@@ -245,6 +260,20 @@ function ListaProps({
                       </span>
                     </span>
                     <QiPill qi={p.qi} />
+                    <AddSelecaoButton
+                      className="w-6 h-6"
+                      selecao={{
+                        chave: p.chave,
+                        fixtureId: p.fixtureId,
+                        jogador: p.jogador,
+                        mercado: p.mercadoRotulo,
+                        linha: p.linha,
+                        odd: p.odd,
+                        probModelo: p.probModelo,
+                        home: p.home,
+                        away: p.away,
+                      }}
+                    />
                     <ChevronDown
                       size={13}
                       className={`text-mut transition-transform ${expandido ? "rotate-180" : ""}`}
