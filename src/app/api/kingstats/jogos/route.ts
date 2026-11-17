@@ -24,6 +24,11 @@ type JogoUI = {
   esoccer: boolean;
 };
 
+/**
+ * Achata o jogo cru da fonte (league/home/away são objetos) para o formato que
+ * a UI consome. Toda resposta passa por aqui — ver o comentário no GET sobre o
+ * bug que existia quando o caminho de cache pulava esta função.
+ */
 function paraUI(j: Jogo, dia: string): JogoUI {
   return {
     id: j.id,
@@ -45,64 +50,75 @@ function paraUI(j: Jogo, dia: string): JogoUI {
  * buraco), e o usuário NÃO pediu uma data específica, caminhamos para trás até
  * 7 dias para achar o último dia com jogos — melhor mostrar o último dia cheio
  * do que uma tela vazia.
+ *
+ * HISTÓRICO DE UM BUG: antes existia um `return` antecipado no caminho de cache
+ * que devolvia `...emCache.dados` — e o cache guarda os jogos CRUS da fonte.
+ * Resultado: a primeira requisição (sem cache) devolvia o formato correto e
+ * funcionava; da segunda em diante o cache respondia com objetos aninhados
+ * (`home`, `away`, `league`), o React tentava renderizar um objeto como filho e
+ * a página inteira caía em "This page couldn't load". Agora o mapeamento é
+ * aplicado SEMPRE, inclusive na leitura do cache — o cache antigo (cru) também
+ * passa a funcionar sem precisar ser limpo.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const pediuData = url.searchParams.get("date");
   const revalidate = url.searchParams.get("revalidate") === "1";
 
-  let dayKey = dayKeyDe(pediuData);
+  const dayKeyInicial = dayKeyDe(pediuData);
 
-  const emCache = await lerJogos(dayKey);
-  if (emCache && !revalidate && emCache.idade < CACHE_TTL_MS && emCache.dados.jogos.length > 0) {
-    return NextResponse.json({
-      ...emCache.dados,
-      dias: null,
-      cached: true,
-      idadeMs: emCache.idade,
-    });
-  }
+  let usados: Jogo[] = [];
+  let dayKeyFinal = dayKeyInicial;
+  let geradoEm = new Date().toISOString();
+  let cached = false;
+  let idadeMs = 0;
 
-  const { jogos, savedAt } = await buscarJogos(dayKey);
+  const emCache = await lerJogos(dayKeyInicial);
+  const cacheValido =
+    emCache && !revalidate && emCache.idade < CACHE_TTL_MS && emCache.dados.jogos.length > 0;
 
-  let usados = jogos;
-  let dayKeyFinal = dayKey;
+  if (cacheValido) {
+    usados = emCache.dados.jogos; // crus — mapeados logo abaixo
+    geradoEm = emCache.dados.geradoEm;
+    cached = true;
+    idadeMs = emCache.idade;
+  } else {
+    const { jogos, savedAt } = await buscarJogos(dayKeyInicial);
+    usados = jogos;
 
-  if (usados.length === 0 && !pediuData) {
-    // Fallback: últimos 7 dias.
-    for (let i = 1; i <= 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const k = diaKey(d);
-      const r = await buscarJogos(k);
-      if (r.jogos.length > 0) {
-        usados = r.jogos;
-        dayKeyFinal = k;
-        break;
+    if (usados.length === 0 && !pediuData) {
+      // Fallback: últimos 7 dias.
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const k = diaKey(d);
+        const r = await buscarJogos(k);
+        if (r.jogos.length > 0) {
+          usados = r.jogos;
+          dayKeyFinal = k;
+          break;
+        }
       }
+    }
+
+    geradoEm = savedAt ? new Date(savedAt).toISOString() : new Date().toISOString();
+    if (usados.length > 0) {
+      await gravarJogos({ dayKey: dayKeyFinal, geradoEm, jogos: usados });
     }
   }
 
   const dia = diaISO(dayKeyFinal);
-  const payload = {
-    dayKey: dayKeyFinal,
-    geradoEm: savedAt ? new Date(savedAt).toISOString() : new Date().toISOString(),
-    jogos: usados,
-  };
-
-  if (usados.length > 0) await gravarJogos(payload);
-
   const lista = usados.map((j) => paraUI(j, dia));
   const ligas = [...new Set(lista.filter((j) => !j.esoccer).map((j) => j.liga))].sort();
 
   return NextResponse.json({
     dayKey: dayKeyFinal,
     dia,
-    geradoEm: payload.geradoEm,
+    geradoEm,
     total: lista.length,
     ligas,
     jogos: lista,
-    cached: false,
-    idadeMs: 0,
+    cached,
+    idadeMs,
   });
 }

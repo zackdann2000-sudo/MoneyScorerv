@@ -53,7 +53,7 @@ export default function OportunidadesTab({
       <div className="flex items-center justify-between text-[10px] text-mut">
         <span>
           <span className="text-acc font-extrabold">{lista.length}</span> oportunidades de{" "}
-          {data.analisados} jogos analisados
+          {data.analisados ?? 0} jogos analisados
         </span>
         <span className="tabular-nums">{data.dia}</span>
       </div>

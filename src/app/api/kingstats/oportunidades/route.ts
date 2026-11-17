@@ -88,6 +88,7 @@ export async function GET(req: Request) {
     const payload = {
       dayKey,
       geradoEm: new Date().toISOString(),
+      analisados: Object.keys(stats).length,
       oportunidades,
     };
     await gravarOport(payload);
@@ -95,7 +96,6 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ...payload,
       dia: diaISO(dayKey),
-      analisados: Object.keys(stats).length,
       cached: false,
       idadeMs: 0,
     });

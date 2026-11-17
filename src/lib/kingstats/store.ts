@@ -106,7 +106,12 @@ export async function gravarJogos(p: PayloadJogos) {
   return gravar(chaveJogos(p.dayKey), "jogos", p);
 }
 
-export type PayloadOport = { dayKey: string; geradoEm: string; oportunidades: Oportunidade[] };
+export type PayloadOport = {
+  dayKey: string;
+  geradoEm: string;
+  analisados: number;
+  oportunidades: Oportunidade[];
+};
 
 export async function lerOport(dayKey: string) {
   return ler<PayloadOport>(chaveOport(dayKey));

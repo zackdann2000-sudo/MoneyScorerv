@@ -9,6 +9,18 @@ import { Spinner, ErrorBox, EmptyBox, FonteBadge, horaJogo } from "./Ui";
 const PAGINA = 40;
 
 /**
+ * Coage um campo para texto. Blindagem contra payload inesperado: se algum dia
+ * a API devolver um objeto onde esperamos string (foi exatamente o bug do cache
+ * que servia os jogos crus), o React lança "Objects are not valid as a React
+ * child" e a página inteira cai. Um coerção defensiva evita esse desfecho.
+ */
+function txt(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v && typeof v === "object" && "name" in v) return String((v as { name?: unknown }).name ?? "");
+  return "";
+}
+
+/**
  * Aba "Jogos" — lista do dia com busca por time e filtro por liga.
  *
  * São ~700 jogos por dia, então paginamos no cliente (40 por vez) em vez de
@@ -33,7 +45,7 @@ export default function JogosTab({
   const lista = useMemo(() => data?.jogos ?? [], [data]);
 
   const ligas = useMemo(
-    () => [...new Set(lista.filter((j) => !j.esoccer).map((j) => j.liga))].sort(),
+    () => [...new Set(lista.filter((j) => !j.esoccer).map((j) => txt(j.liga)).filter(Boolean))].sort(),
     [lista],
   );
 
@@ -41,9 +53,9 @@ export default function JogosTab({
     const q = busca.trim().toLowerCase();
     return lista.filter((j) => {
       if (j.esoccer) return false;
-      if (liga && j.liga !== liga) return false;
+      if (liga && txt(j.liga) !== liga) return false;
       if (!q) return true;
-      return j.home.toLowerCase().includes(q) || j.away.toLowerCase().includes(q);
+      return txt(j.home).toLowerCase().includes(q) || txt(j.away).toLowerCase().includes(q);
     });
   }, [lista, busca, liga]);
 
@@ -112,16 +124,16 @@ export default function JogosTab({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[9px] font-bold text-mut uppercase tracking-wide truncate">
-                    {j.liga}
+                    {txt(j.liga)}
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-acc tabular-nums shrink-0">
                     <CalendarDays size={10} /> {horaJogo(j.kickoff)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-[13px]">
-                  <span className="flex-1 truncate font-bold text-ink">{j.home}</span>
+                  <span className="flex-1 truncate font-bold text-ink">{txt(j.home)}</span>
                   <span className="text-[9px] text-mut shrink-0">×</span>
-                  <span className="flex-1 truncate font-bold text-ink text-right">{j.away}</span>
+                  <span className="flex-1 truncate font-bold text-ink text-right">{txt(j.away)}</span>
                 </div>
               </button>
             </li>
