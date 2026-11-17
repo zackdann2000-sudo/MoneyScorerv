@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Whistle } from "./icons";
 import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge } from "@/components/ui";
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
+import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import TeamStatsTab from "./TeamStatsTab";
 import LineupPitch from "@/components/Lineup";
 import Last10Matrix from "@/components/Last10";
@@ -215,6 +216,15 @@ export function PreLiveTab({ home, away, league, officials }: { home: Team; away
 export function H2HTab({ d }: { d: any; league?: string }) {
   const games = d.h2h?.games || [];
   const m = d.match;
+
+  // Jogos mais recentes primeiro (a fonte nem sempre garante a ordem) e no
+  // formato do card de palpite. Só gols: é o que a fonte entrega por H2H.
+  // Sem useMemo: a janela é de no máximo 7 itens, ordenar a cada render é
+  // irrelevante — e evita depender de um array recriado a cada render.
+  const recentes = [...games]
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 7)
+    .map((g: any) => ({ golsCasa: Number(g.homeScore) || 0, golsFora: Number(g.awayScore) || 0 }));
   const stats = useMemo(() => {
     if (!games.length) return null;
     let hw = 0, dr = 0, aw = 0;
@@ -238,6 +248,7 @@ export function H2HTab({ d }: { d: any; league?: string }) {
 
   return (
     <div className="space-y-3">
+      <H2HPalpiteCard jogos={recentes} />
       {stats ? (
         <>
           <div className="bg-panel border border-line rounded-2xl p-4">

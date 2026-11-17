@@ -17,6 +17,7 @@ import {
   AddSelecaoButton,
   horaJogo,
 } from "./Ui";
+import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 
 /**
  * Aba "Análise" — o jogo aberto, com o que o modelo calculou.
@@ -319,6 +320,14 @@ function Metrica({ rotulo, valor }: { rotulo: string; valor: string }) {
 
 function Contexto({ data }: { data: JogoResp }) {
   const { jogo } = data;
+
+  // H2H do banco (apitou_cache) do mais recente para o mais antigo, no formato
+  // do card de palpite. Janela de 7 no máximo.
+  const h2hRecentes = [...jogo.h2hResumo]
+    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+    .slice(0, 7)
+    .map((h) => ({ golsCasa: h.golsCasa, golsFora: h.golsFora }));
+
   const linhas = [
     ["Gols marcados", jogo.statsHome?.gols, jogo.statsAway?.gols],
     ["Gols sofridos", jogo.statsHome?.golsSof, jogo.statsAway?.golsSof],
@@ -355,7 +364,9 @@ function Contexto({ data }: { data: JogoResp }) {
       )}
 
       {jogo.h2hResumo.length > 0 && (
-        <div className="rounded-2xl border border-line bg-panel p-3 space-y-1.5">
+        <div className="space-y-2">
+          <H2HPalpiteCard jogos={h2hRecentes} />
+          <div className="rounded-2xl border border-line bg-panel p-3 space-y-1.5">
           <p className="text-[10px] font-bold text-mut uppercase tracking-wide">Confrontos diretos</p>
           {jogo.h2hResumo.map((h, i) => (
             <div key={i} className="flex items-center justify-between gap-2 text-[11px]">
@@ -367,6 +378,7 @@ function Contexto({ data }: { data: JogoResp }) {
               <span className="flex-1 truncate text-ink text-right">{h.fora}</span>
             </div>
           ))}
+          </div>
         </div>
       )}
 
