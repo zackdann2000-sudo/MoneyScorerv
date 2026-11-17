@@ -306,6 +306,24 @@ export const apitouCache = pgTable("apitou_cache", {
 }, (t) => [index("apitou_cache_updated_idx").on(t.updatedAt)]);
 
 /**
+ * Cache do módulo King STATS (thekingstats.com).
+ *
+ * Guarda dois tipos de payload, discriminados por `kind`:
+ *   "jogos"   — a lista do dia (cache_key "jogos:YYYYMMDD")
+ *   "oport"   — oportunidades calculadas do dia (cache_key "oport:YYYYMMDD")
+ *
+ * O mesmo padrão do apitou: TTL de 15 min com stale-while-revalidate, para
+ * não bater na fonte a cada request nem deixar a tela vazia.
+ */
+export const kingstatsCache = pgTable("kingstats_cache", {
+  cacheKey: text("cache_key").primaryKey(),
+  kind: text("kind").notNull().default(""),
+  geradoEm: text("gerado_em"),
+  payload: jsonb("payload").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("kingstats_cache_updated_idx").on(t.updatedAt)]);
+
+/**
  * Desajustes fixados pelo usuário (props com vantagem modelo × mercado).
  * `propKey` = fixtureId:mercado:selecao:linha (id estável entre refreshes).
  */

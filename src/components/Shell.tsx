@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle } from "lucide-react";
+import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 
@@ -28,6 +28,7 @@ const DRAWER_ANALYSIS = [
   { href: "/ev", label: "Oportunidades +EV", icon: CircleDollarSign },
   { href: "/gameread", label: "GameRead (props)", icon: Radar },
   { href: "/apitou", label: "Apitou (props)", icon: Whistle },
+  { href: "/kingstats", label: "King STATS", icon: Crown },
   { href: "/desempenho", label: "Track Record", icon: Scale },
   { href: "/detector", label: "Detector", icon: Activity },
   { href: "/jogadores", label: "Estatísticas", icon: Users },
