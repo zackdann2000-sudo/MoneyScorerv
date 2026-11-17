@@ -19,19 +19,39 @@ export default function JogosTab({
   date: string;
   onAbrirJogo: (id: number) => void;
 }) {
-  const url = useMemo(() => `/api/apitou/jogos${date ? `?date=${date}` : ""}`, [date]);
-  const { data, loading, error, refresh } = useApi<JogosResp>(url, [date]);
+  // Buscamos TODOS os jogos de uma vez (sem ?date=). Assim a troca de dia é
+  // instantânea, no cliente, e um dia vazio não "prende" a tela: a rota devolve
+  // `dias` completo e `jogos` de toda a semana (payload pequeno, ~14 jogos).
+  // Passar ?date= fazia a rota devolver só aquele dia, anulando o filtro local.
+  const url = "/api/apitou/jogos";
+  const { data, loading, error, refresh } = useApi<JogosResp>(url, []);
   const [diaSel, setDiaSel] = useState<string | null>(null);
 
-  // Dias disponíveis vêm da rota; quando selecionamos um, filtramos localmente
-  // (a rota já filtra, mas para trocar de dia sem nova chamada trabalhamos aqui).
-  const dias = data?.dias ?? [];
-  const diaAtivo = diaSel ?? date;
+  // Dias disponíveis vêm da rota (TODOS os dias cobertos, já ordenados).
+  const dias = useMemo(() => data?.dias ?? [], [data]);
+
+  /**
+   * Dia efetivamente exibido.
+   *
+   * O bug antigo: fixávamos a data de hoje (`date`), mas quando os jogos de hoje
+   * já saíram do banco a lista ficava vazia e o botão do dia nem aparecia. Agora
+   * o dia é derivado com validação, nesta ordem de prioridade:
+   *   1. o dia escolhido pelo usuário, se ele ainda existir na lista;
+   *   2. a data de hoje, se ela tiver jogos;
+   *   3. o PRIMEIRO dia disponível (o mais próximo).
+   * Derivar em vez de `setState` num efeito evita render extra e a regra
+   * react-hooks/set-state-in-effect.
+   */
+  const diaAtivo = useMemo(() => {
+    if (diaSel && dias.includes(diaSel)) return diaSel;
+    if (dias.includes(date)) return date;
+    return dias[0] ?? date;
+  }, [diaSel, dias, date]);
 
   const jogosDoDia = useMemo(() => {
     if (!data) return [] as JogoLista[];
-    return data.jogos.filter((j) => j.dia === (diaAtivo || date));
-  }, [data, diaAtivo, date]);
+    return data.jogos.filter((j) => j.dia === diaAtivo);
+  }, [data, diaAtivo]);
 
   if (loading && !data) return <Spinner label="Carregando jogos…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
@@ -47,7 +67,10 @@ export default function JogosTab({
           {dias.map((d) => (
             <button
               key={d}
-              onClick={() => setDiaSel(d === date ? null : d)}
+              // Sem toggle para null: clicar no dia ativo não deve poder voltar
+              // para uma data sem jogos.
+              onClick={() => setDiaSel(d)}
+              aria-pressed={diaAtivo === d}
               className={`shrink-0 px-3 h-8 rounded-xl border text-[11px] font-bold transition-colors ${
                 diaAtivo === d ? "bg-acc text-bg border-acc" : "bg-panel border-line text-ink"
               }`}
@@ -60,7 +83,7 @@ export default function JogosTab({
 
       <p className="text-xs text-mut">
         <span className="text-acc font-extrabold">{totalDia}</span> {totalDia === 1 ? "jogo" : "jogos"}
-        {date ? ` · ${diaCurto(date)}` : ""}
+        {diaAtivo ? ` · ${diaCurto(diaAtivo)}` : ""}
       </p>
 
       {totalDia === 0 ? (
