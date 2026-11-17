@@ -5,6 +5,8 @@ import { CalendarDays, Search, Filter } from "lucide-react";
 import { useApi } from "./useApi";
 import type { JogosResp } from "./types";
 import { Spinner, ErrorBox, EmptyBox, FonteBadge, horaJogo } from "./Ui";
+import { isMainLeague } from "@/lib/mainLeagues";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 const PAGINA = 40;
 
@@ -41,6 +43,7 @@ export default function JogosTab({
   const [busca, setBusca] = useState("");
   const [liga, setLiga] = useState("");
   const [limite, setLimite] = useState(PAGINA);
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   const lista = useMemo(() => data?.jogos ?? [], [data]);
 
@@ -53,11 +56,12 @@ export default function JogosTab({
     const q = busca.trim().toLowerCase();
     return lista.filter((j) => {
       if (j.esoccer) return false;
+      if (soPrincipais && !isMainLeague(txt(j.liga))) return false;
       if (liga && txt(j.liga) !== liga) return false;
       if (!q) return true;
       return txt(j.home).toLowerCase().includes(q) || txt(j.away).toLowerCase().includes(q);
     });
-  }, [lista, busca, liga]);
+  }, [lista, busca, liga, soPrincipais]);
 
   if (loading && !data) return <Spinner label="Carregando jogos…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
@@ -67,6 +71,8 @@ export default function JogosTab({
 
   return (
     <div className="space-y-3">
+      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+
       {/* Busca */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-mut" />
@@ -112,7 +118,9 @@ export default function JogosTab({
         <EmptyBox>
           {data.total === 0
             ? "A fonte não tem jogos para este dia."
-            : "Nenhum jogo bate com a busca/filtro."}
+            : soPrincipais && lista.some((j) => !j.esoccer)
+              ? "Nenhum jogo das principais ligas com esta busca. Use \"Todas as Ligas\" para ver o dia completo."
+              : "Nenhum jogo bate com a busca/filtro."}
         </EmptyBox>
       ) : (
         <ul className="space-y-1.5">

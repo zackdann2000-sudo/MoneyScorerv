@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { ChevronRight, Radio } from "lucide-react";
 import { useApi } from "./useApi";
 import { CacheBadge, EmptyBox, ErrorBox, Spinner, TeamBadge } from "./Ui";
+import { isMainLeague } from "@/lib/mainLeagues";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 import { fmtTime, isPending, statusLabel, type CacheInfo, type FixtureUI } from "./types";
 
 type Resp = {
@@ -24,6 +26,7 @@ export default function FixturesTab({
 }) {
   const [league, setLeague] = useState("");
   const [onlyLive, setOnlyLive] = useState(false);
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   const url = useMemo(() => {
     const q = new URLSearchParams({ date });
@@ -34,19 +37,28 @@ export default function FixturesTab({
 
   const { data, loading, error, refresh } = useApi<Resp>(url);
 
+  // Filtro de principais ligas aplicado no cliente: o cache do dia continua o
+  // mesmo (nenhuma chamada nova), só a lista visível muda.
+  const fixtures = useMemo(() => {
+    const todas = data?.fixtures ?? [];
+    return soPrincipais ? todas.filter((f) => isMainLeague(f.leagueName)) : todas;
+  }, [data, soPrincipais]);
+
   // Agrupa por liga preservando a ordem de prioridade que a API já entrega.
   const grouped = useMemo(() => {
     const map = new Map<string, FixtureUI[]>();
-    for (const f of data?.fixtures ?? []) {
+    for (const f of fixtures) {
       const arr = map.get(f.leagueName) ?? [];
       arr.push(f);
       map.set(f.leagueName, arr);
     }
     return Array.from(map.entries());
-  }, [data]);
+  }, [fixtures]);
 
   return (
     <div className="space-y-3">
+      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setOnlyLive((v) => !v)}
@@ -70,7 +82,7 @@ export default function FixturesTab({
         </select>
         {data && (
           <span className="text-[11px] text-mut ml-auto">
-            {data.count} de {data.total} jogos
+            {fixtures.length} de {data.total} jogos
           </span>
         )}
       </div>
@@ -78,10 +90,11 @@ export default function FixturesTab({
       {loading && !data && <Spinner label="Buscando jogos do dia..." />}
       {error && <ErrorBox message={error} onRetry={() => refresh()} />}
 
-      {data && data.fixtures.length === 0 && !loading && (
+      {data && fixtures.length === 0 && !loading && (
         <EmptyBox>
-          Nenhum jogo encontrado para este dia
-          {league ? ` na competição "${league}"` : ""}. Tente outra data ou remova o filtro.
+          {soPrincipais && data.fixtures.length > 0
+            ? "Nenhum jogo das principais ligas neste dia. Use \"Todas as Ligas\" para ver o dia completo."
+            : `Nenhum jogo encontrado para este dia${league ? ` na competição "${league}"` : ""}. Tente outra data ou remova o filtro.`}
         </EmptyBox>
       )}
 

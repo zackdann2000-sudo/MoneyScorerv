@@ -1,14 +1,19 @@
 /**
  * Desajustes de toda a semana (aba "Desajustes").
  *
- * GET /api/apitou/desajustes?nivel=quente&date=YYYY-MM-DD&limit=50
+ * GET /api/apitou/desajustes?nivel=quente&date=YYYY-MM-DD&limit=50&principais=1
  *
  * Lista as props em que o modelo vê mais chance do que o mercado paga. É a
  * agregação transversal — a versão por jogo fica em /api/apitou/jogo/[id].
+ *
+ * `principais=1` filtra só as 16 ligas principais. Isso é feito ANTES do
+ * `slice(limit)`: filtrar depois devolveria menos itens que o pedido e a
+ * paginação "carregar mais" ficaria furada.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { garantirResumo } from "@/lib/apitou/store";
 import { calcularTodas, extrairDesajustes } from "@/lib/apitou/analise";
+import { isMainLeague } from "@/lib/mainLeagues";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +26,7 @@ export async function GET(req: NextRequest) {
   const nivel = sp.get("nivel"); // quente | bom | neutro
   const date = sp.get("date");
   const limit = Math.min(Math.max(Number(sp.get("limit") ?? 50), 1), 300);
+  const principais = sp.get("principais") === "1";
 
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return NextResponse.json({ error: "date inválido, use YYYY-MM-DD" }, { status: 400 });
@@ -44,6 +50,8 @@ export async function GET(req: NextRequest) {
     // centenas de props que seriam descartadas de qualquer forma.
     let desajustes = extrairDesajustes(props, 0.03);
     if (nivel) desajustes = desajustes.filter((d) => d.nivel === nivel);
+    // Antes do slice: ver docblock do arquivo.
+    if (principais) desajustes = desajustes.filter((d) => isMainLeague(d.competicao));
 
     const contagem = desajustes.reduce<Record<string, number>>((acc, d) => {
       acc[d.nivel] = (acc[d.nivel] ?? 0) + 1;
@@ -58,6 +66,7 @@ export async function GET(req: NextRequest) {
       desajustes: desajustes.slice(0, limit).map((d) => ({
         chave: d.chave,
         fixtureId: d.fixtureId,
+        competicao: d.competicao,
         mercado: d.mercado,
         linha: d.linha,
         odd: d.odd,

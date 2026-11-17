@@ -5,6 +5,8 @@ import { Flame, Target, TrendingUp } from "lucide-react";
 import { useApi } from "./useApi";
 import type { OportunidadesResp, Categoria } from "./types";
 import { Spinner, ErrorBox, EmptyBox, FonteBadge, ProbBar, FormBadges, CatBadge, horaJogo } from "./Ui";
+import { isMainLeague } from "@/lib/mainLeagues";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 type Filtro = "todas" | Categoria;
 
@@ -27,8 +29,12 @@ export default function OportunidadesTab({
     [date],
   );
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
-  const lista = useMemo(() => data?.oportunidades ?? [], [data]);
+  const lista = useMemo(() => {
+    const todas = data?.oportunidades ?? [];
+    return soPrincipais ? todas.filter((o) => isMainLeague(o.liga)) : todas;
+  }, [data, soPrincipais]);
 
   const filtradas = useMemo(
     () => (filtro === "todas" ? lista : lista.filter((o) => o.categoria === filtro)),
@@ -50,6 +56,8 @@ export default function OportunidadesTab({
 
   return (
     <div className="space-y-3">
+      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+
       <div className="flex items-center justify-between text-[10px] text-mut">
         <span>
           <span className="text-acc font-extrabold">{lista.length}</span> oportunidades de{" "}
@@ -84,7 +92,9 @@ export default function OportunidadesTab({
         <EmptyBox>
           {data.aviso
             ? data.aviso
-            : "Nenhuma oportunidade bateu o critério agora. Volte mais tarde — a cada jogo no dia muda."}
+            : soPrincipais && (data.oportunidades?.length ?? 0) > 0
+              ? "Nenhuma oportunidade nas principais ligas agora. Use \"Todas as Ligas\" para ver o recorte completo."
+              : "Nenhuma oportunidade bateu o critério agora. Volte mais tarde — a cada jogo no dia muda."}
         </EmptyBox>
       ) : (
         <ul className="space-y-1.5">

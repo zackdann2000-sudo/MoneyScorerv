@@ -5,6 +5,8 @@ import { CalendarDays } from "lucide-react";
 import { useApi } from "./useApi";
 import type { JogosResp, JogoLista } from "./types";
 import { ErrorBox, EmptyBox, Spinner, FonteBadge, horaJogo, diaCurto } from "./Ui";
+import { isMainLeague } from "@/lib/mainLeagues";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 /**
  * Aba "Jogos do Dia" — lista por dia com o resumo de cada partida.
@@ -26,6 +28,7 @@ export default function JogosTab({
   const url = "/api/apitou/jogos";
   const { data, loading, error, refresh } = useApi<JogosResp>(url, []);
   const [diaSel, setDiaSel] = useState<string | null>(null);
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   // Dias disponíveis vêm da rota (TODOS os dias cobertos, já ordenados).
   const dias = useMemo(() => data?.dias ?? [], [data]);
@@ -50,8 +53,11 @@ export default function JogosTab({
 
   const jogosDoDia = useMemo(() => {
     if (!data) return [] as JogoLista[];
-    return data.jogos.filter((j) => j.dia === diaAtivo);
-  }, [data, diaAtivo]);
+    const doDia = data.jogos.filter((j) => j.dia === diaAtivo);
+    // Filtro no cliente (a lista completa da semana já vem no payload) — a
+    // escolha de dia continua baseada em TODOS os jogos, sem quebrar nada.
+    return soPrincipais ? doDia.filter((j) => isMainLeague(j.competicao)) : doDia;
+  }, [data, diaAtivo, soPrincipais]);
 
   if (loading && !data) return <Spinner label="Carregando jogos…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
@@ -61,6 +67,9 @@ export default function JogosTab({
 
   return (
     <div className="space-y-3">
+      {/* Alternância Principais / Todas (padrão: Principais). */}
+      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+
       {/* Seletor de dia horizontal */}
       {dias.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
@@ -87,7 +96,9 @@ export default function JogosTab({
       </p>
 
       {totalDia === 0 ? (
-        <EmptyBox>Nenhum jogo neste dia. O site só cobre a semana corrente.</EmptyBox>
+        <EmptyBox>
+          {soPrincipais ? "Nenhum jogo das principais ligas neste dia. Use \"Todas as Ligas\" para ver o dia completo." : "Nenhum jogo neste dia. O site só cobre a semana corrente."}
+        </EmptyBox>
       ) : (
         <ul className="space-y-2">
           {jogosDoDia.map((j) => (

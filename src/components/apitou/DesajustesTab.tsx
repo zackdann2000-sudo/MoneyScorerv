@@ -17,6 +17,7 @@ import {
   horaJogo,
   diaCurto,
 } from "./Ui";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 type Nivel = "quente" | "bom" | "neutro";
 
@@ -35,16 +36,20 @@ export default function DesajustesTab({
 }) {
   const [nivel, setNivel] = useState<Nivel | "">("");
   const [limite, setLimite] = useState(30);
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   const url = useMemo(() => {
     const q = new URLSearchParams();
     if (nivel) q.set("nivel", nivel);
     if (date) q.set("date", date);
+    // O filtro de ligas vai para a API: ela corta pelo `limit` DEPOIS de filtrar,
+    // então a paginação "carregar mais" continua trazendo 30 itens por vez.
+    if (soPrincipais) q.set("principais", "1");
     q.set("limit", String(limite));
     return `/api/apitou/desajustes?${q.toString()}`;
-  }, [nivel, date, limite]);
+  }, [nivel, date, limite, soPrincipais]);
 
-  const { data, loading, error, refresh } = useApi<DesajustesResp>(url, [nivel, date, limite]);
+  const { data, loading, error, refresh } = useApi<DesajustesResp>(url, [nivel, date, limite, soPrincipais]);
 
   if (loading && !data) return <Spinner label="Procurando desajustes…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
@@ -67,6 +72,8 @@ export default function DesajustesTab({
           acontece.
         </p>
       </div>
+
+      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
 
       {/* Filtros de nível */}
       <div className="flex gap-1.5">
@@ -91,8 +98,9 @@ export default function DesajustesTab({
 
       {data.desajustes.length === 0 ? (
         <EmptyBox>
-          Nenhum desajuste{nivel ? ` no nível "${nivel}"` : ""}. O mercado está alinhado com o
-          modelo — o que também é informação.
+          {soPrincipais && data.total === 0
+            ? "Nenhum desajuste nas principais ligas. Use \"Todas as Ligas\" para ver o recorte completo."
+            : `Nenhum desajuste${nivel ? ` no nível "${nivel}"` : ""}. O mercado está alinhado com o modelo — o que também é informação.`}
         </EmptyBox>
       ) : (
         <ul className="space-y-2">

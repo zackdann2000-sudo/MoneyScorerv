@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Star, RefreshCw, ChevronDown, Search } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { toYmd } from "@/components/DateStrip";
+import { isMainLeague } from "@/lib/mainLeagues";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 type Row = {
   id: string; league: string; leagueName: string; country: string; flag: string; date: string;
@@ -28,6 +30,7 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
   const [err, setErr] = useState("");
   const [updated, setUpdated] = useState<number>(0);
   const [filter, setFilter] = useState<"all" | "live" | "post" | "pre" | "tip">(mode === "live" ? "live" : "all");
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [favLeagues, setFavLeagues] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -101,12 +104,15 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
       const ids = new Set(favorites.map((f) => f.id));
       list = list.filter((m) => ids.has(m.home.id) || ids.has(m.away.id));
     }
+    // Padrão: só as 16 principais ligas. Filtro no cliente — a API segue
+    // entregando o painel completo e o cache não muda.
+    if (soPrincipais) list = list.filter((m) => isMainLeague(m.leagueName));
     if (q.trim()) {
       const s = q.toLowerCase();
       list = list.filter((m) => `${m.home.name} ${m.away.name} ${m.leagueName} ${m.country}`.toLowerCase().includes(s));
     }
     return list;
-  }, [rows, mode, favorites, q]);
+  }, [rows, mode, favorites, q, soPrincipais]);
 
   const counts = useMemo(() => ({
     all: base.length,
@@ -166,6 +172,10 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
         })}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+      </div>
+
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-3">
         {([
           ["all", `Todos ${counts.all}`],
@@ -197,7 +207,11 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
           ) : (
             <>
               <p className="font-bold">Nenhum jogo neste filtro</p>
-              <p className="text-sm text-mut mt-1">A fonte não publicou partidas para esta data e este recorte. O contador usa a mesma lista.</p>
+              <p className="text-sm text-mut mt-1">
+                {soPrincipais && (rows?.length ?? 0) > 0
+                  ? 'Nenhum jogo das principais ligas nesta data. Toque em "Todas as Ligas" para ver o dia completo.'
+                  : "A fonte não publicou partidas para esta data e este recorte. O contador usa a mesma lista."}
+              </p>
             </>
           )}
         </div>

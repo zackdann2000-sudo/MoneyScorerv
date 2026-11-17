@@ -163,6 +163,7 @@ export type DesajusteCalculado = Desajuste & {
   chave: string;
   jogador: string;
   fixtureId: number;
+  competicao: string;
   home: string;
   away: string;
   kickoff: string;
@@ -187,6 +188,7 @@ export function extrairDesajustes(props: PropCalculada[], minimoEdge = 0.03): De
         chave: p.chave,
         jogador: p.jogador,
         fixtureId: p.fixtureId,
+        competicao: p.competicao,
         home: p.home,
         away: p.away,
         kickoff: p.kickoff,

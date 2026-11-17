@@ -60,6 +60,7 @@ export type PropAnalisada = {
 export type DesajusteItem = {
   chave: string;
   fixtureId: number;
+  competicao: string;
   mercado: string;
   linha: number;
   odd: number;
