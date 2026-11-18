@@ -5,6 +5,7 @@ import { Whistle } from "./icons";
 import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge } from "@/components/ui";
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
+import BlocoAnalises from "./BlocoAnalises";
 import TeamStatsTab from "./TeamStatsTab";
 import LineupPitch from "@/components/Lineup";
 import Last10Matrix from "@/components/Last10";
@@ -167,6 +168,9 @@ export function PreLiveTab({ home, away, league, officials }: { home: Team; away
         </div>
         <span className="text-[9px] text-mut">últimos {h.averages?.jogos || 0} × {a.averages?.jogos || 0} jogos</span>
       </div>
+      {/* As 4 análises em destaque: o resumo do confronto antes do detalhe. */}
+      <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} />
+
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {Object.keys(CATS).map((c) => <button key={c} onClick={() => setCat(c)} className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-extrabold border ${cat === c ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}>{c}</button>)}
         <span className="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-extrabold border border-dashed border-line text-mut/50">🔒 PASSES (Sportmonks)</span>

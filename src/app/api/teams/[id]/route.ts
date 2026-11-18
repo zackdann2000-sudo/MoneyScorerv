@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       averages: {
         jogos: g.length, gols: avg((x) => x.gf), sofridos: avg((x) => x.ga),
         escanteios: avg((x) => x.corners), faltas: avg((x) => x.fouls), amarelos: avg((x) => x.yellow),
+        vermelhos: avg((x) => x.red), impedimentos: avg((x) => x.offsides),
         chutesGol: avg((x) => x.sot), finalizacoes: avg((x) => x.shots), posse: avg((x) => x.poss), xgEst: avg((x) => x.xgEst),
         v: g.filter((x) => x.res === "V").length, e: g.filter((x) => x.res === "E").length, d: g.filter((x) => x.res === "D").length,
       },
