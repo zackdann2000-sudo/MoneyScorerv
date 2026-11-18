@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { BrainCircuit, ShieldAlert, Info } from "lucide-react";
 import { VipLock, SourceFoot } from "@/components/ui";
+import { VereditoDoJogo } from "./VereditoCard";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -81,11 +82,30 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
 
   return (
     <div className="space-y-3">
+      {/* Veredito em destaque: um mercado, um número, uma explicação. */}
+      <VereditoDoJogo matchId={matchId} league={league} />
+
       <div className="flex items-center gap-2 flex-wrap">
         <span className="px-2 py-1 rounded-lg bg-purple/15 border border-purple/40 text-purple text-[10px] font-extrabold flex items-center gap-1"><BrainCircuit size={11} /> {a.model_type === "fallback_simples" ? "MODELO SIMPLIFICADO" : "IA · DIXON-COLES/POISSON"}</span>
         <span className={`px-2 py-1 rounded-lg text-[10px] font-extrabold ${a.confidence === "alta" ? "bg-acc/15 text-acc" : a.confidence === "média" ? "bg-warn/15 text-warn" : "bg-danger/15 text-danger"}`}>Confiabilidade {a.confidence}</span>
         <span className="text-[9px] text-mut ml-auto">{a.model_type}</span>
       </div>
+
+      {/* Base do número: o modelo não usa a temporada inteira, e sim a forma
+          recente ponderada (1.5 / 1.0 / 0.5) cruzada com o H2H. */}
+      <p className="text-[9px] text-mut -mt-1">
+        Base: últimos {a.sample?.home ?? 0} × {a.sample?.away ?? 0} jogos, com peso maior nos 3 mais
+        recentes (1.5 / 1.0 / 0.5).
+      </p>
+
+      {a.h2hAjuste?.aplicado && (
+        <div className="rounded-xl border border-purple/40 bg-purple/10 px-2.5 py-1.5">
+          <p className="text-[10px] font-bold text-purple flex items-center gap-1">
+            <BrainCircuit size={10} /> Confronto direto ajustou o modelo
+          </p>
+          <p className="text-[9px] text-mut leading-snug mt-0.5">{a.h2hAjuste.texto}</p>
+        </div>
+      )}
 
       {/* 1X2 */}
       <div className="bg-panel border border-line rounded-2xl p-4">
