@@ -119,6 +119,40 @@ export function numero(s: string, ): number | null {
   return Number.isFinite(v) ? v : null;
 }
 
+/** Odd em faixa plausível (1.01 a 1000), arredondada em centavos. */
+function oddValida(v: number): number | null {
+  if (!Number.isFinite(v) || v < 1.01 || v > 1000) return null;
+  return Math.round(v * 100) / 100;
+}
+
+/**
+ * Odd sempre em decimal, qualquer que seja o formato que o site devolveu.
+ *
+ * O NerdyTips troca o formato pela geolocalização de quem pede: de um IP
+ * brasileiro vem decimal (2.80), de um IP nos EUA vem americano (-222, +150) e
+ * quem escolheu na mão recebe fracionário (1/2). Sem normalizar, a odd
+ * americana negativa entra como número negativo e a tela mostra "-222" — foi
+ * exatamente o que aconteceu no primeiro deploy (Vercel responde dos EUA).
+ */
+export function odd(s: string): number | null {
+  const t = String(s || "").replace(/[▲▼▾▴►◄]/g, " ").trim();
+  if (!t) return null;
+
+  const frac = t.match(/(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/);
+  if (frac) {
+    const a = Number(frac[1].replace(",", "."));
+    const b = Number(frac[2].replace(",", "."));
+    return b > 0 ? oddValida(a / b + 1) : null;
+  }
+
+  const v = numero(t);
+  if (v == null) return null;
+  // Americano negativo sempre tem módulo >= 100; "-0.5" é lixo de HTML.
+  if (v < 0) return Math.abs(v) >= 100 ? oddValida(1 + 100 / Math.abs(v)) : null; // -222 -> 1.45
+  if (v >= 100) return oddValida(1 + v / 100); // +150 -> 2.50
+  return oddValida(v); // decimal
+}
+
 /** Número de um atributo (`style="--pct:47%"` -> 47). */
 function pctDe(bloco: string): number | null {
   const m = bloco.match(/--pct:\s*(\d+(?:\.\d+)?)%/);
@@ -279,7 +313,7 @@ function pickDa(celula: Celula | undefined, resultado: Status): Pick | null {
   return {
     rotulo,
     texto: traduzirPick(rotulo),
-    odd: numero(oddTxt),
+    odd: odd(oddTxt),
     confianca: conf ? Number(conf[1]) : null,
     pct: pctDe(celula.attrs),
     resultado,
@@ -451,7 +485,7 @@ function cardPalpite(bloco: string): PalpiteCard | null {
     rotulo,
     pick: pick || placar || "",
     texto: traduzirPick(pick || placar || ""),
-    odd: numero(oddTxt),
+    odd: odd(oddTxt),
     confianca: conf ? Number(conf[1]) : null,
   };
 }
@@ -496,7 +530,7 @@ export function parsePartida(html: string): Partida {
 
   // Odds de 1X2 no topo da página (ordem: casa, empate, fora).
   const oddsVals = Array.from(html.matchAll(/md-1x2__o"[^>]*>([\s\S]*?)<\/span><\/span>/g))
-    .map((m) => numero(texto(m[1])))
+    .map((m) => odd(texto(m[1])))
     .filter((v): v is number => v != null);
 
   // Melhor palpite (destaque do topo da seção).
@@ -513,7 +547,7 @@ export function parsePartida(html: string): Partida {
         rotulo: pick,
         pick,
         texto: traduzirPick(pick),
-        odd: numero(oddTxt),
+        odd: odd(oddTxt),
         confianca: conf ? Number(conf[1]) : null,
       };
     }

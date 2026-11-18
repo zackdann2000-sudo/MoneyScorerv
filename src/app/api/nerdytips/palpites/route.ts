@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
   const placar = req.nextUrl.searchParams.get("placar") === "1";
 
   const caminho = placar ? "/correct-score-predictions-today" : todas ? "/all-matches" : "/";
-  const chave = placar ? "palpites:placar" : todas ? "palpites:todas" : "palpites";
+  // v2: o parser passou a normalizar odd (formato americano vindo de IP dos EUA).
+  const chave = placar ? "v2:palpites:placar" : todas ? "v2:palpites:todas" : "v2:palpites";
 
   try {
     const r = await comCache(chave, caminho, parseBoard);

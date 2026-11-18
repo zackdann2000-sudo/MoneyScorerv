@@ -15,7 +15,7 @@ export const maxDuration = 60;
 
 export async function GET() {
   try {
-    const r = await comCache("destaques", "/bet-of-the-day", parseDestaques);
+    const r = await comCache("v2:destaques", "/bet-of-the-day", parseDestaques);
     return NextResponse.json({
       ...r.dados,
       cache: {

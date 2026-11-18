@@ -123,5 +123,24 @@ check("próximos", d.proximos, 0);
 check("acerto", d.acerto, "33%");
 check("slip do dia", d.slip, { picks: 5, odd: 3.51 });
 
+/* ---------------------- formato de odd ---------------------------- */
+console.log("\n=== 6. Odd normalizada (decimal / americana / fracionária) ===");
+check("decimal 2.80", F.odd("2.80"), 2.8);
+check("decimal com seta para baixo", F.odd("\u25BC 2.80"), 2.8);
+check("decimal com seta para cima", F.odd("\u25B2 3.10"), 3.1);
+check("decimal com vírgula", F.odd("1,45"), 1.45);
+// Requisição feita dos EUA: o site devolve americano. -222 -> 1 + 100/222.
+check("americano -222", F.odd("-222"), 1.45);
+check("americano -110", F.odd("-110"), 1.91);
+check("americano +150", F.odd("+150"), 2.5);
+check("americano +100", F.odd("100"), 2);
+check("fracionário 1/2", F.odd("1/2"), 1.5);
+check("fracionário 5/2", F.odd("5/2"), 3.5);
+check("vazio", F.odd(""), null);
+check("sem número", F.odd("\u2022\u2022\u2022"), null);
+check("zero/negativo absurdo", F.odd("-0.5"), null);
+check("decimal fora de faixa", F.odd("0.5"), null);
+check("mesma odd nos três formatos", [F.odd("1.45"), F.odd("-222"), F.odd("9/20")], [1.45, 1.45, 1.45]);
+
 console.log(falhas === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${falhas} FALHA(S)`);
 process.exit(falhas === 0 ? 0 : 1);

@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   try {
-    const r = await comCache(`partida:${id}`, `/match-details/${id}`, parsePartida);
+    const r = await comCache(`v2:partida:${id}`, `/match-details/${id}`, parsePartida);
     return NextResponse.json({
       ...r.dados,
       cache: {
