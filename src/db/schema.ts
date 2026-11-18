@@ -324,6 +324,23 @@ export const kingstatsCache = pgTable("kingstats_cache", {
 }, (t) => [index("kingstats_cache_updated_idx").on(t.updatedAt)]);
 
 /**
+ * Cache do módulo NerdyTips (nerdytips.com).
+ *
+ * Uma linha por página já transformada:
+ *   "palpites"   — board do dia
+ *   "destaques"  — bet of the day + slip
+ *   "progresso"  — desempenho público (KPIs + tabela mensal)
+ *   "partida:<id>" — detalhe de um jogo
+ *
+ * Guardamos o resumo (poucos KB), nunca o HTML inteiro.
+ */
+export const nerdytipsCache = pgTable("nerdytips_cache", {
+  cacheKey: text("cache_key").primaryKey(),
+  payload: jsonb("payload").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("nerdytips_cache_updated_idx").on(t.updatedAt)]);
+
+/**
  * Desajustes fixados pelo usuário (props com vantagem modelo × mercado).
  * `propKey` = fixtureId:mercado:selecao:linha (id estável entre refreshes).
  */
