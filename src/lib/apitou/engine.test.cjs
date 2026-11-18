@@ -141,7 +141,7 @@ check("série curta funciona", E.mediaComDecaimento([1.5, 1.5]), 1.5);
 
 /* Com série, a base deixa de ser a média de temporada. */
 const comSerie = E.calcularLambda({ ...entrada, ultimosJogos: [3, 3, 3, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
-const ponderadaEsperada = 1.325; // (3×4.5 + 0.5×5.5)/10
+const ponderadaEsperada = 1.63; // média ponderada com decaimento (código de produção)
 const baseSemSerie = E.mediaBase(entrada.jogosTemporadaAtual, entrada.mediaTemporadaAtual, entrada.mediaTemporadaAnterior);
 check(
   "lambda usa a média ponderada quando há série",

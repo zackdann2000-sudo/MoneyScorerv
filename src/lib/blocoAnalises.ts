@@ -160,7 +160,7 @@ function montar(
   const totalAjustado =
     total != null && ajuste?.aplicado ? Math.round(total * ajuste.fator * 100) / 100 : total;
   // Sem número na fonte: não há o que estimar.
-  if (mediaCasa == null || mediaFora == null || totalAjustado == null) {
+  if (mediaCasa == null || mediaFora == null || total == null || totalAjustado == null) {
     return {
       id,
       rotulo: ROTULOS[id],
@@ -195,7 +195,7 @@ function montar(
   // mercado oferece. O H2H mexe na probabilidade dessa linha, não na linha —
   // senão um confronto travado "abaixaria" a linha e a chance subiria, o
   // contrário do que o histórico diz.
-  const linha = linhaSugerida(totalAjustado);
+  const linha = linhaSugerida(total);
   const prob = arred(poissonAcima(linha, totalAjustado) * 100);
   return {
     id,

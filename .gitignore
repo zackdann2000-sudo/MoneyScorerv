@@ -51,3 +51,8 @@ yarn-error.log*
 
 # skills/agentes locais (não fazem parte do app)
 /.agents/
+
+# artefatos locais de debug/checagem/execução (não versionar)
+/.dbgx/
+/.chk/
+/.run/
