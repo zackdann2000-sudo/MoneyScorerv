@@ -263,7 +263,11 @@ export type StatsTime = {
   fin: number;
   finSof: number;
   faltas: number;
+  faltasSof: number;
   amarelos: number;
+  amarelosSof: number;
+  impedimentos: number;
+  impedimentosSof: number;
   posse: number;
   chutesGol: number;
 };
@@ -293,7 +297,8 @@ function mediaStats(raiox: unknown): StatsTime | null {
 
   const acc = {
     gols: 0, golsSof: 0, cantos: 0, cantosSof: 0, fin: 0, finSof: 0,
-    faltas: 0, amarelos: 0, posse: 0, chutesGol: 0,
+    faltas: 0, faltasSof: 0, amarelos: 0, amarelosSof: 0,
+    impedimentos: 0, impedimentosSof: 0, posse: 0, chutesGol: 0,
   };
 
   for (const j of geral) {
@@ -306,7 +311,11 @@ function mediaStats(raiox: unknown): StatsTime | null {
     acc.fin += own.fin || 0;
     acc.finSof += adv.fin || 0;
     acc.faltas += own.faltas || 0;
+    acc.faltasSof += adv.faltas || 0;
     acc.amarelos += own.amarelos || 0;
+    acc.amarelosSof += adv.amarelos || 0;
+    acc.impedimentos += own.impedimentos || 0;
+    acc.impedimentosSof += adv.impedimentos || 0;
     acc.posse += own.posse || 0;
     acc.chutesGol += own.chutesGol || 0;
   }
@@ -322,7 +331,11 @@ function mediaStats(raiox: unknown): StatsTime | null {
     fin: r(acc.fin),
     finSof: r(acc.finSof),
     faltas: r(acc.faltas),
+    faltasSof: r(acc.faltasSof),
     amarelos: r(acc.amarelos),
+    amarelosSof: r(acc.amarelosSof),
+    impedimentos: r(acc.impedimentos),
+    impedimentosSof: r(acc.impedimentosSof),
     posse: r(acc.posse),
     chutesGol: r(acc.chutesGol),
   };

@@ -104,6 +104,12 @@ export type StatsTime = {
   amarelos: number;
   posse: number;
   chutesGol: number;
+  // Campos adicionados depois: cache antigo no Neon pode não tê-los, por isso
+  // são opcionais. Quem consome deve tratar `undefined` como "sem dado".
+  faltasSof?: number;
+  amarelosSof?: number;
+  impedimentos?: number;
+  impedimentosSof?: number;
 };
 
 export type H2HItem = {

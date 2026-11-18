@@ -18,6 +18,7 @@ import {
   horaJogo,
 } from "./Ui";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
+import BlocoAnalises from "./BlocoAnalises";
 
 /**
  * Aba "Análise" — o jogo aberto, com o que o modelo calculou.
@@ -80,6 +81,9 @@ export default function AnaliseTab({
           </p>
         )}
       </div>
+
+      {/* As 4 análises ficam sempre à vista: é o resumo estatístico do jogo. */}
+      <BlocoAnalises casa={jogo.statsHome} fora={jogo.statsAway} />
 
       {/* Alternador de visão */}
       <nav className="flex gap-1.5 p-1 rounded-2xl bg-panel border border-line">

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, BarChart3, ListOrdered } from "lucide-react";
 import { useApi } from "./useApi";
 import { CacheBadge, EmptyBox, ErrorBox, Spinner, TeamBadge } from "./Ui";
+import { traduzirMercado } from "@/lib/marketTranslations";
 import TeamHistoryChart from "./TeamHistoryChart";
 import { fmtDay, fmtTime, formArray, hitTone, lineLabel, statusLabel, type CacheInfo, type ComparisonUI, type LineUI } from "./types";
 
@@ -81,6 +82,9 @@ function LinesSection({ fixtureId }: { fixtureId: string }) {
   const grouped = useMemo(() => {
     const map = new Map<string, LineUI[]>();
     for (const l of data?.lines ?? []) {
+      // Blindagem extra: a rota já remove odd <= 0, mas se algum dia vier
+      // (cache antigo, fonte nova), não deixamos "odd 0.00" chegar na tela.
+      if (!(Number(l.price) > 0)) continue;
       const arr = map.get(l.marketLabel) ?? [];
       arr.push(l);
       map.set(l.marketLabel, arr);
@@ -99,7 +103,7 @@ function LinesSection({ fixtureId }: { fixtureId: string }) {
           <option value="">Todos os mercados</option>
           {(data?.markets ?? []).map((m) => (
             <option key={m} value={m}>
-              {m.replace(/_/g, " ")}
+              {traduzirMercado(m, "")}
             </option>
           ))}
         </select>

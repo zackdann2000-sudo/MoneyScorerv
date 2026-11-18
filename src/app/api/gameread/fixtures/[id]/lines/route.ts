@@ -12,7 +12,8 @@
  * `group=0` desliga o agrupamento e devolve os itens crus (para depuração).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getFixtureLines, marketLabel, CACHE_TTL_MS } from "@/lib/gameread";
+import { getFixtureLines, CACHE_TTL_MS } from "@/lib/gameread";
+import { traduzirMercado } from "@/lib/marketTranslations";
 
 export const dynamic = "force-dynamic";
 
@@ -58,12 +59,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   try {
     const res = await getFixtureLines(id, revalidate);
-    const items = res.data?.items ?? [];
+    const brutos = res.data?.items ?? [];
+
+    // Odd <= 0 (ou nula) significa mercado fechado, suspenso ou sem liquidez.
+    // Mostrar "odd 0.00" só confunde e sugere linha que dá para apostar. Fora.
+    const items = brutos.filter((it) => Number(it.price) > 0);
 
     const mapped: OutLine[] = items.map((it) => ({
       oddId: it.oddId,
       market: it.market,
-      marketLabel: it.marketName || marketLabel(it.market),
+      marketLabel: traduzirMercado(it.market, it.marketName),
       selection: it.selection,
       line: it.line ?? null,
       price: it.price ?? null,
@@ -136,7 +141,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       fixtureId: id,
       count: rows.length,
       total: items.length,
-      totalAvailable: res.data?.totalAvailable ?? items.length,
+      totalAvailable: res.data?.totalAvailable ?? brutos.length,
       markets,
       lines: rows,
       cache: {
