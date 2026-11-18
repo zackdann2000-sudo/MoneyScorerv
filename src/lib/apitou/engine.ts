@@ -1,3 +1,7 @@
+/* Peso da forma recente: pesos compartilhados com o resto do app, para não
+   existirem duas escalas de decaimento diferentes no mesmo produto. */
+import { mediaPonderada } from "../formaRecente";
+
 /**
  * Motor de probabilidades do módulo /apitou.
  *
@@ -7,8 +11,11 @@
  * em comentário para auditoria, mas reescritos em TypeScript tipado, sem herdar
  * as variáveis de uma letra só do original.
  *
- *   calcularLambda   = mediaBase × multMinutos × multAdversario × multMando
+ *   calcularLambda   = base × multMinutos × multAdversario × multMando
  *                      × multForma × multConfronto
+ *   base             = média dos últimos 10 jogos com PESO DE FORMA
+ *                      (1.5 / 1.0 / 0.5) quando a série existe; senão a
+ *                      média de temporada como antes
  *   probOver         = 1 - soma(Poisson(k; lambda), k=0..linha)
  *   calcularQI       = sigmoide sobre desvio normalizado
  *   calcularConfianca= escalação(40) + amostra(30) + estabilidade(20) + consenso(10)
@@ -92,6 +99,17 @@ export function mediaBase(atual: number, mediaAtual: number, mediaAnterior: numb
 }
 
 /**
+ * Média ponderada pela forma recente (1.5 nos 3 últimos jogos, 1.0 do 4º ao
+ * 7º, 0.5 do 8º ao 10º). A série vem do mais recente para o mais antigo.
+ *
+ * Devolve `null` quando não há número — quem chama decide o fallback. É de
+ * propósito que a função não "conserta" série vazia com zero: zero é medição.
+ */
+export function mediaComDecaimento(ultimosJogos: readonly (number | null | undefined)[]): number | null {
+  return mediaPonderada(ultimosJogos).media;
+}
+
+/**
  * Minutos: quem joga menos minutos produz menos. Nunca acima de 1 — não
  * premiamos quem joga mais que a própria média de titular.
  */
@@ -146,11 +164,23 @@ export type LambdaInput = {
   mediaUltimos5: number;
   mediaVsAdversario: number;
   nJogosConfrontoDireto: number;
+  /**
+   * Série dos últimos jogos (mais recente primeiro). Quando presente, a base
+   * deixa de ser a média de temporada e passa a ser a média ponderada pela
+   * forma — é o que evita a média velha puxando o número para trás.
+   */
+  ultimosJogos?: readonly (number | null | undefined)[];
 };
 
 /** Média esperada do evento no jogo (o "lambda" da Poisson). */
 export function calcularLambda(p: LambdaInput): number {
-  const base = mediaBase(p.jogosTemporadaAtual, p.mediaTemporadaAtual, p.mediaTemporadaAnterior);
+  // Forma recente primeiro: a média ponderada dos últimos jogos já embute a
+  // queda de peso do 8º ao 10º jogo. Sem série, mantém o comportamento antigo.
+  const ponderada = p.ultimosJogos?.length ? mediaComDecaimento(p.ultimosJogos) : null;
+  const base =
+    ponderada != null && ponderada > 0
+      ? ponderada
+      : mediaBase(p.jogosTemporadaAtual, p.mediaTemporadaAtual, p.mediaTemporadaAnterior);
   const minutos = multMinutos(p.minutosProjetados, p.minutosMediosTitular);
   const adversario = Number.isFinite(p.multAdversario) && p.multAdversario > 0 ? p.multAdversario : 1;
   const mando = multMando(p.isHome, p.sedeNeutra);

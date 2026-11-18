@@ -6,6 +6,8 @@ import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge 
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import BlocoAnalises from "./BlocoAnalises";
+import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
+import type { ContextoH2H } from "@/lib/blocoAnalises";
 import TeamStatsTab from "./TeamStatsTab";
 import LineupPitch from "@/components/Lineup";
 import Last10Matrix from "@/components/Last10";
@@ -131,7 +133,7 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
 }
 
 /* ================= PRÉ-LIVE (comparativo Last 10) ================= */
-export function PreLiveTab({ home, away, league, officials }: { home: Team; away: Team; league: string; officials: any[] }) {
+export function PreLiveTab({ home, away, league, officials, h2h }: { home: Team; away: Team; league: string; officials: any[]; h2h?: { games?: any[] } | null }) {
   const [h, setH] = useState<any>(null); const [a, setA] = useState<any>(null);
   const [mode, setMode] = useState<"media" | "total">("media");
   const [cat, setCat] = useState("ATAQUE");
@@ -147,6 +149,15 @@ export function PreLiveTab({ home, away, league, officials }: { home: Team; away
       if (gp) setLeagueAvg(+(gf / gp).toFixed(2));
     }).catch(() => {});
   }, [home.id, away.id, league]);
+
+  /* H2H resumido para o bloco: média de gols por confronto nos últimos 7.
+     Cartões não vêm nesse payload — o cruzamento de cartões fica neutro. */
+  const h2hCtx: ContextoH2H | null = useMemo(() => {
+    const jogos = (h2h?.games ?? []).slice(0, JANELA_H2H);
+    if (jogos.length < 3) return null;
+    const gols = jogos.map((g: any) => Number(g?.homeScore ?? 0) + Number(g?.awayScore ?? 0));
+    return { gols: mediaSimples(gols), jogos: jogos.length };
+  }, [h2h]);
 
   const CATS: Record<string, { key: string; label: string; liga?: number | null }[]> = {
     ATAQUE: [{ key: "gols", label: "Gols marcados", liga: leagueAvg }, { key: "chutesGol", label: "Chutes no gol" }, { key: "finalizacoes", label: "Finalizações" }, { key: "xgEst", label: "xG estimado" }],
@@ -169,7 +180,7 @@ export function PreLiveTab({ home, away, league, officials }: { home: Team; away
         <span className="text-[9px] text-mut">últimos {h.averages?.jogos || 0} × {a.averages?.jogos || 0} jogos</span>
       </div>
       {/* As 4 análises em destaque: o resumo do confronto antes do detalhe. */}
-      <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} />
+      <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} h2h={h2hCtx} />
 
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {Object.keys(CATS).map((c) => <button key={c} onClick={() => setCat(c)} className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-extrabold border ${cat === c ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}>{c}</button>)}

@@ -128,6 +128,31 @@ check("edge 4%, prob 40% -> bom", E.classificarDesajuste(0.04, 0.4, 55), "bom");
 check("edge 1% -> neutro", E.classificarDesajuste(0.01, 0.4, 55), "neutro");
 check("edge alto mas prob baixa -> não é quente", E.classificarDesajuste(0.2, 0.2, 90), "neutro");
 
+
+console.log("\n=== 10b. Peso da forma recente (últimos 10 jogos) ===");
+/* Pesos: 1.5 nos 3 mais recentes, 1.0 do 4º ao 7º, 0.5 do 8º ao 10º. */
+check("média ponderada de série constante", E.mediaComDecaimento([2, 2, 2, 2, 2, 2, 2, 2, 2, 2]), 2);
+// (3×1.5×3 + 1×5.5) / 10 = (13.5 + 5.5)/10 = 1.9
+check("recência 3 vezes maior puxa a média", E.mediaComDecaimento([3, 3, 3, 1, 1, 1, 1, 1, 1, 1]), 1.9);
+check("recência baixa puxa para baixo", E.mediaComDecaimento([1, 1, 1, 3, 3, 3, 3, 3, 3, 3]), 2.1);
+check("série vazia devolve null", E.mediaComDecaimento([]), null);
+check("nulos são ignorados", E.mediaComDecaimento([4, null, 4]), 4);
+check("série curta funciona", E.mediaComDecaimento([1.5, 1.5]), 1.5);
+
+/* Com série, a base deixa de ser a média de temporada. */
+const comSerie = E.calcularLambda({ ...entrada, ultimosJogos: [3, 3, 3, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] });
+const ponderadaEsperada = 1.325; // (3×4.5 + 0.5×5.5)/10
+const baseSemSerie = E.mediaBase(entrada.jogosTemporadaAtual, entrada.mediaTemporadaAtual, entrada.mediaTemporadaAnterior);
+check(
+  "lambda usa a média ponderada quando há série",
+  comSerie,
+  ponderadaEsperada * E.multMinutos(80, 85) * 1.0 * E.multMando(true, false) * E.multForma(2.2, 2.0) * E.multConfronto(1.8, 2.0, 5),
+  1e-12,
+);
+check("e é diferente do cálculo com a média de temporada", comSerie !== E.calcularLambda(entrada), true);
+check("base antiga continua valendo sem série", Math.abs(E.calcularLambda(entrada) - baseSemSerie * 0.9411764705882353 * 1.12 * 1.02 * 0.9615384615384616) < 1e-9, true);
+check("série de zeros não zera a lambda (cai no fallback? não: 0 é medição)", Number.isFinite(E.calcularLambda({ ...entrada, ultimosJogos: [0, 0, 0] })), true);
+
 console.log("\n=== 10. Proteções (não pode gerar NaN/Infinity) ===");
 check("lambda com media 0 não é NaN", Number.isFinite(E.calcularLambda({ ...entrada, mediaTemporadaAtual: 0, mediaTemporadaAnterior: 0 })), true);
 check("poissonSF com λ=0 dá 0", E.poissonSF(0.5, 0), 0);

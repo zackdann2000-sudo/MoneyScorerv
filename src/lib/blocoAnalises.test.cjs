@@ -10,7 +10,7 @@
  *     --outDir .babuild --skipLibCheck
  *   cp src/lib/blocoAnalises.test.cjs .babuild/ && node .babuild/blocoAnalises.test.cjs
  */
-const { blocoAnalises, linhaSugerida, poissonAcima, ORDEM } = require("./blocoAnalises.js");
+const { blocoAnalises, linhaSugerida, poissonAcima, ORDEM, BASE_ULTIMOS, TEXTO_BASE } = require("./blocoAnalises.js");
 
 let ok = 0;
 const falhas = [];
@@ -124,6 +124,36 @@ check(
   poissonAcima(2.5, 3.0) < poissonAcima(2.5, 4.0),
   true,
 );
+
+
+console.log("\n=== 11. H2H travado derruba a probabilidade da MESMA linha ===");
+const semH2H = blocoAnalises(CASA, FORA)[2];
+const h2hTravado = blocoAnalises(CASA, FORA, { gols: 0.5, cartoes: 3.0, jogos: 7 });
+const golsTravado = h2hTravado[2];
+
+check("linha não se move com o H2H", golsTravado.linha, semH2H.linha);
+check("total cai com H2H travado", golsTravado.total < semH2H.total, true);
+perto("fator no piso 0.85", golsTravado.ajuste.fator, 0.85);
+check("ajuste marcado como aplicado", golsTravado.ajuste.aplicado, true);
+check("probabilidade cai", golsTravado.prob < semH2H.prob, true);
+perto("3.1 x 0.85 = 2.64", golsTravado.total, 2.64);
+perto("probabilidade recalculada na linha 2.5", golsTravado.prob, poissonAcima(2.5, 2.64) * 100);
+
+check("cartões também cruzam com o H2H", h2hTravado[0].ajuste.aplicado, true);
+check("faltas não cruzam (sem H2H confiável)", h2hTravado[1].ajuste, null);
+check("impedimentos não cruzam", h2hTravado[3].ajuste, null);
+
+const h2hAberto = blocoAnalises(CASA, FORA, { gols: 5.0, jogos: 7 })[2];
+check("H2H aberto sobe a probabilidade", h2hAberto.prob > semH2H.prob, true);
+perto("fator limitado ao teto", h2hAberto.ajuste.fator, 1.1);
+
+const h2hCurto = blocoAnalises(CASA, FORA, { gols: 0.2, jogos: 2 })[2];
+check("H2H com 2 jogos não ajusta", h2hCurto.ajuste.aplicado, false);
+check("nem muda o total", h2hCurto.total, semH2H.total);
+
+console.log("\n=== 12. Transparência da base ===");
+check("BASE_ULTIMOS = 10", BASE_ULTIMOS, 10);
+check("TEXTO_BASE cita os 10 jogos", TEXTO_BASE, "baseado nos últimos 10 jogos");
 
 console.log(`\n${falhas.length === 0 ? "✅ TODOS OS TESTES PASSARAM" : "❌ HOUVE FALHAS"} — ${ok} ok, ${falhas.length} falha(s)`);
 if (falhas.length) {

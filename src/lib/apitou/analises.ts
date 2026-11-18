@@ -15,13 +15,16 @@
  * É estimativa de média, não leitura de mercado: por isso o card nunca fala em
  * odd nem em valor esperado.
  */
-import { poissonSF } from "./engine";
+import { mediaComDecaimento, poissonSF } from "./engine";
+import type { SerieTime } from "./fonte";
 
 export type MetricaId = "gols" | "cartoes" | "faltas" | "impedimentos";
 
 /** Só os campos que este bloco usa — aceita StatsTime completo ou cache antigo. */
 export type StatsLite = {
   jogos?: number;
+  /** Série dos últimos 10 jogos — quando existe, a média vira ponderada. */
+  serie?: SerieTime;
   gols?: number;
   golsSof?: number;
   amarelos?: number;
@@ -115,10 +118,24 @@ export function quatroAnalises(
   const amostraFora = Math.max(0, Math.floor(num(fora?.jogos) ?? 0));
 
   return DEFS.map((def) => {
-    const ownCasa = num(casa?.[def.own]);
-    const ownFora = num(fora?.[def.own]);
-    const sofCasa = num(casa?.[def.ownSof]);
-    const sofFora = num(fora?.[def.ownSof]);
+    // Com a série em mãos, a média é ponderada pela forma recente
+    // (1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º, 0.5 do 8º ao 10º). Sem série,
+    // cai para a média de temporada que veio da fonte.
+    // Nomes de campo da série e de StatsLite são os mesmos, então o índice
+    // cru serve para os dois.
+    const campoNum = (lado: StatsLite | null | undefined, campo: keyof SerieTime) =>
+      num((lado as Record<string, unknown> | undefined)?.[campo]);
+
+    const ponderada = (lado: StatsLite | null | undefined, campo: keyof SerieTime) => {
+      const serie = lado?.serie?.[campo];
+      const media = serie?.length ? mediaComDecaimento(serie) : null;
+      return media != null && media > 0 ? media : campoNum(lado, campo);
+    };
+
+    const ownCasa = ponderada(casa, def.own as keyof SerieTime);
+    const ownFora = ponderada(fora, def.own as keyof SerieTime);
+    const sofCasa = ponderada(casa, def.ownSof as keyof SerieTime);
+    const sofFora = ponderada(fora, def.ownSof as keyof SerieTime);
 
     // Sem os quatro números não há média cruzada honesta: não chutamos.
     if (ownCasa == null || ownFora == null || sofCasa == null || sofFora == null) {

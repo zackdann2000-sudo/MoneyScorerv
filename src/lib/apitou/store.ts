@@ -13,7 +13,7 @@
 import { sincronizar, type ResumoJogo } from "./fonte";
 
 export const CACHE_TTL_MS = 15 * 60 * 1000;
-const CHAVE = "semana";
+const CHAVE = "semana-v2"; // v2: payload ganhou a série dos últimos 10 jogos
 
 export type ResumoGravado = {
   geradoEm: string;

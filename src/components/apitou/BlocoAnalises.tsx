@@ -107,7 +107,10 @@ export default function BlocoAnalises({
   return (
     <section className="rounded-2xl border border-line bg-panel/40 p-2.5 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[11px] font-extrabold text-ink uppercase tracking-wide">4 análises</h3>
+        <div className="min-w-0">
+          <h3 className="text-[11px] font-extrabold text-ink uppercase tracking-wide">4 análises</h3>
+          <p className="text-[9px] text-mut leading-none mt-0.5">baseado nos últimos 10 jogos</p>
+        </div>
         <span className="text-[9px] text-mut tabular-nums">
           {comDados}/4 com dados
         </span>
@@ -122,9 +125,10 @@ export default function BlocoAnalises({
       <p className="text-[9px] text-mut leading-relaxed flex items-start gap-1">
         <Info size={9} className="mt-0.5 shrink-0" />
         <span>
-          Média de produção do time cruzada com o que o adversário concede, nos jogos do raio-X da
-          fonte. <strong className="text-ink/80">Over</strong> é a probabilidade de passar a linha
-          logo abaixo do total esperado (modelo de Poisson). Não é odd nem promessa de acerto.
+          Média de produção do time cruzada com o que o adversário concede, <strong className="text-ink/80">baseada
+          nos últimos 10 jogos</strong> (peso 1.5 nos 3 mais recentes, 1.0 do 4º ao 7º, 0.5 do 8º ao 10º).
+          <strong className="text-ink/80"> Over</strong> é a probabilidade de passar a linha logo abaixo do
+          total esperado (modelo de Poisson). Não é odd nem promessa de acerto.
         </span>
       </p>
     </section>

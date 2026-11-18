@@ -20,7 +20,19 @@
  *  - probabilidade vem de Poisson (contagem de eventos por jogo);
  *  - número ausente na fonte → `semDados: true`, nunca zero inventado;
  *  - é estimativa de média, não leitura de mercado: sem odd, sem "valor".
+ *
+ * Duas correções entram por cima da média:
+ *  1. o peso da forma recente (o chamador manda médias já ponderadas — 1.5 nos
+ *     3 últimos jogos, 1.0 do 4º ao 7º, 0.5 do 8º ao 10º);
+ *  2. o cruzamento com o H2H (últimos 7 confrontos): se o confronto direto é
+ *     travado, o total esperado de gols/cartões desce antes de virar
+ *     probabilidade — sempre limitado a -15%/+10%.
  */
+import { JANELA_FORMA, JANELA_H2H, ajusteH2H, type AjusteH2H } from "./formaRecente";
+
+/** Janela padrão das médias exibidas e do texto de transparência. */
+export const BASE_ULTIMOS = JANELA_FORMA;
+export const TEXTO_BASE = `baseado nos últimos ${BASE_ULTIMOS} jogos`;
 
 export type MetricaId = "cartoes" | "faltas" | "gols" | "impedimentos";
 
@@ -56,6 +68,18 @@ export type AnaliseBloco = {
   /** Menor amostra entre os dois times, em jogos. */
   amostra: number;
   semDados: boolean;
+  /** Correção vinda do H2H (null quando não houve cruzamento). */
+  ajuste: AjusteH2H | null;
+};
+
+/** H2H já resumido por confronto — o chamador calcula a partir da série. */
+export type ContextoH2H = {
+  /** Média de gols por confronto nos últimos N jogos do H2H. */
+  gols?: number | null;
+  /** Média de cartões por confronto. */
+  cartoes?: number | null;
+  /** Quantos confrontos entraram. */
+  jogos: number;
 };
 
 export const ORDEM: MetricaId[] = ["cartoes", "faltas", "gols", "impedimentos"];
@@ -130,9 +154,13 @@ function montar(
   mediaFora: number | null,
   total: number | null,
   amostra: number,
+  ajuste: AjusteH2H | null = null,
 ): AnaliseBloco {
+  // O H2H corrige o total antes de virar linha e probabilidade.
+  const totalAjustado =
+    total != null && ajuste?.aplicado ? Math.round(total * ajuste.fator * 100) / 100 : total;
   // Sem número na fonte: não há o que estimar.
-  if (mediaCasa == null || mediaFora == null || total == null) {
+  if (mediaCasa == null || mediaFora == null || totalAjustado == null) {
     return {
       id,
       rotulo: ROTULOS[id],
@@ -143,12 +171,13 @@ function montar(
       prob: null,
       amostra,
       semDados: true,
+      ajuste,
     };
   }
 
   // Média zero é medição real (ex.: time sem impedimento na amostra), mas não
   // existe linha nem probabilidade para λ = 0 — o card mostra a média e ponto.
-  if (!(total > 0)) {
+  if (!(totalAjustado > 0)) {
     return {
       id,
       rotulo: ROTULOS[id],
@@ -159,19 +188,26 @@ function montar(
       prob: null,
       amostra,
       semDados: false,
+      ajuste,
     };
   }
-  const linha = linhaSugerida(total);
+  // A linha continua ancorada no total dos últimos 10 jogos: é a linha que o
+  // mercado oferece. O H2H mexe na probabilidade dessa linha, não na linha —
+  // senão um confronto travado "abaixaria" a linha e a chance subiria, o
+  // contrário do que o histórico diz.
+  const linha = linhaSugerida(totalAjustado);
+  const prob = arred(poissonAcima(linha, totalAjustado) * 100);
   return {
     id,
     rotulo: ROTULOS[id],
     mediaCasa,
     mediaFora,
-    total,
+    total: totalAjustado,
     linha,
-    prob: arred(poissonAcima(linha, total) * 100),
+    prob,
     amostra,
     semDados: false,
+    ajuste,
   };
 }
 
@@ -183,6 +219,7 @@ function montar(
 export function blocoAnalises(
   casa: MediasTime | null | undefined,
   fora: MediasTime | null | undefined,
+  h2h?: ContextoH2H | null,
 ): AnaliseBloco[] {
   const c = casa ?? {};
   const f = fora ?? {};
@@ -200,10 +237,19 @@ export function blocoAnalises(
   const impCasa = num(c.impedimentos);
   const impFora = num(f.impedimentos);
 
+  const totalCartoes = soma(cartoesCasa, cartoesFora);
+  const totalGolsJogo = totalGols(c, f);
+  const jogosH2H = Math.max(0, Number(h2h?.jogos) || 0);
+
+  /* O H2H entra só onde ele fala a mesma língua do total: gols e cartões.
+     Faltas e impedimentos não têm histórico de confronto confiável na fonte. */
+  const ajusteCartoes = ajusteH2H(h2h?.cartoes, totalCartoes, jogosH2H);
+  const ajusteGols = ajusteH2H(h2h?.gols, totalGolsJogo, jogosH2H);
+
   return [
-    montar("cartoes", cartoesCasa, cartoesFora, soma(cartoesCasa, cartoesFora), amostra),
+    montar("cartoes", cartoesCasa, cartoesFora, totalCartoes, amostra, ajusteCartoes),
     montar("faltas", faltasCasa, faltasFora, soma(faltasCasa, faltasFora), amostra),
-    montar("gols", golsCasa, golsFora, totalGols(c, f), amostra),
+    montar("gols", golsCasa, golsFora, totalGolsJogo, amostra, ajusteGols),
     montar("impedimentos", impCasa, impFora, soma(impCasa, impFora), amostra),
   ];
 }

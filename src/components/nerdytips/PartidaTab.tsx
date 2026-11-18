@@ -105,6 +105,9 @@ export default function PartidaTab({ id, onVoltar }: { id: string; onVoltar: () 
                 )}
               </div>
               <ConfBar valor={data.melhor.confianca} />
+              <p className="text-[9px] text-mut leading-none">
+                palpite e confiança do modelo da fonte NerdyTips
+              </p>
             </div>
           )}
 

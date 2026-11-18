@@ -254,8 +254,28 @@ export type ArbitroResumo = {
   penaltis: number;
 };
 
+/**
+ * Últimos jogos do time, do mais recente para o mais antigo (até 10).
+ *
+ * Existe para o peso da forma recente: as médias de `StatsTime` são da
+ * temporada inteira e puxam o dado para trás. Com a série, o motor pondera
+ * 1.5 / 1.0 / 0.5 por faixa (ver lib/formaRecente).
+ */
+export type SerieTime = {
+  gols: number[];
+  golsSof: number[];
+  faltas: number[];
+  faltasSof: number[];
+  amarelos: number[];
+  amarelosSof: number[];
+  impedimentos: number[];
+  impedimentosSof: number[];
+};
+
 export type StatsTime = {
   jogos: number;
+  /** Série dos últimos 10 jogos (mais recente primeiro). */
+  serie?: SerieTime;
   gols: number;
   golsSof: number;
   cantos: number;
@@ -322,7 +342,32 @@ function mediaStats(raiox: unknown): StatsTime | null {
 
   const n = geral.length;
   const r = (v: number) => Math.round((v / n) * 100) / 100;
+
+  /* Série dos últimos 10 jogos, do mais recente para o mais antigo. A fonte já
+     entrega `geral` em ordem decrescente de data; ordenamos por `ts` de novo
+     porque é barato e protege contra mudança de ordem na origem. */
+  const recentes = [...geral]
+    .sort((a, b) => String((b as { ts?: string }).ts ?? "").localeCompare(String((a as { ts?: string }).ts ?? "")))
+    .slice(0, 10);
+  const serie: SerieTime = {
+    gols: [], golsSof: [], faltas: [], faltasSof: [],
+    amarelos: [], amarelosSof: [], impedimentos: [], impedimentosSof: [],
+  };
+  for (const j of recentes) {
+    const own = (j.own ?? {}) as Record<string, number>;
+    const adv = (j.adv ?? {}) as Record<string, number>;
+    serie.gols.push(Number(j.gols) || 0);
+    serie.golsSof.push(Number(j.golsSof) || 0);
+    serie.faltas.push(own.faltas || 0);
+    serie.faltasSof.push(adv.faltas || 0);
+    serie.amarelos.push(own.amarelos || 0);
+    serie.amarelosSof.push(adv.amarelos || 0);
+    serie.impedimentos.push(own.impedimentos || 0);
+    serie.impedimentosSof.push(adv.impedimentos || 0);
+  }
+
   return {
+    serie,
     jogos: n,
     gols: r(acc.gols),
     golsSof: r(acc.golsSof),

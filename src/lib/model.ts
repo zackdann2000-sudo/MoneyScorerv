@@ -1,4 +1,5 @@
 import type { HistGame } from "./espn";
+import { JANELA_FORMA, JANELA_H2H, ajusteH2H, mediaPonderada, type AjusteH2H } from "./formaRecente";
 
 /* ============================================================
    MODELO ESTATÍSTICO PREDITIVO — Poisson com ajuste Dixon-Coles
@@ -15,8 +16,11 @@ export function teamRates(games: HistGame[]): TeamRates {
   if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0 };
   const sum = (f: (g: HistGame) => number, arr = games) => arr.reduce((s, g) => s + f(g), 0);
   const home = games.filter((g) => g.home), away = games.filter((g) => !g.home);
-  let wGf = 0, wGa = 0, wSum = 0;
-  games.forEach((g, i) => { const w = Math.pow(0.88, i); wGf += g.gf * w; wGa += g.ga * w; wSum += w; });
+  // Peso da forma recente: 1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º e 0.5 do
+  // 8º ao 10º. Substitui a média chapada da temporada — ver lib/formaRecente.
+  const janela = games.slice(0, JANELA_FORMA);
+  const ponderadaGf = mediaPonderada(janela.map((g) => g.gf));
+  const ponderadaGa = mediaPonderada(janela.map((g) => g.ga));
   const pts = sum((g) => (g.res === "V" ? 3 : g.res === "E" ? 1 : 0));
   return {
     games: n, gfAvg: sum((g) => g.gf) / n, gaAvg: sum((g) => g.ga) / n,
@@ -25,7 +29,8 @@ export function teamRates(games: HistGame[]): TeamRates {
     gfAway: away.length ? sum((g) => g.gf, away) / away.length : sum((g) => g.gf) / n,
     gaAway: away.length ? sum((g) => g.ga, away) / away.length : sum((g) => g.ga) / n,
     formPts: pts / (3 * n), csRate: games.filter((g) => g.ga === 0).length / n, scoredRate: games.filter((g) => g.gf > 0).length / n,
-    weightedGf: wGf / wSum, weightedGa: wGa / wSum,
+    weightedGf: ponderadaGf.media ?? sum((g) => g.gf) / n,
+    weightedGa: ponderadaGa.media ?? sum((g) => g.ga) / n,
   };
 }
 
@@ -49,6 +54,8 @@ export type Analysis = {
   topScores: { score: string; p: number }[];
   confidence: "alta" | "média" | "baixa";
   factors: string[];
+  /** Cruzamento do H2H (últimos 7) com a expectativa dos últimos 10 jogos. */
+  h2hAjuste: AjusteH2H | null;
   rates: { home: TeamRates; away: TeamRates };
   narrative: { resumo: string; mandante: string; visitante: string; decisivos: string[]; cenarios: string[]; conclusao: string; alerta: string | null; mercados: string[] };
   updatedAt: string;
@@ -58,7 +65,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const rh = teamRates(homeGames), ra = teamRates(awayGames);
   const base: Analysis = {
     status: "dados_insuficientes", model_type: "nenhum", sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
-    lambdaHome: 0, lambdaAway: 0, probs: null, topScores: [], confidence: "baixa", factors: [],
+    lambdaHome: 0, lambdaAway: 0, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
     rates: { home: rh, away: ra },
     narrative: { resumo: "Análise em processamento. O histórico recente deste confronto ainda está sendo indexado pelo modelo.", mandante: "", visitante: "", decisivos: [], cenarios: [], conclusao: "", alerta: null, mercados: [] },
     updatedAt: new Date().toISOString(),
@@ -77,6 +84,21 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   let lh = Math.max(0.15, Math.min(4.5, leagueHalf * atkH * defA * HOME_ADV));
   let la = Math.max(0.12, Math.min(4.2, leagueHalf * atkA * defH * AWAY_ADJ));
   if (fallback) { lh = Math.max(0.2, (rh.gfAvg + ra.gaAvg) / 2 * HOME_ADV); la = Math.max(0.15, (ra.gfAvg + rh.gaAvg) / 2 * AWAY_ADJ); }
+
+  /* ---------- Cruzamento com o H2H (últimos 7 confrontos) ----------
+     O histórico recente diz uma coisa; o confronto direto pode dizer outra.
+     Quando são 0x0 e 1x0 sempre, o total esperado tem que cair — mas o H2H
+     corrige, não manda: o fator é limitado a -15%/+10% (lib/formaRecente). */
+  const h2hTotais = (h2h?.games ?? [])
+    .slice(0, JANELA_H2H)
+    .map((g: any) => Number(g?.homeScore ?? 0) + Number(g?.awayScore ?? 0))
+    .filter((v) => Number.isFinite(v));
+  const h2hMedia = h2hTotais.length ? mediaPonderada(h2hTotais).media : null;
+  const h2hAjuste = ajusteH2H(h2hMedia, +(lh + la).toFixed(2), h2hTotais.length);
+  if (h2hAjuste.aplicado) {
+    lh = Math.max(0.1, lh * h2hAjuste.fator);
+    la = Math.max(0.1, la * h2hAjuste.fator);
+  }
 
   const MAX = 8;
   let pH = 0, pD = 0, pA = 0, total = 0;
@@ -108,7 +130,8 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
     `${awayName} sofreu média de ${f1(ra.gaAvg)} gols (${f1(ra.gaAway)} fora) e manteve ${pct(ra.csRate)} de clean sheets.`,
     `Aproveitamento recente: ${homeName} ${pct(rh.formPts)} × ${awayName} ${pct(ra.formPts)}.`,
   ];
-  if (h2h?.games?.length) factors.push(`H2H recente: ${h2h.games.length} confrontos considerados como contexto (não como garantia).`);
+  if (h2hAjuste.aplicado) factors.push(h2hAjuste.texto);
+  else if (h2h?.games?.length) factors.push(`${h2hAjuste.texto} (${h2h.games.length} confrontos no histórico).`);
 
   const fav = pH >= pD && pH >= pA ? "home" : pA >= pD ? "away" : "draw";
   const avgCornersH = avg(homeGames.map((g) => g.corners)), avgCornersA = avg(awayGames.map((g) => g.corners));
@@ -120,7 +143,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   if (avgFoulsH != null && avgFoulsA != null) mercados.push(`Faltas: ${(avgFoulsH + avgFoulsA).toFixed(1)} por jogo somando as duas equipes.`);
 
   const narrative = {
-    resumo: `${homeName} (${fmtForm(homeGames)}) recebe ${awayName} (${fmtForm(awayGames)}). O modelo ${fallback ? "simplificado" : "Dixon-Coles/Poisson"} projeta ${f1(lh)} gols esperados para o mandante e ${f1(la)} para o visitante, com base em ${rh.games} e ${ra.games} partidas recentes ponderadas por recência e mando de campo.`,
+    resumo: `${homeName} (${fmtForm(homeGames)}) recebe ${awayName} (${fmtForm(awayGames)}). O modelo ${fallback ? "simplificado" : "Dixon-Coles/Poisson"} projeta ${f1(lh)} gols esperados para o mandante e ${f1(la)} para o visitante, com base nos últimos ${Math.min(rh.games, JANELA_FORMA)} e ${Math.min(ra.games, JANELA_FORMA)} jogos, com peso maior para os 3 mais recentes, e no mando de campo.`,
     mandante: `${homeName}: ataque de ${f1(rh.gfHome)} gols/jogo em casa, defesa sofrendo ${f1(rh.gaHome)}. Marcou em ${pct(rh.scoredRate)} dos jogos e venceu ${homeGames.filter((g) => g.res === "V").length} dos últimos ${rh.games}.`,
     visitante: `${awayName}: ${f1(ra.gfAway)} gols/jogo fora, sofrendo ${f1(ra.gaAway)}. Clean sheets em ${pct(ra.csRate)} da amostra; venceu ${awayGames.filter((g) => g.res === "V").length} dos últimos ${ra.games}.`,
     decisivos: factors,
@@ -137,6 +160,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   return {
     status: "ok", model_type: fallback ? "fallback_simples" : "dc-poisson-1.0",
     sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
+    h2hAjuste,
     lambdaHome: +lh.toFixed(2), lambdaAway: +la.toFixed(2),
     probs: { home: +pH.toFixed(4), draw: +pD.toFixed(4), away: +pA.toFixed(4), over05: +pOver(0.5).toFixed(4), over15: +pOver(1.5).toFixed(4), over25: +pOver(2.5).toFixed(4), under25: +pOver(2.5) <= 1 ? +(1 - pOver(2.5)).toFixed(4) : 0, btts: +btts.toFixed(4), homeScore: +homeScores.toFixed(4), awayScore: +awayScores.toFixed(4), cleanSheetHome: +csHome.toFixed(4), cleanSheetAway: +csAway.toFixed(4) },
     topScores: top, confidence, factors, rates: { home: rh, away: ra }, narrative, updatedAt: new Date().toISOString(),
