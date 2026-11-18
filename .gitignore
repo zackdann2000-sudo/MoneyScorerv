@@ -41,6 +41,11 @@ yarn-error.log*
 # artefatos de teste do módulo apitou (fixtures são versionados, saída não)
 /.apttest/
 
+# JS gerado pelos testes unitários (formaRecente / blocoAnalises / veredito)
+/.frbuild/
+/.babuild/
+/.vtbuild/
+
 # build temporário do script de sincronização do apitou
 /.apitou-build/
 
