@@ -2,16 +2,18 @@
 
 import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, CalendarDays, Sparkles } from "lucide-react";
+import { BarChart3, CalendarDays, Layers, Sparkles } from "lucide-react";
 import PalpitesTab from "@/components/nerdytips/PalpitesTab";
 import PartidaTab from "@/components/nerdytips/PartidaTab";
 import DestaquesTab from "@/components/nerdytips/DestaquesTab";
+import CombinadaTab from "@/components/nerdytips/CombinadaTab";
 import DesempenhoTab from "@/components/nerdytips/DesempenhoTab";
 import type { Aba } from "@/components/nerdytips/types";
 
 const ABAS: { key: Aba; label: string; icone: typeof CalendarDays }[] = [
   { key: "palpites", label: "Palpites", icone: CalendarDays },
   { key: "destaques", label: "Destaques", icone: Sparkles },
+  { key: "combinada", label: "Combinada", icone: Layers },
   { key: "desempenho", label: "Desempenho", icone: BarChart3 },
 ];
 
@@ -21,6 +23,7 @@ const ABAS: { key: Aba; label: string; icone: typeof CalendarDays }[] = [
  * A URL é a fonte de verdade da navegação (mesmo padrão de /apitou e /gameread):
  *   /nerdytips                    -> palpites do dia
  *   /nerdytips?aba=destaques      -> bet of the day + slip
+ *   /nerdytips?aba=combinada      -> Bet Builder (slip diário gratuito)
  *   /nerdytips?aba=desempenho     -> histórico público
  *   /nerdytips?jogo=1340351       -> análise de um jogo (deep-link)
  */
@@ -34,7 +37,7 @@ function NerdytipsInner() {
   const jogoId = urlJogo && /^\d+$/.test(urlJogo) ? urlJogo : null;
   const aba: Aba = jogoId
     ? "partida"
-    : urlAba === "destaques" || urlAba === "desempenho"
+    : urlAba === "destaques" || urlAba === "combinada" || urlAba === "desempenho"
       ? urlAba
       : "palpites";
 
@@ -87,6 +90,7 @@ function NerdytipsInner() {
 
       {aba === "palpites" && <PalpitesTab onAbrirJogo={abrirJogo} />}
       {aba === "destaques" && <DestaquesTab onAbrirJogo={abrirJogo} />}
+      {aba === "combinada" && <CombinadaTab />}
       {aba === "desempenho" && <DesempenhoTab />}
       {aba === "partida" && jogoId && (
         <PartidaTab id={jogoId} onVoltar={() => irPara({ aba: "palpites" })} />

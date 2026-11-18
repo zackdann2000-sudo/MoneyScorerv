@@ -13,6 +13,11 @@
  * o teste rodar em cima de fixture salva.
  */
 
+import { odd, oddCombinada, primeiroNumero } from "../utils/odds";
+
+/** Reexporta para quem consome este módulo sem passar por `lib/utils`. */
+export { odd };
+
 export const BASE = "https://nerdytips.com";
 
 const UA =
@@ -111,46 +116,15 @@ export function texto(s: string): string {
     .trim();
 }
 
-/** Primeiro número decimal de um trecho ("▲ 2.80" -> 2.8). */
-export function numero(s: string, ): number | null {
-  const m = String(s || "").match(/-?\d+(?:[.,]\d+)?/);
-  if (!m) return null;
-  const v = Number(m[0].replace(",", "."));
-  return Number.isFinite(v) ? v : null;
-}
-
-/** Odd em faixa plausível (1.01 a 1000), arredondada em centavos. */
-function oddValida(v: number): number | null {
-  if (!Number.isFinite(v) || v < 1.01 || v > 1000) return null;
-  return Math.round(v * 100) / 100;
-}
-
 /**
- * Odd sempre em decimal, qualquer que seja o formato que o site devolveu.
+ * Primeiro número decimal de um trecho ("▲ 2.80" -> 2.8).
  *
- * O NerdyTips troca o formato pela geolocalização de quem pede: de um IP
- * brasileiro vem decimal (2.80), de um IP nos EUA vem americano (-222, +150) e
- * quem escolheu na mão recebe fracionário (1/2). Sem normalizar, a odd
- * americana negativa entra como número negativo e a tela mostra "-222" — foi
- * exatamente o que aconteceu no primeiro deploy (Vercel responde dos EUA).
+ * A conversão de odd em si (decimal / americano / fracionário) mora em
+ * `lib/utils/odds.ts`, porque vale para qualquer fonte — aqui só usamos o
+ * extrator numérico para placares, percentuais e placares exatos.
  */
-export function odd(s: string): number | null {
-  const t = String(s || "").replace(/[▲▼▾▴►◄]/g, " ").trim();
-  if (!t) return null;
-
-  const frac = t.match(/(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/);
-  if (frac) {
-    const a = Number(frac[1].replace(",", "."));
-    const b = Number(frac[2].replace(",", "."));
-    return b > 0 ? oddValida(a / b + 1) : null;
-  }
-
-  const v = numero(t);
-  if (v == null) return null;
-  // Americano negativo sempre tem módulo >= 100; "-0.5" é lixo de HTML.
-  if (v < 0) return Math.abs(v) >= 100 ? oddValida(1 + 100 / Math.abs(v)) : null; // -222 -> 1.45
-  if (v >= 100) return oddValida(1 + v / 100); // +150 -> 2.50
-  return oddValida(v); // decimal
+export function numero(s: string): number | null {
+  return primeiroNumero(s);
 }
 
 /** Número de um atributo (`style="--pct:47%"` -> 47). */
@@ -183,13 +157,18 @@ const PICKS: Record<string, string> = {
   AS: "Visitante marca",
   "AS2+": "Visitante faz 2+",
   H2: "Casa faz 2+",
+  BTTS: "Ambas marcam",
+  "BTTS YES": "Ambas marcam",
+  "BTTS NO": "Ambas não marcam",
+  YES: "Sim",
+  NO: "Não",
 };
 
 /** "U2.5" -> "Menos de 2.5 gols". */
 export function traduzirPick(rotulo: string): string {
   const r = String(rotulo || "").trim();
   if (!r) return "";
-  const fixo = PICKS[r];
+  const fixo = PICKS[r] ?? PICKS[r.toUpperCase()];
   if (fixo) return fixo;
 
   const m = r.match(/^([OU])\s*(\d+(?:\.\d+)?)$/i);
@@ -696,3 +675,121 @@ export function parseDestaques(html: string): Destaques {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Bet Builder (combinada)                                            */
+/* ------------------------------------------------------------------ */
+
+export type ItemCombinada = {
+  /** "Wed, Nov 18 · 10:00" — data/hora como o site escreve. */
+  data: string;
+  /** "Uganda · Premier League". */
+  liga: string;
+  ligaPais: string;
+  ligaNome: string;
+  ligaHref: string | null;
+  casa: string;
+  fora: string;
+  logoCasa: string | null;
+  logoFora: string | null;
+  /** Rótulo cru do site ("U2.5", "1X", "Yes"). */
+  palpite: string;
+  /** Rótulo em português. */
+  texto: string;
+  odd: number | null;
+  confianca: number | null;
+};
+
+export type Combinada = {
+  rotulo: string;
+  picks: number | null;
+  /** Odd total publicada pelo site. */
+  oddTotal: number | null;
+  /** Produto das odds dos itens — serve para conferir a publicada. */
+  oddCalculada: number | null;
+  itens: ItemCombinada[];
+  /** Limites do plano gratuito, lidos do HTML. */
+  minTrust: number | null;
+  maxTrust: number | null;
+  lockMax: number | null;
+  /**
+   * `true` = o Monte-uma-combinada livre (escolher jogos, odds e tamanho) não
+   * está disponível. O endpoint `POST /bet-builder/generate` devolve
+   * `403 {"error":"subscription_required"}` para quem não assina, então só o
+   * slip diário gratuito — que vem renderizado na página — é nosso.
+   */
+  bloqueado: boolean;
+};
+
+/**
+ * `/bet-builder`: extrai o "Free daily slip".
+ *
+ * O gerador de verdade (`POST /bet-builder/generate`, form-urlencoded com
+ * `num_picks_range`, `min_trust`, `target_odds`, `bases`, `slip_size`…) está
+ * atrás de assinatura: testado com cookie de sessão e três combinações de
+ * parâmetros, sempre 403 `subscription_required`. O que a página entrega de
+ * graça é este slip pronto de 3 picks — e é o que o usuário vê ao clicar em
+ * "Generate free slip" (o HTML traz o bloco com `hidden`, revelado por JS).
+ */
+export function parseCombinada(html: string): Combinada {
+  const iIni = html.indexOf("data-bb-free-slip");
+  const iFim = iIni >= 0 ? html.indexOf("</ul>", iIni) : -1;
+  const bloco = iIni >= 0 ? html.slice(iIni, iFim > iIni ? iFim : iIni + 60_000) : "";
+
+  const rotulo = texto((bloco.match(/bb-slip__eyebrow"[^>]*>([\s\S]*?)<\/span>/) ?? [])[1] ?? "");
+  const tituloBloco = bloco.match(/bb-slip__title"[^>]*>([\s\S]*?)<\/h2>/);
+  const titulo = texto(tituloBloco ? tituloBloco[1] : "");
+  const spanTotal = (tituloBloco ? tituloBloco[1] : "").match(/<span>([\s\S]*?)<\/span>/);
+
+  const itens: ItemCombinada[] = [];
+  for (const pedaco of bloco.split('<li class="bb-slip__row').slice(1)) {
+    const times = Array.from(
+      pedaco.matchAll(/bb-slip__team"><img src="([^"]+)"[^>]*>\s*([^<]*)</g),
+    ).map((m) => ({ logo: m[1], nome: texto(m[2]) }));
+
+    const palpite = texto((pedaco.match(/am-pill"[^>]*>([\s\S]*?)<\/span>/) ?? [])[1] ?? "");
+    if (!times[0]?.nome || !palpite) continue;
+
+    const ligaTxt = texto((pedaco.match(/bb-slip__league"[^>]*>([\s\S]*?)<\/span>/) ?? [])[1] ?? "");
+    const partes = ligaTxt.split("·").map((p) => p.trim());
+
+    const conf = texto((pedaco.match(/am-meta__conf"[^>]*>([\d.]+)</) ?? [])[1] ?? "");
+    // A odd vem depois de um <span> com a seta (▾), então o corte tem que ir
+    // até o bloco da confiança — parar no primeiro </span> capturaria só a seta.
+    const blocoOdd = pedaco.match(/am-meta__odd"[^>]*>([\s\S]*?)am-meta__conf/);
+
+    itens.push({
+      data: texto((pedaco.match(/bb-slip__date"[^>]*>([^<]*)</) ?? [])[1] ?? ""),
+      liga: ligaTxt,
+      ligaPais: partes.length > 1 ? partes[0] : "",
+      ligaNome: partes.length > 1 ? partes.slice(1).join(" · ") : ligaTxt,
+      ligaHref: (pedaco.match(/href="([^"]+)" class="lgl"/) ?? [])[1] ?? null,
+      casa: times[0].nome,
+      fora: times[1]?.nome ?? "",
+      logoCasa: times[0].logo,
+      logoFora: times[1]?.logo ?? null,
+      palpite,
+      texto: traduzirPick(palpite),
+      odd: odd(texto(blocoOdd ? blocoOdd[1] : "")),
+      confianca: conf ? Number(conf) : null,
+    });
+  }
+
+  const limite = (nome: string) => {
+    const m = html.match(new RegExp(`data-${nome}="(\\d+)"`));
+    return m ? Number(m[1]) : null;
+  };
+
+  const oddTotal = spanTotal ? odd(texto(spanTotal[1])) : null;
+
+  return {
+    rotulo,
+    picks: itens.length || (primeiroNumero(titulo) ?? null),
+    oddTotal,
+    oddCalculada: oddCombinada(itens.map((it) => it.odd)),
+    itens,
+    minTrust: limite("free-min-trust"),
+    maxTrust: limite("free-max-trust"),
+    lockMax: limite("bb-lock-max"),
+    bloqueado: true,
+  };
+}

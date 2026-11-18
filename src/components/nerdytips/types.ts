@@ -88,4 +88,33 @@ export type Kpi = { valor: string; rotulo: string; sub: string };
 export type MesRecorde = { mes: string; bankers: string; overall: string; bankersN: string; overallN: string };
 export type Progresso = { kpis: Kpi[]; atualizadoEm: string | null; meses: MesRecorde[]; cache: CacheInfo };
 
-export type Aba = "palpites" | "destaques" | "desempenho" | "partida";
+export type ItemCombinada = {
+  data: string;
+  liga: string;
+  ligaPais: string;
+  ligaNome: string;
+  ligaHref: string | null;
+  casa: string;
+  fora: string;
+  logoCasa: string | null;
+  logoFora: string | null;
+  palpite: string;
+  texto: string;
+  odd: number | null;
+  confianca: number | null;
+};
+
+export type Combinada = {
+  rotulo: string;
+  picks: number | null;
+  oddTotal: number | null;
+  oddCalculada: number | null;
+  itens: ItemCombinada[];
+  minTrust: number | null;
+  maxTrust: number | null;
+  lockMax: number | null;
+  bloqueado: boolean;
+  cache: CacheInfo;
+};
+
+export type Aba = "palpites" | "destaques" | "combinada" | "desempenho" | "partida";

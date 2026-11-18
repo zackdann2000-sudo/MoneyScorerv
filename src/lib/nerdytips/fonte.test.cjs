@@ -8,8 +8,9 @@
  * Rodar:
  *   npx tsc src/lib/nerdytips/fonte.ts --target es2022 --module commonjs \
  *     --outDir .ntbuild --skipLibCheck
- *   cp -r src/lib/nerdytips/__fixtures__ .ntbuild/ && \
- *   cp src/lib/nerdytips/fonte.test.cjs .ntbuild/ && node .ntbuild/fonte.test.cjs
+ *   mkdir -p .ntbuild/nerdytips && cp -r src/lib/nerdytips/__fixtures__ .ntbuild/nerdytips/ \
+ *     && cp src/lib/nerdytips/fonte.test.cjs .ntbuild/nerdytips/ \
+ *     && node .ntbuild/nerdytips/fonte.test.cjs
  */
 const fs = require("fs");
 const path = require("path");
@@ -141,6 +142,59 @@ check("sem número", F.odd("\u2022\u2022\u2022"), null);
 check("zero/negativo absurdo", F.odd("-0.5"), null);
 check("decimal fora de faixa", F.odd("0.5"), null);
 check("mesma odd nos três formatos", [F.odd("1.45"), F.odd("-222"), F.odd("9/20")], [1.45, 1.45, 1.45]);
+
+/* ------------------- Bet Builder (free daily slip) ----------------- */
+console.log("\n=== 7. Bet Builder / combinada ===");
+const bb = F.parseCombinada(fx("mock-builder.html"));
+check("rótulo", bb.rotulo, "Free daily slip");
+check("3 picks", bb.picks, 3);
+check("odd total publicada", bb.oddTotal, 2.26);
+// Confere o total do site com o produto das odds das linhas.
+check("produto das odds bate com o total", bb.oddCalculada, 2.26);
+check("3 itens", bb.itens.length, 3);
+check("limites do plano free", [bb.minTrust, bb.maxTrust, bb.lockMax], [30, 65, 2]);
+check("gerador completo bloqueado", bb.bloqueado, true);
+
+const bb0 = bb.itens[0];
+check("item 1 data", bb0.data, "Wed, Nov 18 \u00b7 10:00");
+check("item 1 país", bb0.ligaPais, "Uganda");
+check("item 1 liga", bb0.ligaNome, "Premier League");
+check("item 1 link da liga", bb0.ligaHref, "/football-predictions-for-premier-league-uganda");
+check("item 1 times", [bb0.casa, bb0.fora], ["Mbarara City", "Lugazi"]);
+check("item 1 palpite", [bb0.palpite, bb0.texto], ["U2.5", "Menos de 2,5 gols"]);
+check("item 1 odd e confiança", [bb0.odd, bb0.confianca], [1.52, 6.4]);
+
+const bb1 = bb.itens[1];
+check("item 2 times", [bb1.casa, bb1.fora], ["Villa Valle", "Valenzana"]);
+check("item 2 palpite", [bb1.palpite, bb1.texto], ["1X", "Casa ou empate"]);
+check("item 2 odd e confiança", [bb1.odd, bb1.confianca], [1.21, 6.1]);
+
+const bb2 = bb.itens[2];
+check("item 3 liga", [bb2.ligaPais, bb2.ligaNome], ["Egypt", "Cup"]);
+check("item 3 times", [bb2.casa, bb2.fora], ["El Gouna", "Al Ittihad (Egy)"]);
+check("item 3 palpite", [bb2.palpite, bb2.texto], ["X2", "Empate ou fora"]);
+check("item 3 odd e confiança", [bb2.odd, bb2.confianca], [1.23, 6.3]);
+
+// Página sem o bloco (ex.: dia sem slip) não pode explodir.
+const vazio = F.parseCombinada("<html><body>nada aqui</body></html>");
+check("sem slip: 0 itens", vazio.itens.length, 0);
+check("sem slip: odd nula", vazio.oddTotal, null);
+check("sem slip: não inventa total", vazio.oddCalculada, null);
+
+// Odd total em formato americano (o site responde assim para IP dos EUA).
+const usHtml = fx("mock-builder.html").replace(">2.26<", ">-222<");
+check("total em formato americano", F.parseCombinada(usHtml).oddTotal, 1.45);
+
+/* ------------- traduções que o Bet Builder usa ------------- */
+console.log("\n=== 8. Traduções do builder ===");
+check("BTTS", F.traduzirPick("BTTS"), "Ambas marcam");
+check("BTTS em minúsculas", F.traduzirPick("btts"), "Ambas marcam");
+check("BTTS Yes", F.traduzirPick("BTTS Yes"), "Ambas marcam");
+check("1X", F.traduzirPick("1X"), "Casa ou empate");
+check("X2", F.traduzirPick("X2"), "Empate ou fora");
+check("U2.5", F.traduzirPick("U2.5"), "Menos de 2,5 gols");
+check("O3.5", F.traduzirPick("O3.5"), "Mais de 3,5 gols");
+check("rótulo desconhecido passa igual", F.traduzirPick("AS2+"), "Visitante faz 2+");
 
 console.log(falhas === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${falhas} FALHA(S)`);
 process.exit(falhas === 0 ? 0 : 1);
