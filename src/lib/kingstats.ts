@@ -206,7 +206,16 @@ async function buscarLote(pedaco: { id: string; homeId: string; awayId: string }
   return res?.stats ?? {};
 }
 
-export async function buscarStats(jogos: Jogo[], concorrencia = 4): Promise<StatsMap> {
+/**
+ * Estatísticas de cada confronto, em lotes concorrentes.
+ *
+ * `prazoMs` é o orçamento de tempo: passado ele, o laço para e devolve o que
+ * já chegou. Existe porque a rota de oportunidades tem teto de execução no
+ * servidor (60s) e é melhor entregar parte dos jogos do que estourar o tempo e
+ * perder tudo.
+ */
+export async function buscarStats(jogos: Jogo[], concorrencia = 4, prazoMs?: number): Promise<StatsMap> {
+  const inicio = Date.now();
   const alvo = jogos
     .filter((j) => j.home?.id && j.away?.id)
     .map((j) => ({ id: j.id, homeId: j.home.id, awayId: j.away.id }));
@@ -216,6 +225,7 @@ export async function buscarStats(jogos: Jogo[], concorrencia = 4): Promise<Stat
 
   const saida: StatsMap = {};
   for (let i = 0; i < lotes.length; i += concorrencia) {
+    if (prazoMs != null && Date.now() - inicio > prazoMs) break;
     const grupo = lotes.slice(i, i + concorrencia);
     const parciais = await Promise.all(grupo.map(buscarLote));
     for (const p of parciais) Object.assign(saida, p);

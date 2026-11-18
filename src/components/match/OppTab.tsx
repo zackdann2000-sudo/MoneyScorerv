@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MoveHorizontal, BarChart3, ListOrdered } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
 import { GoalsBars } from "@/components/charts";
@@ -9,6 +10,7 @@ import OddsCards from "./OddsCards";
 type Team = { id: string; name: string; logo: string };
 
 export default function OppTab({ matchId, league, home, away, odds, oddsSource }: { matchId: string; league: string; home: Team; away: Team; odds?: any; oddsSource?: string }) {
+  const router = useRouter();
   const [side, setSide] = useState<"home" | "away">("home");
   const [view, setView] = useState<"ops" | "desapitos">("ops");
   const [data, setData] = useState<Record<string, any>>({});
@@ -68,9 +70,13 @@ export default function OppTab({ matchId, league, home, away, odds, oddsSource }
 
   return (
     <div>
-      {/* Banner do Money Sênior — countdown até 12:00 (Brasília) */}
+      {/* Banner do Money Sênior — countdown até 12:00 (Brasília).
+          No estado "revelado" ele vira botão e abre a lista de picks do dia. */}
       <div className="mb-3">
-        <MoneySeniorCountdown hasPick={!!moneyPick?.pick} onReveal={() => setView("ops")} />
+        <MoneySeniorCountdown
+          hasPick={!!moneyPick?.pick}
+          onReveal={() => router.push("/money-tips?tab=pick")}
+        />
       </div>
 
       {/* Odds reais: API-Football (quando acha a fixture) → ESPN */}

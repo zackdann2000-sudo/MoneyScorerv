@@ -10,7 +10,9 @@
  *   npx tsc src/lib/mainLeagues.ts --target es2022 --module commonjs --outDir .mlbuild
  *   cp src/lib/mainLeagues.test.cjs .mlbuild/ && node .mlbuild/mainLeagues.test.cjs
  */
-const { isMainLeague, mainLeagueId, normalizar, TOTAL_LIGAS_PRINCIPAIS } = require("./mainLeagues.js");
+const {
+  isMainLeague, mainLeagueId, mainLeagueName, mainLeagueLabel, normalizar, TOTAL_LIGAS_PRINCIPAIS,
+} = require("./mainLeagues.js");
 
 let falhas = 0;
 function check(nome, obtido, esperado) {
@@ -203,6 +205,21 @@ check("Brasileirão + Brazil", mainLeagueId("Brasileirão", "Brazil"), "brasilei
 check("MLS + USA", mainLeagueId("MLS", "USA"), "mls");
 check("país não atrapalha liga específica", mainLeagueId("Copa Libertadores", "CONMEBOL"), "libertadores");
 check("pais vazio não quebra", mainLeagueId("Brasileirão", ""), "brasileirao_a");
+
+console.log("\n=== tradução para português (mainLeagueLabel) ===");
+check("BRAZIL SERIE A → Brasileirão Série A", mainLeagueLabel("BRAZIL SERIE A"), "Brasileirão Série A");
+check("Brazil Serie A", mainLeagueLabel("Brazil Serie A"), "Brasileirão Série A");
+check("SPAIN LA LIGA → La Liga", mainLeagueLabel("SPAIN LA LIGA"), "La Liga");
+check("ITALY SERIE A → Serie A", mainLeagueLabel("ITALY SERIE A"), "Serie A");
+check("ENGLAND PREMIER LEAGUE", mainLeagueLabel("ENGLAND PREMIER LEAGUE"), "Premier League");
+check("GERMANY BUNDESLIGA", mainLeagueLabel("GERMANY BUNDESLIGA"), "Bundesliga");
+check("liga fora das 16 volta crua", mainLeagueLabel("CHILE PRIMERA DIVISION"), "CHILE PRIMERA DIVISION");
+check("espaço extra é limpo", mainLeagueLabel("  Chile   Primera  "), "Chile Primera");
+check("vazio vira Outras competições", mainLeagueLabel(""), "Outras competições");
+check("null vira Outras competições", mainLeagueLabel(null), "Outras competições");
+check("país separa Ligue 1", mainLeagueLabel("Ligue 1", "Algeria"), "Ligue 1");
+check("mainLeagueName usa a chave", mainLeagueName("brasileirao_a"), "Brasileirão Série A");
+check("mainLeagueName de id inválido", mainLeagueName("nao_existe"), null);
 
 console.log("\n=== contagem ===");
 check("16 ligas na lista", TOTAL_LIGAS_PRINCIPAIS, 16);

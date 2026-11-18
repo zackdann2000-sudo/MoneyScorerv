@@ -336,5 +336,29 @@ export function mainLeagueName(id: string | null | undefined): string | null {
   return MAIN_LEAGUES.find((l) => l.id === id)?.name ?? null;
 }
 
+/**
+ * Nome em português a partir do nome que a fonte mandou.
+ *
+ * As fontes (KingStats, ESPN, NerdyTips) escrevem a liga em inglês —
+ * "BRAZIL SERIE A", "SPAIN LA LIGA". A lista de principais ligas já sabe
+ * traduzir (`name`), mas só a partir da chave canônica; esta função faz o
+ * caminho completo: nome cru → `mainLeagueId` → `mainLeagueName`.
+ *
+ * Liga fora das 16 volta como veio (só normalizada em espaço), porque inventar
+ * tradução para 700 competições seria pior que mostrar o nome original.
+ *
+ * ```ts
+ * mainLeagueLabel("BRAZIL SERIE A")   // "Brasileirão Série A"
+ * mainLeagueLabel("Spain LaLiga")     // "La Liga"
+ * mainLeagueLabel("Chile Primera")    // "Chile Primera"
+ * ```
+ */
+export function mainLeagueLabel(leagueName: string | null | undefined, pais?: string | null): string {
+  const traduzido = mainLeagueName(mainLeagueId(leagueName, pais));
+  if (traduzido) return traduzido;
+  const bruto = typeof leagueName === "string" ? leagueName.trim().replace(/\s+/g, " ") : "";
+  return bruto || "Outras competições";
+}
+
 /** Quantidade de ligas na lista (16) — usada em texto de UI/teste. */
 export const TOTAL_LIGAS_PRINCIPAIS = MAIN_LEAGUES.length;

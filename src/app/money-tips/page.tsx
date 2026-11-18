@@ -1,14 +1,34 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { TrendingUp } from "lucide-react";
 import DateStrip, { toYmd } from "@/components/DateStrip";
 import { PickCard } from "@/components/match/InfoTabs";
 import TipsGate from "@/components/TipsGate";
 import { Crest, SourceFoot } from "@/components/ui";
 
-export default function MoneyTips() {
-  const [tab, setTab] = useState<"pick" | "melhores" | "arbitros">("pick");
+type Aba = "pick" | "melhores" | "arbitros";
+const ABAS: Aba[] = ["pick", "melhores", "arbitros"];
+
+/**
+ * Money Tips com aba por URL: `/money-tips?tab=pick`.
+ *
+ * O banner "Pick do dia revelado" da tela do jogo navega para cá com essa
+ * query, então a aba certa abre de primeira. `useSearchParams` exige limite de
+ * Suspense na renderização estática.
+ */
+export default function MoneyTipsPage() {
+  return (
+    <Suspense fallback={<div className="skeleton h-64 rounded-2xl" />}>
+      <MoneyTips />
+    </Suspense>
+  );
+}
+
+function MoneyTips() {
+  const tabInicial = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Aba>(ABAS.includes(tabInicial as Aba) ? (tabInicial as Aba) : "pick");
   const [date, setDate] = useState(toYmd(new Date()));
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

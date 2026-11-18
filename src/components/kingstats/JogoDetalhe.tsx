@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useApi } from "./useApi";
 import type { JogoDetalheResp } from "./types";
 import { Spinner, ErrorBox, ProbBar, FormBadges, horaJogo, diaCurto } from "./Ui";
+import { mainLeagueLabel } from "@/lib/mainLeagues";
 
 /** Linha comparativa entre mandante e visitante. */
 function Comparativo({
@@ -63,7 +64,7 @@ export default function JogoDetalhe({
       </button>
 
       <header className="rounded-2xl border border-line bg-panel p-3 space-y-1">
-        <p className="text-[9px] font-bold text-mut uppercase tracking-wide truncate">{jogo.liga}</p>
+        <p className="text-[9px] font-bold text-mut uppercase tracking-wide truncate">{mainLeagueLabel(jogo.liga)}</p>
         <h2 className="text-sm font-extrabold text-ink leading-tight">
           {jogo.home} <span className="text-mut">×</span> {jogo.away}
         </h2>

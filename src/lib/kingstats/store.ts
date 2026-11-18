@@ -110,6 +110,10 @@ export type PayloadOport = {
   dayKey: string;
   geradoEm: string;
   analisados: number;
+  /** A varredura não cobriu todos os jogos do alvo (fonte sem histórico ou prazo). */
+  parcial?: boolean;
+  /** Mensagem para a UI quando não há nada a calcular (ex.: dia sem jogos). */
+  aviso?: string;
   oportunidades: Oportunidade[];
 };
 

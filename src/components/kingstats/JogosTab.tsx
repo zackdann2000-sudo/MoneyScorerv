@@ -5,7 +5,7 @@ import { CalendarDays, Search, Filter } from "lucide-react";
 import { useApi } from "./useApi";
 import type { JogosResp } from "./types";
 import { Spinner, ErrorBox, EmptyBox, FonteBadge, horaJogo } from "./Ui";
-import { isMainLeague } from "@/lib/mainLeagues";
+import { isMainLeague, mainLeagueLabel } from "@/lib/mainLeagues";
 import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 const PAGINA = 40;
@@ -71,7 +71,13 @@ export default function JogosTab({
 
   return (
     <div className="space-y-3">
-      <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
+      <LeagueFilterPill
+        principais={soPrincipais}
+        onChange={(v) => {
+          setSoPrincipais(v);
+          setLimite(PAGINA); /* filtro novo recomeça a paginação */
+        }}
+      />
 
       {/* Busca */}
       <div className="relative">
@@ -102,7 +108,7 @@ export default function JogosTab({
             <option value="">Todas as ligas ({ligas.length})</option>
             {ligas.map((l) => (
               <option key={l} value={l}>
-                {l}
+                {mainLeagueLabel(l)}
               </option>
             ))}
           </select>
@@ -132,7 +138,7 @@ export default function JogosTab({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[9px] font-bold text-mut uppercase tracking-wide truncate">
-                    {txt(j.liga)}
+                    {mainLeagueLabel(txt(j.liga))}
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-acc tabular-nums shrink-0">
                     <CalendarDays size={10} /> {horaJogo(j.kickoff)}

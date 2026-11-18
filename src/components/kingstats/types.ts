@@ -54,6 +54,8 @@ export type OportunidadesResp = {
   geradoEm: string;
   oportunidades: Oportunidade[];
   analisados: number;
+  /** A varredura não cobriu todos os jogos do dia (fonte sem histórico ou prazo). */
+  parcial?: boolean;
   cached?: boolean;
   stale?: boolean;
   idadeMs?: number;
