@@ -1,6 +1,7 @@
 "use client";
 
 import { Layers, Sparkles, Ticket } from "lucide-react";
+import { odd } from "@/lib/utils/odds";
 import { useApi } from "./useApi";
 import type { Destaques, Jogo } from "./types";
 import { CacheBadge, ConfBar, EmptyBox, ErrorBox, Odd, ResultadoPill, Spinner } from "./Ui";
@@ -34,11 +35,19 @@ function LinhaBanker({ j, onAbrir }: { j: Jogo; onAbrir: (id: string) => void })
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-acc">
             <Sparkles size={9} />
             {j.melhor.texto}
-            {j.melhor.odd != null && <b className="tabular-nums">{j.melhor.odd.toFixed(2)}</b>}
+            {odd(j.melhor.odd) != null && <b className="tabular-nums">{odd(j.melhor.odd)!.toFixed(2)}</b>}
           </span>
         )}
         <ConfBar valor={j.melhor?.confianca ?? null} />
-        <span className="ml-auto text-[9px] text-mut truncate max-w-[45%]">{j.liga}</span>
+        <span className="ml-auto flex items-center gap-1 text-[9px] text-mut shrink-0">
+          {odd(j.odds.casa) != null && (
+            <span className="tabular-nums">
+              1 {odd(j.odds.casa)!.toFixed(2)} · X {odd(j.odds.empate)?.toFixed(2) ?? "—"} · 2{" "}
+              {odd(j.odds.fora)?.toFixed(2) ?? "—"}
+            </span>
+          )}
+          <span className="truncate max-w-[45%]">{j.liga}</span>
+        </span>
       </div>
     </button>
   );
@@ -70,6 +79,14 @@ export default function DestaquesTab({ onAbrirJogo }: { onAbrirJogo: (id: string
             <p className="text-[10px] text-mut">Seleção do dia do NerdyTips</p>
             <CacheBadge cache={data.cache} />
           </div>
+
+          {data.fontePalpites === "boards" && (
+            <p className="rounded-xl border border-line bg-panel/60 px-2.5 py-1.5 text-[9px] leading-relaxed text-mut">
+              Os palpites do Bet of the Day deles vêm travados para quem não assina (•••), então os
+              cards abaixo usam o palpite e a odd publicados no board aberto do site — os mesmos
+              jogos, sem palpite inventado.
+            </p>
+          )}
 
           <div className="flex gap-1.5">
             <Contador valor={String(data.bankers ?? bankers.length)} rotulo="Bankers" cor="text-acc" />

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronRight, Grid3x3, Sparkles } from "lucide-react";
 import LeagueFilterPill from "@/components/LeagueFilter";
 import { isMainLeague } from "@/lib/mainLeagues";
+import { odd } from "@/lib/utils/odds";
 import { useApi } from "./useApi";
 import type { Board, Jogo } from "./types";
 import { CacheBadge, ConfBar, EmptyBox, ErrorBox, Odd, PickChip, ResultadoPill, Spinner } from "./Ui";
@@ -151,8 +152,8 @@ export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string)
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-acc">
                           <Sparkles size={10} />
                           {j.melhor.texto}
-                          {j.melhor.odd != null && (
-                            <b className="tabular-nums">{j.melhor.odd.toFixed(2)}</b>
+                          {odd(j.melhor.odd) != null && (
+                            <b className="tabular-nums">{odd(j.melhor.odd)!.toFixed(2)}</b>
                           )}
                         </span>
                         <ConfBar valor={j.melhor.confianca} />

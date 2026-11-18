@@ -196,5 +196,60 @@ check("U2.5", F.traduzirPick("U2.5"), "Menos de 2,5 gols");
 check("O3.5", F.traduzirPick("O3.5"), "Mais de 3,5 gols");
 check("rótulo desconhecido passa igual", F.traduzirPick("AS2+"), "Visitante faz 2+");
 
+/* ------------ odds da lista (bug de producao: americano) ------------ */
+console.log("\n=== 9. Odds do board em formato americano ===");
+// No fixture a seta vem como entidade (&\#9662;) e a odd em decimal; aqui
+// trocamos pelo mesmo markup devolvido para um IP dos EUA.
+const seta = '<span class="tb-arrow is-down">&#9662;</span>';
+const boardUs = fx("mock-board.html").replace(
+  `data-tt="Odd for Home Win">${seta}2.80`,
+  `data-tt="Odd for Home Win">${seta}-149`,
+);
+const usBoard = F.parseBoard(boardUs);
+check("1X2 casa em americano virou decimal", usBoard.jogos[0].odds.casa, 1.67);
+const oddsNegativas = usBoard.jogos
+  .flatMap((j) => [j.odds.casa, j.odds.empate, j.odds.fora])
+  .filter((v) => v != null && v < 1.01);
+check("nenhuma odd abaixo de 1.01 no board", oddsNegativas.length, 0);
+
+/* ------------- Bet of the Day travado + board publico ------------- */
+console.log("\n=== 10. Destaques com palpites travados ===");
+const jogoBase = {
+  liga: "Teste", logos: [null, null], hora: "16:00", kickoff: "16:00", placar: null,
+  status: "pending", pick1x2: null, pickGols: null, pickBtts: null, melhorTexto: null,
+  placarExato: null,
+};
+const botdTravado = {
+  jogos: [
+    { ...jogoBase, id: "999", casa: "Coritiba", fora: "Santos",
+      odds: { casa: 3.45, empate: 3.1, fora: 2.05 }, melhor: null },
+  ],
+  ligas: [], geradoEm: "", bankers: 7, proximos: 0, acerto: "43%",
+  slip: { picks: 5, odd: 3.51 },
+};
+const publico = {
+  jogos: [
+    { ...jogoBase, id: "999", casa: "Coritiba", fora: "Santos",
+      odds: { casa: 3.45, empate: 3.1, fora: 2.05 },
+      melhor: { rotulo: "U2.5", texto: "Menos de 2,5 gols", odd: 1.29, confianca: 6.8, pct: 68, resultado: "pending" } },
+    { ...jogoBase, id: "1000", casa: "Flamengo", fora: "Vasco", hora: "18:00",
+      odds: { casa: 1.8, empate: 3.4, fora: 4.2 },
+      melhor: { rotulo: "1", texto: "Casa", odd: 1.8, confianca: 7.1, pct: 71, resultado: "pending" } },
+  ],
+  ligas: [], geradoEm: "",
+};
+const mesclado = F.mesclarDestaques(botdTravado, publico);
+check("travado: usa o board publico", mesclado.fontePalpites, "boards");
+check("travado: cards com palpite", mesclado.jogos.every((j) => j.melhor != null), true);
+check("travado: manteve odds 1X2 do bet-of-the-day", mesclado.jogos[0].odds.fora, 2.05);
+check("travado: odd do palpite do board", mesclado.jogos[0].melhor.odd, 1.29);
+check("travado: soma jogos que so existem no board", mesclado.jogos.length, 2);
+check("contadores continuam do site", [mesclado.bankers, mesclado.slip.odd], [7, 3.51]);
+
+const liberado = { ...botdTravado, jogos: publico.jogos };
+check("liberado: fonte site", F.mesclarDestaques(liberado, publico).fontePalpites, "site");
+check("liberado: mesmos jogos", F.mesclarDestaques(liberado, publico).jogos.length, 2);
+check("sem board e travado: 0 cards", F.mesclarDestaques(botdTravado, { jogos: [], ligas: [], geradoEm: "" }).jogos.length, 1);
+
 console.log(falhas === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${falhas} FALHA(S)`);
 process.exit(falhas === 0 ? 0 : 1);

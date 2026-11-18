@@ -2,6 +2,7 @@
 
 /** Peças visuais do módulo /nerdytips (mesmo padrão dark/verde do projeto). */
 import { AlertTriangle, Check, Clock, Minus, X } from "lucide-react";
+import { odd } from "@/lib/utils/odds";
 import type { CacheInfo, Pick, Status } from "./types";
 
 export function Spinner({ label = "Carregando…" }: { label?: string }) {
@@ -109,14 +110,20 @@ export function PickChip({ pick, forte = false }: { pick: Pick | null; forte?: b
   );
 }
 
-/** Odd solta com cor de mercado (casa/empate/fora). */
+/**
+ * Odd solta com cor de mercado (casa/empate/fora).
+ *
+ * Passa por `odd()` mesmo recebendo número: se um payload antigo de cache ainda
+ * trouxer odd americana (-149), a tela mostra 1.67 em vez de "-149.00".
+ */
 export function Odd({ valor, destaque = false }: { valor: number | null; destaque?: boolean }) {
-  if (valor == null) return <span className="text-[10px] text-mut">—</span>;
+  const v = odd(valor);
+  if (v == null) return <span className="text-[10px] text-mut">—</span>;
   return (
     <span
       className={`text-[11px] font-extrabold tabular-nums ${destaque ? "text-acc" : "text-ink/90"}`}
     >
-      {valor.toFixed(2)}
+      {v.toFixed(2)}
     </span>
   );
 }

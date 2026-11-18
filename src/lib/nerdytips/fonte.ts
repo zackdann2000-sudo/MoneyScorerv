@@ -286,7 +286,9 @@ function pickDa(celula: Celula | undefined, resultado: Status): Pick | null {
   // "•••" = palpite bloqueado para quem não assina.
   if (!rotulo || !rotulo.replace(/[•\s]/g, "")) return null;
 
-  const oddTxt = texto((celula.corpo.match(/tb-mcell__odd">([\s\S]*?)<\/span>\s*<\/div>/) ?? [])[1] ?? "");
+  // Corta até o `</div>` da barra: a odd vem depois de um <span> com a seta
+  // (▾/▴), então parar no primeiro `</span>` pegaria só a seta.
+  const oddTxt = texto((celula.corpo.match(/tb-mcell__odd[^>]*>([\s\S]*?)<\/div>/) ?? [])[1] ?? "");
   const conf = celula.attrs.match(/([\d.]+)\/10/);
 
   return {
@@ -316,7 +318,10 @@ function lerOdds(bloco: string): Jogo["odds"] {
   ];
   for (const [rx, k] of mapa) {
     const m = bloco.match(rx);
-    if (m) out[k] = numero(texto(m[1]));
+    // `odd()` e não `numero()`: a Vercel consulta o site de um IP dos EUA e o
+    // site devolve odd americana (-149). Sem converter, a lista mostrava
+    // "-149.00".
+    if (m) out[k] = odd(texto(m[1]));
   }
   return out;
 }
@@ -651,6 +656,12 @@ export type Destaques = {
   proximos: number | null;
   acerto: string | null;
   slip: { picks: number | null; odd: number | null } | null;
+  /**
+   * De onde vieram os palpites dos cards: "site" = o próprio bet-of-the-day
+   * veio liberado; "boards" = o bet-of-the-day veio travado ("•••") e os
+   * palpites foram completados pelos boards públicos.
+   */
+  fontePalpites?: "site" | "boards";
 };
 
 /** `/bet-of-the-day`: mesmo board + contadores de bankers e o slip pronto. */
@@ -792,4 +803,58 @@ export function parseCombinada(html: string): Combinada {
     lockMax: limite("bb-lock-max"),
     bloqueado: true,
   };
+}
+
+/**
+ * Completa os destaques com os boards públicos.
+ *
+ * O `/bet-of-the-day` entrega os palpites **travados** ("•••", inclusive a odd)
+ * para quem não assina; os boards `/` e `/all-matches` mostram o mesmo jogo com
+ * palpite, odd e confiança. Sem essa junção os cards ficavam com "-" no lugar da
+ * odd. Estratégia:
+ *
+ * 1. se o site liberou os palpites, fica como está;
+ * 2. se liberou em parte, completa por `id` e inclui os jogos do board que faltam;
+ * 3. se travou tudo, os cards passam a ser os do board público (ordenados por
+ *    confiança na tela) — melhor um palpite real e identificável do que 7 cards
+ *    com "•••".
+ *
+ * Os contadores e o slip continuam vindo do bet-of-the-day: são números que só
+ * existem lá.
+ */
+export function mesclarDestaques(d: Destaques, board: Board): Destaques {
+  const publicos = board.jogos.filter((j) => j.melhor);
+  const liberados = d.jogos.filter((j) => j.melhor);
+
+  if (d.jogos.length === 0) {
+    return publicos.length ? { ...d, jogos: publicos, fontePalpites: "boards" } : { ...d, fontePalpites: "site" };
+  }
+  if (liberados.length === d.jogos.length) return { ...d, fontePalpites: "site" };
+
+  // Travado total: o board público assume os cards.
+  if (liberados.length === 0) {
+    return publicos.length ? { ...d, jogos: publicos, fontePalpites: "boards" } : { ...d, fontePalpites: "site" };
+  }
+
+  // Travado em parte: completa por id e soma o que só existe no board.
+  const porId = new Map(board.jogos.map((j) => [j.id, j]));
+  const jogos = d.jogos.map((j) => {
+    if (j.melhor) return j;
+    const pub = porId.get(j.id);
+    if (!pub) return j;
+    return {
+      ...j,
+      // As odds de 1X2 do bet-of-the-day são públicas; só o palpite vem travado.
+      odds: j.odds.casa != null || j.odds.fora != null ? j.odds : pub.odds,
+      pick1x2: pub.pick1x2,
+      pickGols: pub.pickGols,
+      pickBtts: pub.pickBtts,
+      melhor: pub.melhor,
+      melhorTexto: pub.melhorTexto,
+    };
+  });
+  const vistos = new Set(jogos.map((j) => j.id));
+  for (const j of publicos) if (!vistos.has(j.id)) jogos.push(j);
+
+  return { ...d, jogos, fontePalpites: "boards" };
 }

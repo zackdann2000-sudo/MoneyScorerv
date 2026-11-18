@@ -45,6 +45,8 @@ export type Destaques = Board & {
   proximos: number | null;
   acerto: string | null;
   slip: { picks: number | null; odd: number | null } | null;
+  /** "site" = bet-of-the-day liberado; "boards" = completado pelos boards. */
+  fontePalpites?: "site" | "boards";
 };
 
 export type PalpiteCard = {
