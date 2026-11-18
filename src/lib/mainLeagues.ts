@@ -60,7 +60,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "la_liga",
     name: "La Liga",
-    pais: ["spain", "spanish", "laliga"],
+    pais: ["spain", "spanish", "laliga", "la liga"],
     aliases: ["La Liga", "LaLiga", "Spanish La Liga", "Spain La Liga", "Spanish Primera Division"],
     exclude: [
       "2", "rfef", "segunda", "women", "u19", "u21", "cup", "copa", "regional",
@@ -71,7 +71,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
     // Antes do Brasileirão Série A: "Brasileirão Série B" também contém "Brasileirão".
     id: "brasileirao_b",
     name: "Brasileirão Série B",
-    pais: ["brazil", "brasil", "brasileirao", "brasileiro"],
+    pais: ["brazil", "brazilian", "brasil", "brasileirao", "brasileiro"],
     aliases: [
       "Brasileirão Série B", "Brasileirão B", "Brazil Serie B", "Brasil Serie B",
       "Brazilian Serie B", "Campeonato Brasileiro Série B", "Brasileirao Serie B",
@@ -82,7 +82,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
     // Antes da Serie A italiana: "Serie A Betano" é o Brasileirão, não a Itália.
     id: "brasileirao_a",
     name: "Brasileirão Série A",
-    pais: ["brazil", "brasil", "brasileirao", "brasileiro", "betano"],
+    pais: ["brazil", "brazilian", "brasil", "brasileirao", "brasileiro", "betano"],
     aliases: [
       "Brasileirão Série A", "Brasileirão", "Brasileirao", "Brazil Serie A",
       "Brasil Serie A", "Brazilian Serie A", "Campeonato Brasileiro",
@@ -113,7 +113,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "serie_a",
     name: "Serie A",
-    pais: ["italy", "italian"],
+    pais: ["italy", "italian", "serie a tim"],
     aliases: ["Serie A", "Italian Serie A", "Italy Serie A", "Serie A TIM"],
     exclude: [
       "women", "u17", "u19", "u20", "u21", "u23", "primavera", "coppa", "cup",
@@ -125,8 +125,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "bundesliga",
     name: "Bundesliga",
-    pais: ["german", "germany"],
-    aliases: ["Bundesliga", "German Bundesliga", "Germany Bundesliga", "1. Bundesliga"],
+        aliases: ["Bundesliga", "German Bundesliga", "Germany Bundesliga", "1. Bundesliga"],
     exclude: ["2", "u19", "u21", "u23", "women", "cup", "regionalliga", "oberliga", "austria", "reserve"],
   },
   {
@@ -156,7 +155,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "champions_league",
     name: "Champions League",
-    pais: ["uefa"],
+    pais: ["uefa", "liga dos campeoes"],
     aliases: ["UEFA Champions League", "Champions League", "Liga dos Campeões", "UCL"],
     exclude: ["women", "u19", "u21", "youth", "afa", "afc", "caf", "concacaf", "elite", "two"],
   },
@@ -164,7 +163,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
     // Antes da Europa League: "Europa Conference League" não é a Europa League.
     id: "conference_league",
     name: "Conference League",
-    pais: ["uefa"],
+    pais: ["uefa", "liga conferencia"],
     aliases: [
       "UEFA Conference League", "Conference League", "UEFA Europa Conference League",
       "Liga Conferência",
@@ -174,7 +173,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "europa_league",
     name: "Europa League",
-    pais: ["uefa"],
+    pais: ["uefa", "liga europa"],
     aliases: ["UEFA Europa League", "Europa League", "Liga Europa", "UEL"],
     exclude: ["conference", "women", "u19", "u21", "youth"],
   },
@@ -196,7 +195,7 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "nations_league",
     name: "Liga das Nações",
-    pais: ["uefa"],
+    pais: ["uefa", "liga das nacoes"],
     aliases: ["UEFA Nations League", "Liga das Nações", "Nations League"],
     exclude: ["concacaf", "women", "u19", "u21", "youth"],
   },
@@ -260,24 +259,29 @@ export function bloqueadoPorCategoria(leagueName: string | null | undefined): bo
  * Devolve a liga canônica correspondente ou `null` se não for uma das 16.
  * Retorna o objeto inteiro para quem precisa do `id` e do `name`.
  */
-export function leagueOf(leagueName: string | null | undefined): MainLeague | null {
+export function leagueOf(
+  leagueName: string | null | undefined,
+  pais?: string | null,
+): MainLeague | null {
   if (!leagueName) return null;
-  if (bloqueadoPorCategoria(leagueName)) return null;
 
-  const nome = normalizar(leagueName);
-  if (!nome) return null;
+  const nomeLiga = normalizar(leagueName);
+  if (!nomeLiga) return null;
+
+  // Quando a fonte informa o país, ele entra no nome usado no casamento: é o
+  // que separa a "Ligue 1" da França da "Ligue 1" da Argélia.
+  const paisNorm = pais ? normalizar(pais) : "";
+  const nome = paisNorm ? `${paisNorm} ${nomeLiga}` : nomeLiga;
+
+  if (bloqueadoPorCategoria(nome)) return null;
 
   for (const liga of MAIN_LEAGUES) {
-    const casa = liga.aliases.some((a) => contemAlias(nome, normalizar(a)));
-    if (!casa) continue;
+    if (!liga.aliases.some((a) => contemAlias(nome, normalizar(a)))) continue;
 
-    // Nome genérico só vale qualificado pelo país ("Zanzibar Premier League"
-    // não é a Premier League) — ou quando o nome é exatamente o genérico.
-    if (liga.pais) {
-      const exato = liga.aliases.some((a) => nome === normalizar(a));
-      const qualificado = liga.pais.some((t) => contemToken(nome, t));
-      if (!exato && !qualificado) continue;
-    }
+    // Nome genérico ("Ligue 1", "Serie A", "Premier League") só vale com o país
+    // certo no nome. Sem país, fica de fora: existe Ligue 1 na França, na
+    // Argélia e no Senegal, e Serie A na Itália, no Equador e na Bolívia.
+    if (liga.pais && !liga.pais.some((t) => contemToken(nome, t))) continue;
 
     const vetada = (liga.exclude ?? []).some((t) => contemToken(nome, t));
     if (vetada) continue;
@@ -297,19 +301,28 @@ function contemToken(nome: string, token: string): boolean {
  * `true` se a liga informada é uma das 16 principais.
  *
  * ```ts
- * isMainLeague("Brasileirão Série A") // true
- * isMainLeague("Brazil Serie A")      // true
- * isMainLeague("Italy Serie A Women") // false (veto de feminino)
- * isMainLeague("Spain Copa del Rey")  // false (copa nacional)
+ * isMainLeague("Brasileirão Série A")      // true
+ * isMainLeague("Brazil Serie A")           // true
+ * isMainLeague("Ligue 1", "France")        // true
+ * isMainLeague("Ligue 1", "Algeria")       // false (não é a francesa)
+ * isMainLeague("Serie A")                  // false (genérico sem país)
+ * isMainLeague("Italy Serie A Women")      // false (veto de feminino)
+ * isMainLeague("Spain Copa del Rey")       // false (copa nacional)
  * ```
  */
-export function isMainLeague(leagueName: string | null | undefined): boolean {
-  return leagueOf(leagueName) !== null;
+export function isMainLeague(
+  leagueName: string | null | undefined,
+  pais?: string | null,
+): boolean {
+  return leagueOf(leagueName, pais) !== null;
 }
 
 /** Chave canônica da liga (ou `null`). */
-export function mainLeagueId(leagueName: string | null | undefined): string | null {
-  return leagueOf(leagueName)?.id ?? null;
+export function mainLeagueId(
+  leagueName: string | null | undefined,
+  pais?: string | null,
+): string | null {
+  return leagueOf(leagueName, pais)?.id ?? null;
 }
 
 const IDS = new Set(MAIN_LEAGUES.map((l) => l.id));

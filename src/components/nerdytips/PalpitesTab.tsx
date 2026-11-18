@@ -28,10 +28,13 @@ export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string)
   const { data, loading, error, refresh } = useApi<Board>(`/api/nerdytips/palpites${query}`);
 
   const grupos = useMemo(() => {
-    const jogos = (data?.jogos ?? []).filter((j) => !soPrincipais || isMainLeague(j.liga));
+    // O nome da liga é ambíguo ("Ligue 1" existe na França e na Argélia), por
+    // isso o filtro recebe o país que veio no cabeçalho do board.
+    const jogos = (data?.jogos ?? []).filter((j) => !soPrincipais || isMainLeague(j.liga, j.pais));
+    // Agrupa por país + liga: a "Ligue 1" francesa e a argelina não se misturam.
     const mapa = new Map<string, Jogo[]>();
     for (const j of jogos) {
-      const chave = j.liga || "Outras competições";
+      const chave = [j.liga || "Outras competições", j.pais].filter(Boolean).join(" · ");
       const arr = mapa.get(chave) ?? [];
       arr.push(j);
       mapa.set(chave, arr);
@@ -88,7 +91,9 @@ export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string)
 
       {grupos.map(([liga, jogos]) => (
         <section key={liga} className="space-y-1.5">
-          <h3 className="text-[10px] font-extrabold text-mut uppercase tracking-wide px-1">{liga}</h3>
+          <h3 className="text-[10px] font-extrabold text-mut uppercase tracking-wide px-1">
+            {liga}
+          </h3>
           <div className="space-y-1.5">
             {jogos.map((j) => (
               <button

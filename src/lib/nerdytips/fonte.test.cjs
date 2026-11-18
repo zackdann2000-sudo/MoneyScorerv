@@ -251,5 +251,18 @@ check("liberado: fonte site", F.mesclarDestaques(liberado, publico).fontePalpite
 check("liberado: mesmos jogos", F.mesclarDestaques(liberado, publico).jogos.length, 2);
 check("sem board e travado: 0 cards", F.mesclarDestaques(botdTravado, { jogos: [], ligas: [], geradoEm: "" }).jogos.length, 1);
 
+/* ------------- país da competição + H2H com placar ------------- */
+console.log("\n=== 11. País da liga e confrontos do H2H ===");
+const cabecalhoArg = '<a href="/football-predictions-for-ligue-1-algeria" class="lgl x"><span>Ligue 1</span><span>Algeria</span></a>';
+const boardComPais = F.parseBoard(cabecalhoArg + fx("mock-board.html"));
+check("país vem do cabeçalho do grupo", boardComPais.jogos[0].pais, "Algeria");
+check("liga vem do cabeçalho", boardComPais.jogos[0].liga, "Ligue 1");
+check("sem cabeçalho, país fica vazio", F.parseBoard(fx("mock-board.html")).jogos[0].pais, "");
+
+const h2hPartida = F.parsePartida(fx("mock-h2h.html"));
+check("confrontos com placar", h2hPartida.h2hJogos, [{ golsCasa: 0, golsFora: 1 }, { golsCasa: 0, golsFora: 0 }]);
+check("retrospecto continua", h2hPartida.h2h, { total: 2, vitoriasCasa: 1, empates: 1, vitoriasFora: 0 });
+check("ordem: mais recente primeiro", h2hPartida.h2hJogos[0].golsFora, 1);
+
 console.log(falhas === 0 ? "\nTODOS OS TESTES PASSARAM" : `\n${falhas} FALHA(S)`);
 process.exit(falhas === 0 ? 0 : 1);

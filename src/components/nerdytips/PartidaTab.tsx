@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, Sparkles, Target } from "lucide-react";
+import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import { useApi } from "./useApi";
 import type { Partida } from "./types";
 import { CacheBadge, ConfBar, EmptyBox, ErrorBox, Odd, Spinner } from "./Ui";
@@ -84,6 +85,10 @@ export default function PartidaTab({ id, onVoltar }: { id: string; onVoltar: () 
               )}
             </div>
           </div>
+
+          {/* Palpite fixo do H2H: em destaque, logo abaixo do cabeçalho.
+              O card se esconde sozinho quando há menos de 3 confrontos. */}
+          <H2HPalpiteCard jogos={data.h2hJogos ?? []} />
 
           {/* Melhor palpite */}
           {data.melhor && (

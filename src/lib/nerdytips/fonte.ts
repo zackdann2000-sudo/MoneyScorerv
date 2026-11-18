@@ -44,7 +44,10 @@ export type Pick = {
 export type Jogo = {
   id: string;
   slug: string;
+  /** Nome da competição ("Ligue 1", "Brasileirão"). */
   liga: string;
+  /** País da competição ("Algeria", "France") — vem do cabeçalho do grupo. */
+  pais: string;
   casa: string;
   fora: string;
   logos: [string | null, string | null];
@@ -332,12 +335,41 @@ function lerOdds(bloco: string): Jogo["odds"] {
  *
  * Agrupa por competição preservando a ordem em que o site exibe.
  */
+/**
+ * Cabeçalhos de competição do board: `Ligue 1` + `Algeria`.
+ *
+ * O nome da liga sozinho é ambíguo — existe Ligue 1 na França, na Argélia e no
+ * Senegal. O país vem no segundo `<span>` do link da liga.
+ */
+const RX_CABECALHO_LIGA =
+  /href="\/football-predictions-for-[^"]*"\s+class="lgl[^"]*"[^>]*>\s*<span[^>]*>([^<]*)<\/span>\s*<span[^>]*>([^<]*)<\/span>/g;
+
+function cabecalhosDeLiga(html: string): { indice: number; liga: string; pais: string }[] {
+  const out: { indice: number; liga: string; pais: string }[] = [];
+  const rx = new RegExp(RX_CABECALHO_LIGA.source, "g");
+  let h: RegExpExecArray | null;
+  while ((h = rx.exec(html))) {
+    out.push({ indice: h.index, liga: texto(h[1]), pais: texto(h[2]) });
+  }
+  return out;
+}
+
 export function parseBoard(html: string): Board {
   const jogos: Jogo[] = [];
+  const cabecalhos = cabecalhosDeLiga(html);
+  let proximoCabecalho = 0;
+  let ligaAtual = "";
+  let paisAtual = "";
   RX_JOGO.lastIndex = 0;
   let m: RegExpExecArray | null;
 
   while ((m = RX_JOGO.exec(html))) {
+    // O jogo pertence ao último cabeçalho antes dele no documento.
+    while (proximoCabecalho < cabecalhos.length && cabecalhos[proximoCabecalho].indice < m.index) {
+      ligaAtual = cabecalhos[proximoCabecalho].liga;
+      paisAtual = cabecalhos[proximoCabecalho].pais;
+      proximoCabecalho++;
+    }
     const [, slug, id, kick, statusAttr, bloco] = m;
     const resumo = texto((bloco.match(/<span class="sr-only">([\s\S]*?)<\/span>/) ?? [])[1] ?? "");
 
@@ -348,8 +380,10 @@ export function parseBoard(html: string): Board {
 
     const logos = Array.from(bloco.matchAll(/<img src="([^"]+)"[^>]*class="nt-crest"/g)).map((x) => x[1]);
 
-    // Competição: "Time A vs Time B, Competição, kick-off 10:00."
-    const liga = (resumo.match(/ vs .+?, (.+?), kick-off /) ?? [])[1] ?? "";
+    // Competição: preferimos o cabeçalho do grupo (traz o país); o resumo
+    // acessível do card serve de reserva.
+    const liga = ligaAtual || (resumo.match(/ vs .+?, (.+?), kick-off /) ?? [])[1] || "";
+    const pais = paisAtual;
 
     const sh = bloco.match(/data-score-h[^>]*>(\d+)</);
     const sa = bloco.match(/data-score-a[^>]*>(\d+)</);
@@ -375,6 +409,7 @@ export function parseBoard(html: string): Board {
       id,
       slug,
       liga,
+      pais,
       casa: nomes[0],
       fora: nomes[1],
       logos: [logos[0] ?? null, logos[1] ?? null],
@@ -447,6 +482,8 @@ export type Partida = {
   stats: StatComparada[];
   eventos: Evento[];
   h2h: { total: number; vitoriasCasa: number; empates: number; vitoriasFora: number } | null;
+  /** Confrontos diretos com placar (mandante primeiro), do mais recente ao mais antigo. */
+  h2hJogos: { golsCasa: number; golsFora: number }[];
 };
 
 /** Lê um card de palpite (`md-pcard`) do bloco. */
@@ -588,6 +625,24 @@ export function parsePartida(html: string): Partida {
     };
   }
 
+  // Confrontos diretos com placar: cada linha `md-hq__lr` traz, no texto
+  // acessível, "Nov 13 2026: Mozambique 0–1 Ethiopia" (mandante primeiro).
+  // É o que alimenta o "Palpite fixo" — sem isso só teríamos o retrospecto.
+  const h2hJogos: Partida["h2hJogos"] = [];
+  for (const linha of h2hSeg.split("md-hq__lr").slice(1)) {
+    const inicio = linha.indexOf('class="sr-only"');
+    if (inicio < 0) continue;
+    const trecho = texto(linha.slice(inicio, linha.indexOf("md-hq__lc", inicio) + 1 || linha.length));
+    // "Nov 13 2026: Mozambique 0–1 Ethiopia" — o placar é o primeiro par
+    // numérico separado por travessão depois dos dois-pontos.
+    const placar = trecho.slice(trecho.indexOf(":") + 1).match(/(\d+)\s*[\u2013\u2014-]\s*(\d+)/);
+    if (!placar) continue;
+    const golsCasa = Number(placar[1]);
+    const golsFora = Number(placar[2]);
+    if (!Number.isFinite(golsCasa) || !Number.isFinite(golsFora)) continue;
+    h2hJogos.push({ golsCasa, golsFora });
+  }
+
   return {
     id,
     liga,
@@ -604,6 +659,7 @@ export function parsePartida(html: string): Partida {
     stats,
     eventos,
     h2h,
+    h2hJogos,
   };
 }
 

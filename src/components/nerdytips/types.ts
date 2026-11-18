@@ -15,6 +15,8 @@ export type Jogo = {
   id: string;
   slug: string;
   liga: string;
+  /** País da competição ("Algeria", "France") — usado no filtro de ligas. */
+  pais: string;
   casa: string;
   fora: string;
   logos: [string | null, string | null];
@@ -83,6 +85,8 @@ export type Partida = {
   stats: StatComparada[];
   eventos: Evento[];
   h2h: { total: number; vitoriasCasa: number; empates: number; vitoriasFora: number } | null;
+  /** Confrontos diretos com placar, do mais recente ao mais antigo. */
+  h2hJogos: { golsCasa: number; golsFora: number }[];
   cache: CacheInfo;
 };
 

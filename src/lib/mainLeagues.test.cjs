@@ -65,7 +65,6 @@ const DEVE_CASAR = [
   ["Sul-Americana", "sudamericana"],
   ["CONMEBOL Libertadores", "libertadores"],
   ["UEFA Europa Conference League", "conference_league"],
-  ["Serie A", "serie_a"],
   // apelidos pedidos explicitamente na especificação do filtro
   ["Serie A Betano", "brasileirao_a"],
   ["Torneo Betano", "argentina_primera"],
@@ -181,13 +180,29 @@ check("conference continua dentro", isMainLeague("UEFA Conference League"), true
 check("excecao nao libera europeu de base", isMainLeague("UEFA Europa League U21"), false);
 
 console.log("\n=== nome generico exige o pais ===");
-check("Premier League sozinho é a inglesa", mainLeagueId("Premier League"), "premier_league");
+check("Premier League sozinho é ambíguo", isMainLeague("Premier League"), false);
+check("Serie A sozinho é ambíguo", isMainLeague("Serie A"), false);
+check("Ligue 1 sozinho é ambíguo", isMainLeague("Ligue 1"), false);
+check("Champions League sozinho é ambíguo", isMainLeague("Champions League"), false);
 check("English Premier League", mainLeagueId("English Premier League"), "premier_league");
-check("Serie A sozinho é a italiana", mainLeagueId("Serie A"), "serie_a");
-check("Bundesliga sozinho é a alemã", mainLeagueId("Bundesliga"), "bundesliga");
-check("Ligue 1 sozinho é a francesa", mainLeagueId("Ligue 1"), "ligue_1");
-check("Champions League sozinho exige uefa", mainLeagueId("Champions League"), "champions_league");
+check("Bundesliga sozinho é a alemã?", isMainLeague("Bundesliga"), true);
 check("Zanzibar Premier League fora", isMainLeague("Zanzibar Premier League"), false);
+
+console.log("\n=== país explícito (2º argumento) ===");
+check("Ligue 1 + France", mainLeagueId("Ligue 1", "France"), "ligue_1");
+check("Ligue 1 + Algeria (bug de produção)", mainLeagueId("Ligue 1", "Algeria"), null);
+check("Ligue 1 + Argélia sem acento", isMainLeague("Ligue 1", "Argelia"), false);
+check("Serie A + Italy", mainLeagueId("Serie A", "Italy"), "serie_a");
+check("Serie A + Ecuador", mainLeagueId("Serie A", "Ecuador"), null);
+check("Serie A + Bolivia", mainLeagueId("Serie A", "Bolivia"), null);
+check("Premier League + England", mainLeagueId("Premier League", "England"), "premier_league");
+check("Premier League + Zanzibar", mainLeagueId("Premier League", "Zanzibar"), null);
+check("Bundesliga + Germany", mainLeagueId("Bundesliga", "Germany"), "bundesliga");
+check("Bundesliga + Austria", mainLeagueId("Bundesliga", "Austria"), null);
+check("Brasileirão + Brazil", mainLeagueId("Brasileirão", "Brazil"), "brasileirao_a");
+check("MLS + USA", mainLeagueId("MLS", "USA"), "mls");
+check("país não atrapalha liga específica", mainLeagueId("Copa Libertadores", "CONMEBOL"), "libertadores");
+check("pais vazio não quebra", mainLeagueId("Brasileirão", ""), "brasileirao_a");
 
 console.log("\n=== contagem ===");
 check("16 ligas na lista", TOTAL_LIGAS_PRINCIPAIS, 16);
