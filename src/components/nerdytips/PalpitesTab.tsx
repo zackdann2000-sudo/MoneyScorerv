@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronRight, Grid3x3, Sparkles } from "lucide-react";
-import LeagueFilterPill from "@/components/LeagueFilter";
+import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 import { isMainLeague } from "@/lib/mainLeagues";
 import { odd } from "@/lib/utils/odds";
 import { useApi } from "./useApi";
@@ -21,7 +21,8 @@ import { CacheBadge, ConfBar, EmptyBox, ErrorBox, Odd, PickChip, ResultadoPill, 
  */
 export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string) => void }) {
   const [modo, setModo] = useState<"hoje" | "todas" | "placar">("hoje");
-  const [soPrincipais, setSoPrincipais] = useState(false);
+  // Padrão LIGADO (igual às outras abas): mostra só as 16 principais.
+  const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   const query = modo === "todas" ? "?todas=1" : modo === "placar" ? "?placar=1" : "";
   const { data, loading, error, refresh } = useApi<Board>(`/api/nerdytips/palpites${query}`);
