@@ -33,7 +33,7 @@ export default function H2HPalpiteCard({
 
   return (
     <div
-      className={`rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/15 via-panel to-panel p-4 space-y-2 ${className}`}
+      className={`rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/15 via-panel to-panel p-3 space-y-1.5 ${className}`}
     >
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-acc uppercase tracking-wide">
@@ -48,10 +48,10 @@ export default function H2HPalpiteCard({
 
       {principal ? (
         <>
-          <p className="text-[15px] leading-snug font-extrabold text-ink">
+          <p className="text-[13px] leading-snug font-extrabold text-ink">
             {principal.texto}
           </p>
-          <p className="text-[11px] text-mut leading-snug">
+          <p className="text-[10px] text-mut leading-snug">
             Nos últimos <span className="font-bold text-ink">{total}</span> confrontos diretos, é o que
             mais aconteceu{secundario ? (
               <>
@@ -64,7 +64,7 @@ export default function H2HPalpiteCard({
           </p>
         </>
       ) : (
-        <p className="text-[13px] font-bold text-ink leading-snug">
+        <p className="text-[11px] font-bold text-ink leading-snug">
           Sem padrão claro nos últimos {total} confrontos — nenhum mercado passou de 57%.
         </p>
       )}

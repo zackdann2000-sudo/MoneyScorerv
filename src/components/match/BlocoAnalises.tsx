@@ -50,8 +50,8 @@ function Card({ item }: { item: AnaliseBloco }) {
     <div className="rounded-xl border border-line bg-panel p-2 space-y-1">
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1 min-w-0">
-          <Icone size={12} className={item.semDados ? "text-mut" : cor} />
-          <span className="text-[10px] font-extrabold text-ink uppercase tracking-wide truncate">
+          <Icone size={12} className={`shrink-0 ${item.semDados ? "text-mut" : cor}`} />
+          <span className="text-[10px] font-extrabold text-ink uppercase tracking-normal leading-tight break-words min-w-0">
             {item.rotulo}
           </span>
         </div>
