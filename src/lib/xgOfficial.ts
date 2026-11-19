@@ -67,8 +67,41 @@ async function resolverTime(nome: string): Promise<{ id: number; name: string } 
 }
 
 /** Média de xG oficial (a favor e contra) dos últimos jogos. `null` = indisponível. */
+export async function getXgOficialCache(nomeTime: string): Promise<XgOficial | null> {
+  return lerCachePorNome(nomeTime);
+}
+
+/** Lê do cache do Neon apenas pelo nome do time (sem nenhuma chamada de API). */
+async function lerCachePorNome(nomeTime: string): Promise<XgOficial | null> {
+  try {
+    const alvo = norm(nomeTime);
+    if (!alvo) return null;
+    const rows = await db.select().from(teamXgCache);
+    if (!rows.length) return null;
+    const row =
+      rows.find((r) => norm(r.teamName) === alvo) ??
+      rows.find((r) => {
+        const n = norm(r.teamName);
+        return n.includes(alvo) || alvo.includes(n);
+      });
+    if (!row) return null;
+    if (Date.now() - new Date(row.fetchedAt).getTime() >= TTL_MS) return null;
+    return {
+      xgFor: Number(row.xgFor),
+      xgAgainst: Number(row.xgAgainst),
+      sample: Number(row.sample),
+      source: "api-football",
+    };
+  } catch {
+    return null;
+  }
+}
 export async function getXgOficial(nomeTime: string): Promise<XgOficial | null> {
   try {
+    // 0) cache-first por nome: time já cacheado não gasta chamada de API.
+    const emCache = await lerCachePorNome(nomeTime);
+    if (emCache) return emCache;
+
     const time = await resolverTime(nomeTime);
     if (!time || !Number.isFinite(time.id)) return null;
 

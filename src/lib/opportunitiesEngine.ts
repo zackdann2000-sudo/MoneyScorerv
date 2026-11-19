@@ -21,7 +21,7 @@ import {
 } from "@/lib/espn";
 import { runModel, type Analysis } from "@/lib/model";
 import { oddsDoJogoComFallback } from "@/lib/providers";
-import { getXgOficial } from "@/lib/xgOfficial";
+import { getXgOficial, getXgOficialCache } from "@/lib/xgOfficial";
 import {
   avaliarOportunidades,
   calcularKelly,
@@ -76,6 +76,8 @@ export type OportunidadesOpts = {
   maxMatches?: number;
   principais?: boolean;
   usarApiFootball?: boolean;
+  /** Quantos jogos (top por valor) podem gastar chamada real de xG na API-Football. */
+  maxXgApi?: number;
 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
@@ -89,7 +91,10 @@ function horaSP(iso: string): string {
 
 async function analisarJogo(
   m: Match,
-  opts: Required<Pick<OportunidadesOpts, "minProb" | "oddMin" | "oddMax" | "usarApiFootball">>,
+  opts: Required<Pick<OportunidadesOpts, "minProb" | "oddMin" | "oddMax" | "usarApiFootball">> & {
+    /** "api" = pode chamar a API-Football; "cache" = só cache do Neon; "off" = desligado. */
+    xgModo: "api" | "cache" | "off";
+  },
 ): Promise<AnaliseJogo | null> {
   const [hh, ah] = await Promise.all([
     getTeamHistory(m.league, m.home.id, 10).catch(() => null),
@@ -100,10 +105,11 @@ async function analisarJogo(
   /* xG OFICIAL (API-Football) com cache 24h no Neon. Quando vem, é anexado ao
      histórico e o motor mescla 50% gols + 50% xG oficial. Falhou (time não
      achado / cota) → segue com o xG estimado da ESPN que já vem no histórico. */
-  if (process.env.XG_OFICIAL_DISABLED !== "1") {
+  if (opts.xgModo !== "off" && process.env.XG_OFICIAL_DISABLED !== "1") {
+    const buscar = opts.xgModo === "api" ? getXgOficial : getXgOficialCache;
     const [xgH, xgA] = await Promise.all([
-      getXgOficial(m.home.name).catch(() => null),
-      getXgOficial(m.away.name).catch(() => null),
+      buscar(m.home.name).catch(() => null),
+      buscar(m.away.name).catch(() => null),
     ]);
     if (xgH) hh.games.forEach((g) => { g.xgF = xgH.xgFor; g.xgA = xgH.xgAgainst; g.xgFonte = "api-football"; });
     if (xgA) ah.games.forEach((g) => { g.xgF = xgA.xgFor; g.xgA = xgA.xgAgainst; g.xgFonte = "api-football"; });
@@ -196,6 +202,7 @@ export async function analisarOportunidades(opts: OportunidadesOpts = {}): Promi
   const oddMin = opts.oddMin ?? ODD_MIN;
   const oddMax = opts.oddMax ?? ODD_MAX;
   const usarApiFootball = opts.usarApiFootball ?? true;
+  const maxXgApi = clamp(opts.maxXgApi ?? 10, 0, 20);
 
   const todos = await getAllMatches(date);
   let cands = todos.filter((m) => m.state !== "post");
@@ -204,14 +211,47 @@ export async function analisarOportunidades(opts: OportunidadesOpts = {}): Promi
     .sort((a, b) => leagueInfo(a.league).priority - leagueInfo(b.league).priority || a.date.localeCompare(b.date))
     .slice(0, maxMatches);
 
-  const settled = await Promise.allSettled(
-    cands.map((m) => analisarJogo(m, { minProb, oddMin, oddMax, usarApiFootball })),
+  /* Passo 1 — analisa tudo usando só o cache do Neon (nenhuma chamada de xG).
+     Time já cacheado ganha o xG oficial de graça; o resto fica com o estimado. */
+  const base = { minProb, oddMin, oddMax, usarApiFootball };
+  const primeira = await Promise.allSettled(
+    cands.map((m) => analisarJogo(m, { ...base, xgModo: "cache" })),
   );
-
-  const analisados = settled
+  const pass1 = primeira
     .filter((r): r is PromiseFulfilledResult<AnaliseJogo | null> => r.status === "fulfilled")
     .map((r) => r.value)
     .filter((v): v is AnaliseJogo => v !== null);
+
+  /* Passo 2 — só os N jogos de maior valor podem gastar chamada real de xG na
+     API-Football (protege a cota). Reanalisamos apenas esses e substituímos. */
+  const porId = new Map(cands.map((m) => [m.id, m]));
+  const nota = (a: AnaliseJogo) => {
+    const melhor = a.oportunidades.reduce((mx, o) => Math.max(mx, o.valor), 0);
+    if (melhor > 0) return 1 + melhor; // valor manda
+    return Math.max(a.probs.home, a.probs.away, a.probs.over25, a.probs.btts);
+  };
+  /* Lista em lote (ex.: Forebet com `usarApiFootball: false`) só aproveita o
+     cache do Neon e nunca gasta chamada real de xG. */
+  const podeApi = usarApiFootball && maxXgApi > 0;
+  const topIds = podeApi
+    ? [...pass1]
+        .sort((x, y) => nota(y) - nota(x))
+        .slice(0, maxXgApi)
+        .map((a) => a.matchId)
+    : [];
+
+  const segunda = await Promise.allSettled(
+    topIds.map((id) => {
+      const m = porId.get(id);
+      return m ? analisarJogo(m, { ...base, xgModo: "api" }) : Promise.resolve(null);
+    }),
+  );
+  const upgrades = new Map<string, AnaliseJogo>();
+  for (const r of segunda) {
+    if (r.status === "fulfilled" && r.value) upgrades.set(r.value.matchId, r.value);
+  }
+
+  const analisados = pass1.map((a) => upgrades.get(a.matchId) ?? a);
 
   const oportunidades = analisados
     .flatMap((a) => a.oportunidades)
