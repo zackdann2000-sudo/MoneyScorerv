@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { leagueInfo } from "@/lib/espn";
 import { analisarOportunidades, type AnaliseJogo } from "@/lib/opportunitiesEngine";
+import { stakeSugerida } from "@/lib/valueBet";
+import { evCor } from "@/components/ValorEsperado";
 
 /* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
    O Forebet é conhecido por uma TABELA densa de palpites: por jogo, a
@@ -118,6 +120,7 @@ export default async function ForebetPage({
                   <th className="text-center font-bold px-1 py-1.5">Placar</th>
                   <th className="text-center font-bold px-1 py-1.5">Gols</th>
                   <th className="text-center font-bold px-1 py-1.5">+2.5</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Valor Esperado · Stake sugerida (Kelly, teto 5%)">EV · Stake</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +128,10 @@ export default async function ForebetPage({
                   const pred = previsto(j.probs);
                   const mediaGols = (j.lambdaHome + j.lambdaAway).toFixed(1);
                   const placar = j.topScores?.[0]?.score ?? "—";
+                  const best = j.oportunidades.length
+                    ? j.oportunidades.reduce((a, b) => (b.valor > a.valor ? b : a))
+                    : null;
+                  const stake = best ? stakeSugerida(best.probModelo, best.odd) * 100 : 0;
                   return (
                     <tr key={j.matchId} className="border-b border-line/50 last:border-0 hover:bg-panel2/50">
                       <td className="px-2 py-1.5 align-top whitespace-nowrap">
@@ -144,6 +151,17 @@ export default async function ForebetPage({
                       <td className="text-center px-1 py-1.5 font-extrabold text-ink tabular-nums">{placar}</td>
                       <td className="text-center px-1 py-1.5 text-mut tabular-nums">{mediaGols}</td>
                       <td className="text-center px-1 py-1.5 text-acc font-bold tabular-nums">{pct(j.probs.over25)}</td>
+                      <td className="text-center px-1 py-1.5 whitespace-nowrap">
+                        {best ? (
+                          <span title={`EV ${best.evPct >= 0 ? "+" : ""}${best.evPct.toFixed(1)}% · Kelly ${stake.toFixed(1)}% da banca (teto 5%)`} className="cursor-help">
+                            <span className={`font-extrabold tabular-nums ${evCor(best.evPct)}`}>{best.evPct >= 0 ? "+" : ""}{best.evPct.toFixed(0)}%</span>
+                            <span className="text-mut"> · </span>
+                            <span className="font-extrabold tabular-nums text-acc">{stake.toFixed(1)}%</span>
+                          </span>
+                        ) : (
+                          <span className="text-mut">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

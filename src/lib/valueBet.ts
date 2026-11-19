@@ -62,6 +62,8 @@ export type OportunidadeValor = MetaJogo & {
   evPct: number;
   confianca: Confianca;
   fonteOdd: string;
+  /** Fração de Kelly sugerida (% da banca, 0..KELLY_CAP). 0 = não apostar. */
+  stake: number;
   /** Frase de transparência pronta para a UI. */
   porque: string;
 };
@@ -69,10 +71,32 @@ export type OportunidadeValor = MetaJogo & {
 export const MIN_PROB = 0.65;
 export const ODD_MIN = 1.45;
 export const ODD_MAX = 2.5;
+/** Teto de segurança de Kelly: nunca sugerir mais que 5% da banca por aposta. */
+export const KELLY_CAP = 0.05;
 /** Tolerância entre a linha de odds e a linha avaliada (2.5). */
 const TOL_LINHA = 0.01;
 
 const pct = (v: number) => Math.round(v * 100);
+
+/**
+ * Critério de Kelly (fração ótima da banca):
+ *   f = (odd · p − 1) / (odd − 1)
+ * Devolve a fração (ex.: 0.025 = 2.5% da banca). Negativo = sem valor.
+ */
+export function calcularKelly(probModelo: number, odd: number): number {
+  if (!Number.isFinite(probModelo) || !Number.isFinite(odd) || odd <= 1) return 0;
+  return (odd * probModelo - 1) / (odd - 1);
+}
+
+/**
+ * Stake sugerida com gestão de risco: Kelly limitado a [0, cap].
+ * Kelly negativo (sem valor) vira 0; Kelly alto em odds altas é cortado no teto.
+ */
+export function stakeSugerida(probModelo: number, odd: number, cap = KELLY_CAP): number {
+  const k = calcularKelly(probModelo, odd);
+  if (k <= 0) return 0;
+  return Math.min(k, cap);
+}
 
 type Candidato = { mercado: MercadoValor; rotulo: string; linha: number | null; prob: number; odd: number };
 
@@ -125,7 +149,8 @@ export function avaliarOportunidades(args: {
     const valor = c.prob - probImplicita;
     if (valor <= 0) continue;
     const evPct = +((c.prob * odd - 1) * 100).toFixed(1);
-    const porque = `Modelo: ${pct(c.prob)}% de acerto | Odd: ${odd.toFixed(2)} | Valor Esperado: ${evPct >= 0 ? "+" : ""}${evPct.toFixed(1)}%`;
+    const stake = stakeSugerida(c.prob, odd);
+    const porque = `Modelo: ${pct(c.prob)}% de acerto | Odd: ${odd.toFixed(2)} | Valor Esperado: ${evPct >= 0 ? "+" : ""}${evPct.toFixed(1)}% | Stake: ${(stake * 100).toFixed(1)}% da banca`;
     out.push({
       ...meta,
       chave: `${meta.matchId}:${c.mercado}`,
@@ -139,6 +164,7 @@ export function avaliarOportunidades(args: {
       evPct,
       confianca,
       fonteOdd,
+      stake: +stake.toFixed(4),
       porque,
     });
   }

@@ -23,9 +23,12 @@ import { runModel, type Analysis } from "@/lib/model";
 import { oddsDoJogoComFallback } from "@/lib/providers";
 import {
   avaliarOportunidades,
+  calcularKelly,
+  stakeSugerida,
   MIN_PROB,
   ODD_MIN,
   ODD_MAX,
+  KELLY_CAP,
   type Confianca,
   type MercadoValor,
   type MetaJogo,
@@ -35,7 +38,7 @@ import {
 } from "@/lib/valueBet";
 
 // Reexporta o núcleo puro para quem já importa daqui.
-export { avaliarOportunidades, MIN_PROB, ODD_MIN, ODD_MAX };
+export { avaliarOportunidades, calcularKelly, stakeSugerida, MIN_PROB, ODD_MIN, ODD_MAX, KELLY_CAP };
 export type { Confianca, MercadoValor, MetaJogo, ModelProbs, OddsMercado, OportunidadeValor };
 
 export type AnaliseJogo = MetaJogo & {
