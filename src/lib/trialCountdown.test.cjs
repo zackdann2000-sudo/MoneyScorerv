@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { formatarRestante } = require("./trialCountdown.js");
+const { formatarRestante, chaveToastExpiracao } = require("./trialCountdown.js");
 
 const agora = new Date("2025-01-01T00:00:00.000Z").getTime();
 const emMin = (m) => new Date(agora + m * 60000).toISOString();
@@ -32,5 +32,19 @@ r = formatarRestante(new Date(agora - 5 * 3600 * 1000).toISOString(), agora);
 assert.strictEqual(r.expirado, true);
 assert.strictEqual(r.texto, "0h 00m");
 assert.ok(r.ms < 0);
+
+// chave do toast: muda por usuário e por expiração
+assert.strictEqual(
+  chaveToastExpiracao(7, "2025-01-02T00:00:00.000Z"),
+  "gs_trial_toast_7_2025-01-02T00:00:00.000Z",
+);
+assert.notStrictEqual(
+  chaveToastExpiracao(7, "2025-01-02T00:00:00.000Z"),
+  chaveToastExpiracao(7, "2025-02-02T00:00:00.000Z"),
+);
+assert.notStrictEqual(
+  chaveToastExpiracao(7, "2025-01-02T00:00:00.000Z"),
+  chaveToastExpiracao(8, "2025-01-02T00:00:00.000Z"),
+);
 
 console.log("trialCountdown ok");

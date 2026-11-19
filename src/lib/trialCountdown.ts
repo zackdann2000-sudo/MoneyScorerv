@@ -13,3 +13,13 @@ export function formatarRestante(expiresAt: string | Date, agora: number): Resta
   const minutos = totalMin % 60;
   return { ms, horas, minutos, texto: `${horas}h ${String(minutos).padStart(2, "0")}m`, expirado };
 }
+
+/**
+ * Chave de "toast já mostrado" para o fim do trial.
+ * Inclui usuário + instante de expiração: se um novo trial for concedido,
+ * a chave muda e o aviso pode aparecer de novo (uma vez por expiração).
+ */
+export function chaveToastExpiracao(userId: number | string, expiresAt: string | Date): string {
+  const iso = typeof expiresAt === "string" ? expiresAt : expiresAt.toISOString();
+  return `gs_trial_toast_${userId}_${iso}`;
+}

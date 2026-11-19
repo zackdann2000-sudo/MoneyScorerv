@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
-import { formatarRestante } from "@/lib/trialCountdown";
+import { formatarRestante, chaveToastExpiracao } from "@/lib/trialCountdown";
 
 /**
  * Banner de urgência do trial de 24h, abaixo do header.
@@ -17,7 +17,7 @@ import { formatarRestante } from "@/lib/trialCountdown";
 const ANO_VITALICIO = 2090;
 
 export default function TrialBanner() {
-  const { user } = useApp();
+  const { user, addToast } = useApp();
   const [agora, setAgora] = useState(() => Date.now());
 
   const exp = user?.expiresAt ?? null;
@@ -30,12 +30,29 @@ export default function TrialBanner() {
     return () => clearInterval(id);
   }, [temExpiracao]);
 
+  // Toast de fim de trial: dispara UMA vez por usuário+expiração (localStorage).
+  const expiradoAgora = Boolean(exp) && temExpiracao && formatarRestante(exp as string, agora).expirado;
+  useEffect(() => {
+    if (!user || !exp || !expiradoAgora) return;
+    const chave = chaveToastExpiracao(user.id, exp);
+    try {
+      if (localStorage.getItem(chave)) return;
+      localStorage.setItem(chave, "1");
+    } catch {
+      /* localStorage bloqueado: ainda mostra o toast (pode repetir em reload) */
+    }
+    addToast({
+      title: "⏳ Acesso VIP encerrado",
+      body: "Seu período VIP de 24h expirou. Algumas opções foram bloqueadas.",
+      url: "/config",
+    });
+  }, [user, exp, expiradoAgora, addToast]);
+
   if (!user || !temExpiracao) return null;
 
   const restante = formatarRestante(exp as string, agora);
   const { texto } = restante;
   const expirado = restante.expirado;
-
   return (
     <div className="max-w-3xl mx-auto px-3 pt-2">
       {expirado ? (
