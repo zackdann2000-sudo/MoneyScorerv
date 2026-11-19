@@ -10,7 +10,7 @@ export const maxDuration = 300;
 /**
  * Track record — registra oportunidades, liquida jogos encerrados e devolve stats.
  *
- * GET  → roda registro + liquidação + stats (usado pelo Vercel Cron)
+ * GET  → roda registro + liquidação + stats (Vercel Cron, diário 13:00 UTC = 10h BRT)
  * GET  ?acao=stats → só as estatísticas (read-only)
  * POST → idem ao GET (curl manual), aceita body { acao, date, dias }
  *
