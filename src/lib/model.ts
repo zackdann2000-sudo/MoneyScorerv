@@ -10,18 +10,38 @@ import { getWeightedAverage, FORM_JANELA } from "./formWeight";
 export type TeamRates = {
   games: number; gfAvg: number; gaAvg: number; gfHome: number; gaHome: number; gfAway: number; gaAway: number;
   formPts: number; csRate: number; scoredRate: number; weightedGf: number; weightedGa: number;
+  /** xG médio ponderado (ataque) e xG sofrido; null quando a fonte não trouxe. */
+  xgF: number | null; xgA: number | null;
+  /** Fração dos jogos da janela com xG disponível (0..1). */
+  xgCoverage: number;
+  /** Média de gols já mesclada com xG (50/50 quando há xG; senão só gols). */
+  weightedGfXg: number; weightedGaXg: number;
 };
 
 export function teamRates(games: HistGame[]): TeamRates {
   const n = games.length;
-  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0 };
+  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0, xgF: null, xgA: null, xgCoverage: 0, weightedGfXg: 0, weightedGaXg: 0 };
   const sum = (f: (g: HistGame) => number, arr = games) => arr.reduce((s, g) => s + f(g), 0);
   const home = games.filter((g) => g.home), away = games.filter((g) => !g.home);
   // Peso da forma recente: 1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º e 0.5 do
   // 8º ao 10º (janela de 10). Substitui a média chapada da temporada — é o que
   // faz uma sequência de vitórias elevar a chance de marcar. Ver lib/formWeight.
-  const ponderadaGf = getWeightedAverage(games.slice(0, FORM_JANELA).map((g) => g.gf));
-  const ponderadaGa = getWeightedAverage(games.slice(0, FORM_JANELA).map((g) => g.ga));
+  const janela = games.slice(0, FORM_JANELA);
+  const ponderadaGf = getWeightedAverage(janela.map((g) => g.gf));
+  const ponderadaGa = getWeightedAverage(janela.map((g) => g.ga));
+  // xG: média ponderada só sobre os jogos que tinham xG (nunca inventa número).
+  const wAvgXg = (vals: (number | null)[]): number | null => {
+    const v = vals.filter((x): x is number => x != null && Number.isFinite(x));
+    return v.length ? getWeightedAverage(v) : null;
+  };
+  const xgF = wAvgXg(janela.map((g) => g.xgEst ?? null));
+  const xgA = wAvgXg(janela.map((g) => g.oppXgEst ?? null));
+  const xgCoverage = janela.length ? janela.filter((g) => g.xgEst != null).length / janela.length : 0;
+  const gfBase = ponderadaGf ?? sum((g) => g.gf) / n;
+  const gaBase = ponderadaGa ?? sum((g) => g.ga) / n;
+  // Mescla 50% gols reais + 50% xG quando o xG existe; senão cai para gols puros.
+  const weightedGfXg = xgF != null ? +(K_GOALS * gfBase + K_XG * xgF).toFixed(4) : gfBase;
+  const weightedGaXg = xgA != null ? +(K_GOALS * gaBase + K_XG * xgA).toFixed(4) : gaBase;
   const pts = sum((g) => (g.res === "V" ? 3 : g.res === "E" ? 1 : 0));
   return {
     games: n, gfAvg: sum((g) => g.gf) / n, gaAvg: sum((g) => g.ga) / n,
@@ -30,12 +50,15 @@ export function teamRates(games: HistGame[]): TeamRates {
     gfAway: away.length ? sum((g) => g.gf, away) / away.length : sum((g) => g.gf) / n,
     gaAway: away.length ? sum((g) => g.ga, away) / away.length : sum((g) => g.ga) / n,
     formPts: pts / (3 * n), csRate: games.filter((g) => g.ga === 0).length / n, scoredRate: games.filter((g) => g.gf > 0).length / n,
-    weightedGf: ponderadaGf ?? sum((g) => g.gf) / n,
-    weightedGa: ponderadaGa ?? sum((g) => g.ga) / n,
+    weightedGf: gfBase,
+    weightedGa: gaBase,
+    xgF, xgA, xgCoverage, weightedGfXg, weightedGaXg,
   };
 }
 
 const fact = (n: number): number => (n <= 1 ? 1 : n * fact(n - 1));
+// Peso da mescla gols/xG no λ (50% gols reais + 50% xG quando disponível).
+const K_GOALS = 0.5, K_XG = 0.5;
 const pois = (k: number, l: number) => (Math.pow(l, k) * Math.exp(-l)) / fact(k);
 const RHO = -0.06; // ajuste Dixon-Coles para placares baixos
 function dcTau(x: number, y: number, lh: number, la: number) {
@@ -51,6 +74,8 @@ export type Analysis = {
   model_type: "dc-poisson-1.0" | "fallback_simples" | "nenhum";
   sample: { home: number; away: number; leagueAvg: number | null };
   lambdaHome: number; lambdaAway: number;
+  /** xG médio usado por cada time (null quando a fonte não trouxe) + cobertura. */
+  xg: { home: number | null; away: number | null; coverage: number };
   probs: { home: number; draw: number; away: number; over05: number; over15: number; over25: number; under25: number; btts: number; homeScore: number; awayScore: number; cleanSheetHome: number; cleanSheetAway: number } | null;
   topScores: { score: string; p: number }[];
   confidence: "alta" | "média" | "baixa";
@@ -66,7 +91,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const rh = teamRates(homeGames), ra = teamRates(awayGames);
   const base: Analysis = {
     status: "dados_insuficientes", model_type: "nenhum", sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
-    lambdaHome: 0, lambdaAway: 0, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
+    lambdaHome: 0, lambdaAway: 0, xg: { home: null, away: null, coverage: 0 }, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
     rates: { home: rh, away: ra },
     narrative: { resumo: "Análise em processamento. O histórico recente deste confronto ainda está sendo indexado pelo modelo.", mandante: "", visitante: "", decisivos: [], cenarios: [], conclusao: "", alerta: null, mercados: [] },
     updatedAt: new Date().toISOString(),
@@ -77,10 +102,10 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const leagueHalf = leagueAvgGoals / 2;
   // Força relativa à média da liga, com regressão à média para amostras pequenas
   const shrink = (v: number, n: number, prior: number) => (n * v + 4 * prior) / (n + 4);
-  const atkH = shrink(0.65 * rh.weightedGf + 0.35 * rh.gfHome, rh.games, leagueHalf) / leagueHalf;
-  const defA = shrink(0.65 * ra.weightedGa + 0.35 * ra.gaAway, ra.games, leagueHalf) / leagueHalf;
-  const atkA = shrink(0.65 * ra.weightedGf + 0.35 * ra.gfAway, ra.games, leagueHalf) / leagueHalf;
-  const defH = shrink(0.65 * rh.weightedGa + 0.35 * rh.gaHome, rh.games, leagueHalf) / leagueHalf;
+  const atkH = shrink(0.65 * rh.weightedGfXg + 0.35 * rh.gfHome, rh.games, leagueHalf) / leagueHalf;
+  const defA = shrink(0.65 * ra.weightedGaXg + 0.35 * ra.gaAway, ra.games, leagueHalf) / leagueHalf;
+  const atkA = shrink(0.65 * ra.weightedGfXg + 0.35 * ra.gfAway, ra.games, leagueHalf) / leagueHalf;
+  const defH = shrink(0.65 * rh.weightedGaXg + 0.35 * rh.gaHome, rh.games, leagueHalf) / leagueHalf;
   const HOME_ADV = 1.18, AWAY_ADJ = 0.92;
   let lh = Math.max(0.15, Math.min(4.5, leagueHalf * atkH * defA * HOME_ADV));
   let la = Math.max(0.12, Math.min(4.2, leagueHalf * atkA * defH * AWAY_ADJ));
@@ -163,6 +188,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
     sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
     h2hAjuste,
     lambdaHome: +lh.toFixed(2), lambdaAway: +la.toFixed(2),
+    xg: { home: rh.xgF, away: ra.xgF, coverage: Math.min(rh.xgCoverage, ra.xgCoverage) },
     probs: { home: +pH.toFixed(4), draw: +pD.toFixed(4), away: +pA.toFixed(4), over05: +pOver(0.5).toFixed(4), over15: +pOver(1.5).toFixed(4), over25: +pOver(2.5).toFixed(4), under25: +pOver(2.5) <= 1 ? +(1 - pOver(2.5)).toFixed(4) : 0, btts: +btts.toFixed(4), homeScore: +homeScores.toFixed(4), awayScore: +awayScores.toFixed(4), cleanSheetHome: +csHome.toFixed(4), cleanSheetAway: +csAway.toFixed(4) },
     topScores: top, confidence, factors, rates: { home: rh, away: ra }, narrative, updatedAt: new Date().toISOString(),
   };

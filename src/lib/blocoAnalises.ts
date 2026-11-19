@@ -51,6 +51,8 @@ export type MediasTime = {
   vermelhos?: number | null;
   /** impedimentos por jogo */
   impedimentos?: number | null;
+  /** xG médio por jogo (quando a fonte entrega) */
+  xgEst?: number | null;
 };
 
 export type AnaliseBloco = {
@@ -68,6 +70,8 @@ export type AnaliseBloco = {
   /** Menor amostra entre os dois times, em jogos. */
   amostra: number;
   semDados: boolean;
+  /** xG médio do confronto (só no card de gols, quando a fonte entrega). */
+  xg?: number | null;
   /** Correção vinda do H2H (null quando não houve cruzamento). */
   ajuste: AjusteH2H | null;
 };
@@ -249,7 +253,14 @@ export function blocoAnalises(
   return [
     montar("cartoes", cartoesCasa, cartoesFora, totalCartoes, amostra, ajusteCartoes),
     montar("faltas", faltasCasa, faltasFora, soma(faltasCasa, faltasFora), amostra),
-    montar("gols", golsCasa, golsFora, totalGolsJogo, amostra, ajusteGols),
+    comXg(montar("gols", golsCasa, golsFora, totalGolsJogo, amostra, ajusteGols), num(c.xgEst), num(f.xgEst)),
     montar("impedimentos", impCasa, impFora, soma(impCasa, impFora), amostra),
   ];
+}
+
+/** Anexa o xG total do confronto ao card de gols (sem valor quando a fonte não tem). */
+function comXg(item: AnaliseBloco, xgCasa: number | null, xgFora: number | null): AnaliseBloco {
+  if (xgCasa == null && xgFora == null) return item;
+  const total = (xgCasa ?? 0) + (xgFora ?? 0);
+  return { ...item, xg: +total.toFixed(2) };
 }

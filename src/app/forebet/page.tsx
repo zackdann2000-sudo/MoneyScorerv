@@ -149,7 +149,17 @@ export default async function ForebetPage({
                       <td className="text-center px-0.5"><Celula valor={pct(j.probs.draw)} on={pred === 1} cor="bg-mut" /></td>
                       <td className="text-center px-0.5"><Celula valor={pct(j.probs.away)} on={pred === 2} cor="bg-away" /></td>
                       <td className="text-center px-1 py-1.5 font-extrabold text-ink tabular-nums">{placar}</td>
-                      <td className="text-center px-1 py-1.5 text-mut tabular-nums">{mediaGols}</td>
+                      <td className="text-center px-1 py-1.5 tabular-nums whitespace-nowrap">
+                        <span className="text-mut">{mediaGols}</span>
+                        {j.xgHome != null && j.xgAway != null && (
+                          <span
+                            className="ml-1 text-[8px] font-bold text-sky-400"
+                            title={`xG médio das duas equipes (ajuste pela qualidade das chances, ${Math.round(j.xgCoverage * 100)}% da janela)`}
+                          >
+                            xG {(j.xgHome + j.xgAway).toFixed(1)}
+                          </span>
+                        )}
+                      </td>
                       <td className="text-center px-1 py-1.5 text-acc font-bold tabular-nums">{pct(j.probs.over25)}</td>
                       <td className="text-center px-1 py-1.5 whitespace-nowrap">
                         {best ? (
@@ -170,7 +180,7 @@ export default async function ForebetPage({
           </div>
           <p className="text-[8px] text-mut px-3 py-2 border-t border-line/60">
             Destaque em cor = resultado mais provável do modelo. Placar = resultado exato mais provável.
-            Gols = média esperada (λ casa + λ fora). Probabilidades estatísticas, não garantia.
+            Gols = média esperada (λ casa + λ fora), com xG mesclado 50/50 quando disponível. Probabilidades estatísticas, não garantia.
           </p>
         </div>
       )}

@@ -17,8 +17,8 @@ export const EV_TITLE =
   "EV positivo não é garantia de acerto.";
 
 export const STAKE_TITLE =
-  "Stake sugerida pelo Critério de Kelly: f = (odd × p − 1) / (odd − 1), limitada a " +
-  "5% da banca por aposta (gestão de risco). 0% = sem valor, não apostar.";
+  "Stake sugerida por meio-Kelly: f = (odd × p − 1) / (odd − 1), dividido por 2 e " +
+  "limitado a 5% da banca por aposta (gestão de risco). 0% = sem valor, não apostar.";
 
 /** Cor do EV por faixa. */
 export function evCor(ev: number): string {

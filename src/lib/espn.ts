@@ -292,6 +292,8 @@ export type HistGame = {
   corners: number | null; fouls: number | null; yellow: number | null; red: number | null; offsides: number | null;
   sot: number | null; shots: number | null; poss: number | null; xgEst: number | null;
   oppCorners: number | null; oppSot: number | null; oppFouls: number | null; oppYellow: number | null;
+  /** xG estimado pelo adversário (mesma fórmula, chutes do adversário). */
+  oppXgEst: number | null;
   events: { type: string; player: string; assist?: string; period: number; side: string; minute: number }[];
 };
 
@@ -322,6 +324,7 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
     } else if (sm) { htGf = 0; htGa = 0; }
     const gf = me.score ?? 0, ga = opp.score ?? 0;
     const sot = sv("shotsOnTarget", mySide), shots = sv("totalShots", mySide);
+    const oppSot = sv("shotsOnTarget", opSide), oppShots = sv("totalShots", opSide);
     games.push({
       id: m.id, date: m.date, league: m.league, home: isHome,
       opp: { id: opp.id, name: opp.name, short: opp.short, logo: opp.logo },
@@ -329,6 +332,7 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
       corners: sv("wonCorners", mySide), fouls: sv("foulsCommitted", mySide), yellow: sv("yellowCards", mySide), red: sv("redCards", mySide),
       offsides: sv("offsides", mySide), sot, shots, poss: sv("possessionPct", mySide),
       xgEst: sot != null ? +(sot * 0.3 + Math.max(0, (shots ?? 0) - sot) * 0.06).toFixed(2) : null,
+      oppXgEst: oppSot != null ? +(oppSot * 0.3 + Math.max(0, (oppShots ?? 0) - oppSot) * 0.06).toFixed(2) : null,
       oppCorners: sv("wonCorners", opSide), oppSot: sv("shotsOnTarget", opSide), oppFouls: sv("foulsCommitted", opSide),
       oppYellow: sv("yellowCards", opSide),
       events: evs.filter((e) => ["goal", "pen", "own", "yellow", "red"].includes(e.type)).map((e) => ({ type: e.type, player: e.player, assist: e.assist, period: e.period, side: e.side, minute: parseInt(String(e.minute).replace(/\D/g, ""), 10) || 0 })),

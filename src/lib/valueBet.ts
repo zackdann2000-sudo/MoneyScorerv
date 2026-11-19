@@ -73,6 +73,8 @@ export const ODD_MIN = 1.45;
 export const ODD_MAX = 2.5;
 /** Teto de segurança de Kelly: nunca sugerir mais que 5% da banca por aposta. */
 export const KELLY_CAP = 0.05;
+/** Fração de Kelly usada: meio-Kelly (metade da fração ótima) reduz risco de ruína. */
+export const KELLY_FRACAO = 0.5;
 /** Tolerância entre a linha de odds e a linha avaliada (2.5). */
 const TOL_LINHA = 0.01;
 
@@ -95,7 +97,8 @@ export function calcularKelly(probModelo: number, odd: number): number {
 export function stakeSugerida(probModelo: number, odd: number, cap = KELLY_CAP): number {
   const k = calcularKelly(probModelo, odd);
   if (k <= 0) return 0;
-  return Math.min(k, cap);
+  // Meio-Kelly antes do teto: metade da fração ótima, limitada a 5% da banca.
+  return Math.min(k * KELLY_FRACAO, cap);
 }
 
 type Candidato = { mercado: MercadoValor; rotulo: string; linha: number | null; prob: number; odd: number };

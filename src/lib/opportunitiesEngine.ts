@@ -45,6 +45,10 @@ export type AnaliseJogo = MetaJogo & {
   probs: ModelProbs;
   lambdaHome: number;
   lambdaAway: number;
+  /** xG médio por time usado no λ (null sem xG) + cobertura da janela. */
+  xgHome: number | null;
+  xgAway: number | null;
+  xgCoverage: number;
   topScores: Analysis["topScores"];
   confianca: Confianca;
   h2hAjuste: Analysis["h2hAjuste"];
@@ -152,6 +156,9 @@ async function analisarJogo(
     probs: model.probs,
     lambdaHome: model.lambdaHome,
     lambdaAway: model.lambdaAway,
+    xgHome: model.xg.home,
+    xgAway: model.xg.away,
+    xgCoverage: model.xg.coverage,
     topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,

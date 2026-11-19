@@ -69,6 +69,14 @@ function Card({ item }: { item: AnaliseBloco }) {
               {num(item.total)}
             </span>
             <span className="text-[9px] text-mut truncate">/jogo</span>
+            {item.xg != null && (
+              <span
+                className="text-[8px] font-bold text-sky-400 shrink-0"
+                title="Modelo ajustado pela qualidade das chances (xG)"
+              >
+                · xG {num(item.xg, 2)}
+              </span>
+            )}
           </div>
 
           {item.linha == null ? (
