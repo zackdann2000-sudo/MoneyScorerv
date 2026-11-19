@@ -38,6 +38,8 @@ export default function DesajustesTab({
   const [nivel, setNivel] = useState<Nivel | "">("");
   const [limite, setLimite] = useState(30);
   const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
+  // Filtro de mercado: foca a estratégia do usuário (gols, cartões, escanteios).
+  const [mercadoF, setMercadoF] = useState<"" | "gols" | "cartoes" | "escanteios">("");
 
   const url = useMemo(() => {
     const q = new URLSearchParams();
@@ -59,6 +61,15 @@ export default function DesajustesTab({
   const contagem = data.contagem ?? {};
   const totalQuente = contagem.quente ?? 0;
   const totalBom = contagem.bom ?? 0;
+
+  // Classifica o rótulo do mercado do Apitou nas três famílias.
+  const classe = (m: string): "gols" | "cartoes" | "escanteios" => {
+    const s = (m || "").toLowerCase();
+    if (s.includes("cart")) return "cartoes";
+    if (s.includes("escant") || s.includes("cantos")) return "escanteios";
+    return "gols";
+  };
+  const lista = mercadoF ? data.desajustes.filter((d) => classe(d.mercado) === mercadoF) : data.desajustes;
 
   return (
     <div className="space-y-3">
@@ -97,7 +108,30 @@ export default function DesajustesTab({
         ))}
       </div>
 
-      {data.desajustes.length === 0 ? (
+      {/* Filtro de mercado */}
+      <div className="flex gap-1.5">
+        {(
+          [
+            ["", "Tudo", data.desajustes.length],
+            ["gols", "Gols", data.desajustes.filter((d) => classe(d.mercado) === "gols").length],
+            ["cartoes", "Cartões", data.desajustes.filter((d) => classe(d.mercado) === "cartoes").length],
+            ["escanteios", "Escanteios", data.desajustes.filter((d) => classe(d.mercado) === "escanteios").length],
+          ] as const
+        ).map(([key, label, n]) => (
+          <button
+            key={key}
+            onClick={() => setMercadoF(key)}
+            disabled={key !== "" && n === 0}
+            className={`flex-1 h-7 rounded-xl border text-[10px] font-bold transition-colors disabled:opacity-40 ${
+              mercadoF === key ? "bg-acc text-bg border-acc" : "bg-panel border-line text-ink"
+            }`}
+          >
+            {label} {n > 0 && <span className="opacity-70">({n})</span>}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
         <EmptyBox>
           {soPrincipais && data.total === 0
             ? "Nenhum desajuste nas principais ligas. Use \"Todas as Ligas\" para ver o recorte completo."
@@ -105,7 +139,7 @@ export default function DesajustesTab({
         </EmptyBox>
       ) : (
         <ul className="space-y-2">
-          {data.desajustes.map((d) => (
+          {lista.map((d) => (
             <li key={d.chave} className="rounded-2xl border border-line bg-panel p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">

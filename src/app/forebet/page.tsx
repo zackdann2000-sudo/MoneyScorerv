@@ -120,7 +120,7 @@ export default async function ForebetPage({
                   <th className="text-center font-bold px-1 py-1.5">Placar</th>
                   <th className="text-center font-bold px-1 py-1.5">Gols</th>
                   <th className="text-center font-bold px-1 py-1.5">+2.5</th>
-                  <th className="text-center font-bold px-1 py-1.5" title="Over 3.5 cartões / Over 9.5 escanteios (Poisson, últimos 10)">Cart/Esc</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Over/Under 3.5 cartões e 9.5 escanteios (Poisson, últimos 10)">Cart/Esc O/U</th>
                   <th className="text-center font-bold px-1 py-1.5" title="Valor Esperado · Stake sugerida (Kelly, teto 5%)">EV · Stake</th>
                 </tr>
               </thead>
@@ -164,8 +164,23 @@ export default async function ForebetPage({
                         )}
                       </td>
                       <td className="text-center px-1 py-1.5 text-acc font-bold tabular-nums">{pct(j.probs.over25)}</td>
-                      <td className="text-center px-1 py-1.5 tabular-nums text-mut whitespace-nowrap" title={`Over 3.5 cartões ${c35 != null ? pct(c35) + "%" : "—"} · Over 9.5 escanteios ${k95 != null ? pct(k95) + "%" : "—"}`}>
-                        {c35 == null && k95 == null ? "—" : `${c35 == null ? "—" : pct(c35)}/${k95 == null ? "—" : pct(k95)}`}
+                      <td className="text-center px-1 py-1.5 tabular-nums text-[8px] text-mut whitespace-nowrap" title={`Cartões 3.5: Over ${c35 != null ? pct(c35) : "—"} / Under ${c35 != null ? pct(1 - c35) : "—"} · Escanteios 9.5: Over ${k95 != null ? pct(k95) : "—"} / Under ${k95 != null ? pct(1 - k95) : "—"}`}>
+                        {c35 == null && k95 == null ? (
+                          "—"
+                        ) : (
+                          <span className="block leading-tight">
+                            {c35 != null && (
+                              <span className="block">
+                                <span className="text-amber-400 font-bold">C3.5</span> O{pct(c35)} U{pct(1 - c35)}
+                              </span>
+                            )}
+                            {k95 != null && (
+                              <span className="block">
+                                <span className="text-sky-400 font-bold">E9.5</span> O{pct(k95)} U{pct(1 - k95)}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td className="text-center px-1 py-1.5 whitespace-nowrap">
                         {best ? (

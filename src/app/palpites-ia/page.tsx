@@ -7,6 +7,7 @@ import {
   type OportunidadeValor,
 } from "@/lib/opportunitiesEngine";
 import { PorqueValor } from "@/components/ValorEsperado";
+import OportunidadesLista from "@/components/OportunidadesLista";
 
 /* Palpites IA (MVP inspirado no core loop do Gol Sinyali — recon em
    replica/recon.md). Uma única passada do motor de valor (Poisson/Dixon-Coles
@@ -108,37 +109,8 @@ export default async function PalpitesIaPage() {
         </div>
       </div>
 
-      {/* Oportunidades de valor */}
-      {oportunidades.length > 0 && (
-        <section className="rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/10 via-panel to-panel p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Oportunidades de valor</h2>
-            <span className="text-[9px] text-mut">modelo ≥ 65% · odd 1.45–2.50</span>
-          </div>
-          <ul className="space-y-1.5">
-            {oportunidades.map((o) => (
-              <li key={o.chave} className="rounded-xl border border-line bg-panel2/70 px-2.5 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-bold text-ink truncate">{o.home.name} × {o.away.name}</span>
-                    <span className="block text-[9px] text-mut truncate">{o.leagueName} · {o.estado}</span>
-                  </span>
-                  <span className="text-right shrink-0">
-                    <span className="block text-[10px] font-extrabold text-ink">{o.rotulo}</span>
-                    <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(o.probModelo)}</span>
-                  </span>
-                </div>
-                <p className="mt-1 text-[10px] font-semibold text-mut tabular-nums">
-                  <PorqueValor probModelo={o.probModelo} odd={o.odd} evPct={o.evPct} />
-                </p>
-              </li>
-            ))}
-          </ul>
-          <p className="text-[8px] text-mut leading-snug">
-            Valor = probabilidade do modelo − probabilidade implícita da odd (1/odd). EV positivo não é garantia de acerto.
-          </p>
-        </section>
-      )}
+      {/* Oportunidades de valor — com filtro de mercado (Tudo/Gols/Cartões/Escanteios) */}
+      {oportunidades.length > 0 && <OportunidadesLista oportunidades={oportunidades} />}
 
       {/* Cupom do dia */}
       {cupom.length > 0 && (
