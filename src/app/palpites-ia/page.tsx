@@ -1,92 +1,59 @@
 import Link from "next/link";
-import { getAllMatches, getTeamHistory, leagueInfo } from "@/lib/espn";
-import { runModel } from "@/lib/model";
+import { leagueInfo } from "@/lib/espn";
+import {
+  analisarOportunidades,
+  type AnaliseJogo,
+  type ModelProbs,
+  type OportunidadeValor,
+} from "@/lib/opportunitiesEngine";
 
-/* MVP inspirado no core loop do Gol Sinyali (recon em replica/recon.md):
-   home com os palpites do dia, cupom do dia e selo de confiança. Reusa o data
-   layer (ESPN) e o motor Poisson/Dixon-Coles do MoneyScorer — nada de dado
-   inventado, nada copiado do original. */
+/* Palpites IA (MVP inspirado no core loop do Gol Sinyali — recon em
+   replica/recon.md). Uma única passada do motor de valor (Poisson/Dixon-Coles
+   + forma recente + H2H × odds de mercado) alimenta os cards e a seção de
+   "Oportunidades de valor". Nada de dado inventado. */
 
-export const revalidate = 600; // a página se atualiza a cada 10 min
+export const revalidate = 600; // reavalia a cada 10 min
 
-function hojeSP(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-}
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 function horaSP(iso: string): string {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 }
-const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-type Previsao = {
-  id: string;
-  liga: string;
-  bandeira: string;
-  estado: string;
-  hora: string;
-  casa: string;
-  fora: string;
-  logoCasa: string;
-  logoFora: string;
-  probs: { home: number; draw: number; away: number; over25: number; under25: number; btts: number };
-  confianca: string;
-  melhor: { mercado: string; prob: number };
-};
+/** Mercado mais provável do modelo, para o chip "Destaque". */
+function melhorMercado(p: ModelProbs): { mercado: string; prob: number } {
+  const res =
+    p.home >= p.draw && p.home >= p.away
+      ? { mercado: "Casa", prob: p.home }
+      : p.away >= p.draw
+        ? { mercado: "Fora", prob: p.away }
+        : { mercado: "Empate", prob: p.draw };
+  const lista = [
+    res,
+    { mercado: p.over25 >= p.under25 ? "Over 2.5" : "Under 2.5", prob: Math.max(p.over25, p.under25) },
+    { mercado: p.btts >= 1 - p.btts ? "Ambas marcam" : "Não ambas", prob: Math.max(p.btts, 1 - p.btts) },
+  ];
+  return lista.sort((a, b) => b.prob - a.prob)[0];
+}
 
 export default async function PalpitesIaPage() {
-  const data = hojeSP();
+  const data = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
-  let previsoes: Previsao[] = [];
+  let analisados: AnaliseJogo[] = [];
+  let oportunidades: OportunidadeValor[] = [];
   let erro = "";
   try {
-    const todos = await getAllMatches(data);
-    // Prioriza ligas relevantes e jogos ainda não encerrados.
-    const cands = todos
-      .filter((m) => m.state !== "post")
-      .sort((a, b) => leagueInfo(a.league).priority - leagueInfo(b.league).priority || a.date.localeCompare(b.date))
-      .slice(0, 6);
-
-    const settled = await Promise.allSettled(
-      cands.map(async (m): Promise<Previsao | null> => {
-        const [hh, ah] = await Promise.all([
-          getTeamHistory(m.league, m.home.id, 10),
-          getTeamHistory(m.league, m.away.id, 10),
-        ]);
-        const a = runModel(m.home.name, m.away.name, hh.games, ah.games, 2.65);
-        if (a.status !== "ok" || !a.probs) return null;
-        const p = a.probs;
-        const res = [
-          { mercado: "Casa", prob: p.home },
-          { mercado: "Empate", prob: p.draw },
-          { mercado: "Fora", prob: p.away },
-        ].sort((x, y) => y.prob - x.prob)[0];
-        const exib = [
-          res,
-          { mercado: p.over25 >= p.under25 ? "Over 2.5" : "Under 2.5", prob: Math.max(p.over25, p.under25) },
-          { mercado: p.btts >= 1 - p.btts ? "Ambas marcam" : "Não ambas", prob: Math.max(p.btts, 1 - p.btts) },
-        ].sort((x, y) => y.prob - x.prob)[0];
-        return {
-          id: m.id,
-          liga: m.leagueName,
-          bandeira: leagueInfo(m.league).flag,
-          estado: m.state === "in" ? `AO VIVO ${m.clock}` : horaSP(m.date),
-          hora: horaSP(m.date),
-          casa: m.home.name,
-          fora: m.away.name,
-          logoCasa: m.home.logo,
-          logoFora: m.away.logo,
-          probs: { home: p.home, draw: p.draw, away: p.away, over25: p.over25, under25: p.under25, btts: p.btts },
-          confianca: a.confidence,
-          melhor: { mercado: exib.mercado, prob: exib.prob },
-        };
-      }),
-    );
-
-    previsoes = settled
-      .filter((r): r is PromiseFulfilledResult<Previsao | null> => r.status === "fulfilled")
-      .map((r) => r.value)
-      .filter((v): v is Previsao => v !== null);
+    const r = await analisarOportunidades({ date: data, maxMatches: 6 });
+    analisados = r.analisados;
+    oportunidades = r.oportunidades;
   } catch (e: any) {
     erro = e?.message || "Não foi possível carregar os jogos agora.";
+  }
+
+  // Melhor oportunidade de valor por jogo (para o "porquê" no card).
+  const opPorJogo = new Map<string, OportunidadeValor>();
+  for (const o of oportunidades) {
+    const cur = opPorJogo.get(o.matchId);
+    if (!cur || o.valor > cur.valor) opPorJogo.set(o.matchId, o);
   }
 
   const confCor: Record<string, string> = {
@@ -96,37 +63,38 @@ export default async function PalpitesIaPage() {
   };
 
   // Cupom do dia: os 3 jogos com o palpite mais forte.
-  const cupom = [...previsoes].sort((a, b) => b.melhor.prob - a.melhor.prob).slice(0, 3);
-  const comAlta = previsoes.filter((p) => p.confianca === "alta").length;
+  const cupom = [...analisados]
+    .map((a) => ({ a, destaque: melhorMercado(a.probs) }))
+    .sort((x, y) => y.destaque.prob - x.destaque.prob)
+    .slice(0, 3);
+  const comAlta = analisados.filter((a) => a.confianca === "alta").length;
 
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-4">
       {/* Hero */}
       <header className="rounded-2xl border border-line bg-gradient-to-br from-purple/15 via-panel to-panel p-4">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-purple">Palpites por IA</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-purple">Palpites por IA · Value Bet</p>
         <h1 className="font-display text-2xl font-extrabold text-ink leading-tight mt-1">
           Palpites de futebol de hoje
         </h1>
         <p className="text-[11px] text-mut mt-1">
-          Probabilidades de 1X2, Over/Under e ambas marcam, geradas pelo motor Poisson/Dixon-Coles.
+          Probabilidades reais (Poisson/Dixon-Coles) cruzadas com as odds de mercado para achar valor.
         </p>
         <p className="text-[9px] text-acc/90 mt-2 flex items-center gap-1">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-acc" />
-          Modelo ajustado com peso para a forma recente (últimos 10 jogos)
+          Modelo ajustado com peso para a forma recente (últimos 10 jogos) + H2H
         </p>
         <p className="text-[9px] text-mut mt-1">Data base: {data} · atualiza a cada 10 min</p>
       </header>
 
       {erro && (
-        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-[11px] text-danger">
-          {erro}
-        </div>
+        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-[11px] text-danger">{erro}</div>
       )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl border border-line bg-panel p-2">
-          <p className="font-display text-xl font-extrabold text-ink">{previsoes.length}</p>
+          <p className="font-display text-xl font-extrabold text-ink">{analisados.length}</p>
           <p className="text-[9px] text-mut uppercase">jogos analisados</p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-2">
@@ -134,29 +102,59 @@ export default async function PalpitesIaPage() {
           <p className="text-[9px] text-mut uppercase">confiança alta</p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-2">
-          <p className="font-display text-xl font-extrabold text-purple">3</p>
-          <p className="text-[9px] text-mut uppercase">no cupom</p>
+          <p className="font-display text-xl font-extrabold text-purple">{oportunidades.length}</p>
+          <p className="text-[9px] text-mut uppercase">oportunidades</p>
         </div>
       </div>
 
-      {/* Cupom do dia */}
-      {cupom.length > 0 && (
+      {/* Oportunidades de valor */}
+      {oportunidades.length > 0 && (
         <section className="rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/10 via-panel to-panel p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Cupom do dia</h2>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Oportunidades de valor</h2>
+            <span className="text-[9px] text-mut">modelo ≥ 65% · odd 1.45–2.50</span>
+          </div>
+          <ul className="space-y-1.5">
+            {oportunidades.map((o) => (
+              <li key={o.chave} className="rounded-xl border border-line bg-panel2/70 px-2.5 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-bold text-ink truncate">{o.home.name} × {o.away.name}</span>
+                    <span className="block text-[9px] text-mut truncate">{o.leagueName} · {o.estado}</span>
+                  </span>
+                  <span className="text-right shrink-0">
+                    <span className="block text-[10px] font-extrabold text-ink">{o.rotulo}</span>
+                    <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(o.probModelo)}</span>
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] font-semibold text-acc tabular-nums">{o.porque}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[8px] text-mut leading-snug">
+            Valor = probabilidade do modelo − probabilidade implícita da odd (1/odd). EV positivo não é garantia de acerto.
+          </p>
+        </section>
+      )}
+
+      {/* Cupom do dia */}
+      {cupom.length > 0 && (
+        <section className="rounded-2xl border border-purple/40 bg-gradient-to-br from-purple/10 via-panel to-panel p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-purple">Cupom do dia</h2>
             <span className="text-[9px] text-mut">3 seleções</span>
           </div>
           <ol className="space-y-1.5">
-            {cupom.map((p, i) => (
-              <li key={p.id} className="flex items-center gap-2 rounded-xl border border-line bg-panel2/70 px-2 py-1.5">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-acc/20 text-acc text-[10px] font-extrabold flex items-center justify-center">{i + 1}</span>
+            {cupom.map(({ a, destaque }, i) => (
+              <li key={a.matchId} className="flex items-center gap-2 rounded-xl border border-line bg-panel2/70 px-2 py-1.5">
+                <span className="w-5 h-5 shrink-0 rounded-full bg-purple/20 text-purple text-[10px] font-extrabold flex items-center justify-center">{i + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-bold text-ink truncate">{p.casa} × {p.fora}</span>
-                  <span className="block text-[9px] text-mut truncate">{p.bandeira} {p.liga} · {p.hora}</span>
+                  <span className="block text-[11px] font-bold text-ink truncate">{a.home.name} × {a.away.name}</span>
+                  <span className="block text-[9px] text-mut truncate">{leagueInfo(a.league).flag} {a.leagueName} · {horaSP(a.kickoff)}</span>
                 </span>
                 <span className="text-right shrink-0">
-                  <span className="block text-[10px] font-extrabold text-ink">{p.melhor.mercado}</span>
-                  <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(p.melhor.prob)}</span>
+                  <span className="block text-[10px] font-extrabold text-ink">{destaque.mercado}</span>
+                  <span className="block text-[10px] font-extrabold text-purple tabular-nums">{pct(destaque.prob)}</span>
                 </span>
               </li>
             ))}
@@ -171,50 +169,58 @@ export default async function PalpitesIaPage() {
           <Link href="/apitou" className="text-[9px] text-acc font-bold">Ver todos →</Link>
         </div>
 
-        {previsoes.length === 0 && !erro && (
+        {analisados.length === 0 && !erro && (
           <p className="text-[11px] text-mut text-center py-8 bg-panel border border-dashed border-line rounded-xl">
             Nenhum jogo com histórico suficiente agora. Volte mais perto do horário.
           </p>
         )}
 
         <div className="grid gap-2">
-          {previsoes.map((p) => (
-            <Link
-              key={p.id}
-              href={`/apitou?jogo=${p.id}&data=${data}`}
-              className="block rounded-2xl border border-line bg-panel p-3 hover:border-acc/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] text-mut truncate">{p.bandeira} {p.liga}</span>
-                <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${p.estado.startsWith("AO VIVO") ? "bg-live/15 text-live border-live/40" : "bg-panel2 text-mut border-line"}`}>{p.estado}</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${confCor[p.confianca] ?? confCor.baixa}`}>{p.confianca}</span>
-              </div>
-
-              <div className="flex items-center gap-2 mt-1.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-extrabold text-ink truncate">{p.casa}</p>
-                  <p className="text-[12px] font-extrabold text-ink truncate">{p.fora}</p>
+          {analisados.map((a) => {
+            const op = opPorJogo.get(a.matchId);
+            const destaque = melhorMercado(a.probs);
+            return (
+              <Link
+                key={a.matchId}
+                href={`/apitou?jogo=${a.matchId}&data=${data}`}
+                className="block rounded-2xl border border-line bg-panel p-3 hover:border-acc/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-mut truncate">{leagueInfo(a.league).flag} {a.leagueName}</span>
+                  <span className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${a.estado.startsWith("AO VIVO") ? "bg-live/15 text-live border-live/40" : "bg-panel2 text-mut border-line"}`}>{a.estado}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${confCor[a.confianca] ?? confCor.baixa}`}>{a.confianca}</span>
                 </div>
-                <div className="text-right text-[10px] tabular-nums text-mut shrink-0">
-                  <p>{pct(p.probs.home)}</p>
-                  <p>{pct(p.probs.away)}</p>
+
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-extrabold text-ink truncate">{a.home.name}</p>
+                    <p className="text-[12px] font-extrabold text-ink truncate">{a.away.name}</p>
+                  </div>
+                  <div className="text-right text-[10px] tabular-nums text-mut shrink-0">
+                    <p>{pct(a.probs.home)}</p>
+                    <p>{pct(a.probs.away)}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Barra 1X2 */}
-              <div className="mt-1.5 flex h-1.5 rounded-full overflow-hidden bg-line">
-                <div className="bg-home" style={{ width: `${p.probs.home * 100}%` }} />
-                <div className="bg-mut" style={{ width: `${p.probs.draw * 100}%` }} />
-                <div className="bg-away" style={{ width: `${p.probs.away * 100}%` }} />
-              </div>
+                {/* Barra 1X2 */}
+                <div className="mt-1.5 flex h-1.5 rounded-full overflow-hidden bg-line">
+                  <div className="bg-home" style={{ width: `${a.probs.home * 100}%` }} />
+                  <div className="bg-mut" style={{ width: `${a.probs.draw * 100}%` }} />
+                  <div className="bg-away" style={{ width: `${a.probs.away * 100}%` }} />
+                </div>
 
-              <div className="flex gap-1.5 mt-2 flex-wrap">
-                <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Over 2.5 <b className="text-acc">{pct(p.probs.over25)}</b></span>
-                <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Ambas marcam <b className="text-acc">{pct(p.probs.btts)}</b></span>
-                <span className="text-[9px] bg-acc/10 border border-acc/40 rounded px-1.5 py-0.5 text-acc">Destaque: {p.melhor.mercado} {pct(p.melhor.prob)}</span>
-              </div>
-            </Link>
-          ))}
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Over 2.5 <b className="text-acc">{pct(a.probs.over25)}</b></span>
+                  <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Ambas marcam <b className="text-acc">{pct(a.probs.btts)}</b></span>
+                  {op ? (
+                    <span className="text-[9px] bg-acc/10 border border-acc/40 rounded px-1.5 py-0.5 text-acc font-semibold">{op.porque}</span>
+                  ) : (
+                    <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Destaque: {destaque.mercado} {pct(destaque.prob)}</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -225,7 +231,7 @@ export default async function PalpitesIaPage() {
           <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">MS / 1X2</b><p className="text-[9px] text-mut">Vitória casa, empate ou fora.</p></div>
           <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">Alt/Üst</b><p className="text-[9px] text-mut">Mais ou menos gols (linha 2.5).</p></div>
           <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">KG Var</b><p className="text-[9px] text-mut">Ambas as equipes marcam.</p></div>
-          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">Time marca</b><p className="text-[9px] text-mut">Probabilidade de cada lado balançar a rede.</p></div>
+          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">Value Bet</b><p className="text-[9px] text-mut">Modelo &gt; odd paga (edge + EV).</p></div>
         </div>
         <p className="text-[9px] text-mut leading-relaxed mt-2">
           Probabilidades estatísticas, não odds nem garantia de acerto. O destaque é o mercado
@@ -234,7 +240,7 @@ export default async function PalpitesIaPage() {
       </section>
 
       <footer className="text-center text-[9px] text-mut pb-4">
-        MVP de recon clean-room do Gol Sinyali · dados ESPN + motor próprio ·{" "}
+        MVP de recon clean-room do Gol Sinyali · dados ESPN + API-Football + motor próprio ·{" "}
         <Link href="/desempenho" className="text-acc">ver histórico de acerto</Link>
       </footer>
     </main>

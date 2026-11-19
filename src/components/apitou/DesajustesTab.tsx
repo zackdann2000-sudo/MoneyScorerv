@@ -121,6 +121,12 @@ export default function DesajustesTab({
 
               <ProbBar modelo={d.probModelo} mercado={d.probMercado} />
 
+              <p className="text-[9px] font-semibold text-acc tabular-nums">
+                Modelo: {Math.round(d.probModelo * 100)}% de acerto | Odd: {d.odd.toFixed(2)} | Valor Esperado:{" "}
+                {d.probModelo * d.odd - 1 >= 0 ? "+" : ""}
+                {((d.probModelo * d.odd - 1) * 100).toFixed(1)}%
+              </p>
+
               <div className="flex items-center justify-between pt-1 border-t border-line/60">
                 <button
                   onClick={() => onAbrirJogo(d.fixtureId)}
