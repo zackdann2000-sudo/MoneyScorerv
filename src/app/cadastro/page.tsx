@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { lerOuCriarDeviceId } from "@/lib/deviceId";
 
 export default function Cadastro() {
   const [name, setName] = useState("");
@@ -10,13 +11,13 @@ export default function Cadastro() {
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  const { refreshUser, addToast } = useApp();
+  const { refreshUser, addToast, deviceId } = useApp();
   const router = useRouter();
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setErr("");
     try {
-      const r = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, pass }) });
+      const r = await fetch("/api/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, pass, deviceId: deviceId || lerOuCriarDeviceId() }) });
       const j = await r.json();
       if (j.error) { setErr(j.error); setLoading(false); return; }
       await refreshUser();
@@ -30,10 +31,10 @@ export default function Cadastro() {
       <div className="text-center mb-5">
         <img src="/icon.png" alt="GreenScore" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
         <h1 className="font-display font-bold text-3xl uppercase">Criar conta</h1>
-        <p className="text-xs text-mut">Qualquer e-mail ganha 2 dias. Sem assinatura.</p>
+        <p className="text-xs text-mut">Qualquer e-mail ganha 24h. Sem assinatura.</p>
       </div>
       <div className="flex items-center gap-2 rounded-xl p-3 mb-3 border bg-panel border-line">
-        <p className="text-[12px] font-semibold text-ink">Ao criar a conta você recebe 2 dias para ver oportunidades, dicas e estratégias. Depois disso, placares e estatísticas continuam abertos.</p>
+        <p className="text-[12px] font-semibold text-ink">Ao criar a conta você recebe 24h para ver oportunidades, dicas e estratégias. Depois disso, placares e estatísticas continuam abertos.</p>
       </div>
       <form onSubmit={submit} className="bg-panel border border-line rounded-2xl p-4 space-y-3">
         <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" className="w-full bg-panel2 border border-line rounded-xl px-3 py-3 text-sm" />

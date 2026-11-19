@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { lerOuCriarDeviceId } from "@/lib/deviceId";
 
 export type FavTeam = { id: string; name: string; league: string; logo: string };
 export type User = { id: number; name: string; email: string; role: string; plan: string; expiresAt: string | null; isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string } };
@@ -11,6 +12,8 @@ export const DEFAULT_FLAGS: AlertFlags = { goals: true, redCards: true, yellowCa
 
 type Ctx = {
   user: User | null; refreshUser: () => Promise<void>; vip: boolean;
+  /** UUID do aparelho (localStorage) usado no anti-fraude do trial. */
+  deviceId: string | null;
   theme: string; toggleTheme: () => void;
   favorites: FavTeam[]; isFavorite: (id: string) => boolean; toggleFavorite: (t: FavTeam) => void;
   flags: AlertFlags; setFlags: (f: AlertFlags) => void;
@@ -25,6 +28,7 @@ const FLAG_OF: Record<string, keyof AlertFlags> = { goal: "goals", pen: "goals",
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(() => lerOuCriarDeviceId());
   // Lê o localStorage uma única vez, de forma preguiçosa (lado cliente), evitando setState em cascata no efeito de montagem.
   const [theme, setTheme] = useState<string>(() => (typeof window === "undefined" ? "dark" : (() => { try { return localStorage.getItem("gs_theme") || "dark"; } catch { return "dark"; } })()));
   const [favorites, setFavorites] = useState<FavTeam[]>(() => (typeof window === "undefined" ? [] : (() => { try { const f = localStorage.getItem("gs_favs"); return f ? JSON.parse(f) : []; } catch { return []; } })()));
@@ -34,6 +38,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const favRef = useRef<FavTeam[]>([]);
   const flagsRef = useRef(flags);
   // refs espelhando estado são sincronizadas em efeito (nunca durante o render)
+  useEffect(() => { const id = lerOuCriarDeviceId(); if (id && id !== deviceId) setDeviceId(id); }, [deviceId]);
   useEffect(() => { favRef.current = favorites; }, [favorites]);
   useEffect(() => { flagsRef.current = flags; }, [flags]);
 
@@ -146,7 +151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const vip = !!user && (user.isAdmin || user.access.active);
 
   return (
-    <AppCtx.Provider value={{ user, refreshUser, vip, theme, toggleTheme, favorites, isFavorite, toggleFavorite, flags, setFlags, toasts, addToast, dismissToast }}>
+    <AppCtx.Provider value={{ user, refreshUser, vip, deviceId, theme, toggleTheme, favorites, isFavorite, toggleFavorite, flags, setFlags, toasts, addToast, dismissToast }}>
       {children}
     </AppCtx.Provider>
   );

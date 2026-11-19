@@ -8,9 +8,13 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("user"), // user | admin | owner
   plan: text("plan").notNull().default("trial"), // free | trial | vip
   expiresAt: timestamp("expires_at"),
+  /** UUID do dispositivo (localStorage) — base do anti-fraude do trial. */
+  deviceId: text("device_id"),
+  /** IP de origem do cadastro — segunda barreira do anti-fraude. */
+  registrationIp: text("registration_ip"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at"),
-});
+}, (t) => [index("users_device_idx").on(t.deviceId), index("users_ip_idx").on(t.registrationIp)]);
 
 export const sessions = pgTable("sessions", {
   token: text("token").primaryKey(),

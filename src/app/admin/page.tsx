@@ -102,7 +102,7 @@ export default function Admin() {
               </div>
             ))}
           </div>
-          <p className="text-[9px] text-mut mt-2">Regra: qualquer e-mail ganha 2 dias. Depois, palpites ficam bloqueados até o VIP ser liberado aqui. O dono não expira.</p>
+          <p className="text-[9px] text-mut mt-2">Regra: qualquer e-mail ganha 24h (uma vez por dispositivo/IP). Depois, palpites ficam bloqueados até o VIP ser liberado aqui. O dono não expira.</p>
         </>
       )}
 

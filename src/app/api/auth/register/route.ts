@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { hashPass, createSession, getUser, TRIAL_DAYS } from "@/lib/auth";
+import { eq, or } from "drizzle-orm";
+import { hashPass, createSession, getUser } from "@/lib/auth";
+import { decidirAcesso, TRIAL_HORAS } from "@/lib/trialPolicy";
 import { isOwnerEmail } from "@/lib/appConfig";
 import { str } from "@/lib/validate";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
@@ -13,7 +14,7 @@ const MAX_EMAIL = 254; // limite prático de e-mail (RFC 5321)
 const MAX_PASS = 1024;
 
 /**
- * Criação em massa de contas era o vetor: cada cadastro concede 2 dias de
+ * Criação em massa de contas era o vetor: cada cadastro concede 24h de
  * trial, então um script podia inflar a base e o custo de scrypt.
  * 5 cadastros por IP a cada hora é generoso para uso humano e hostil para
  * automação.
@@ -21,6 +22,9 @@ const MAX_PASS = 1024;
 const REGISTER_LIMIT = { limit: 5, windowSec: 3600 };
 
 export const dynamic = "force-dynamic";
+
+/** UUID v4 (aceita também ids de 8–64 chars alfanuméricos com - e _). */
+const DEVICE_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 function tooMany(retryAfterSec: number) {
   return NextResponse.json(
@@ -47,15 +51,39 @@ export async function POST(req: NextRequest) {
     if (pass.length > MAX_PASS) return NextResponse.json({ error: "A senha é muito longa." }, { status: 400 });
     const exists = await db.select().from(users).where(eq(users.email, em)).limit(1);
     if (exists.length) return NextResponse.json({ error: "Este e-mail já tem conta. Faça login." }, { status: 409 });
+
+    // ---- Anti-fraude do trial: 24h uma única vez por dispositivo/IP ----
+    const deviceId = typeof body.deviceId === "string" && DEVICE_RE.test(body.deviceId) ? body.deviceId : null;
+    const ip = clientIp(req);
+    const ipValido = /^[0-9a-fA-F.:]{3,64}$/.test(ip) && ip !== "unknown";
+    const condicoes = [];
+    if (deviceId) condicoes.push(eq(users.deviceId, deviceId));
+    if (ipValido) condicoes.push(eq(users.registrationIp, ip));
+    let reusado = false;
+    if (condicoes.length) {
+      const jaUsado = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(condicoes.length > 1 ? or(...condicoes) : condicoes[0])
+        .limit(1);
+      reusado = jaUsado.length > 0;
+    }
+
     const isOwner = isOwnerEmail(em);
-    const expiresAt = isOwner ? new Date("2099-12-31T00:00:00Z") : new Date(Date.now() + TRIAL_DAYS * 864e5);
+    const acesso = decidirAcesso({ isOwner, reusado });
     const rows = await db.insert(users).values({
       name, email: em, passHash: hashPass(pass),
-      role: isOwner ? "owner" : "user", plan: isOwner ? "vip" : "trial", expiresAt,
+      role: acesso.role, plan: acesso.plan, expiresAt: acesso.expiresAt,
+      deviceId, registrationIp: ipValido ? ip : null,
     }).returning();
     await createSession(rows[0].id);
     const user = await getUser();
-    return NextResponse.json({ user, bonus: isOwner ? null : `Conta criada. Você tem ${TRIAL_DAYS} dias de acesso às oportunidades, dicas e estratégias.` });
+    const bonus = isOwner
+      ? null
+      : reusado
+        ? null
+        : `Conta criada. Você tem ${TRIAL_HORAS}h de acesso às oportunidades, dicas e estratégias.`;
+    return NextResponse.json({ user, bonus, trialReusado: reusado });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no cadastro." }, { status: 500 });
   }

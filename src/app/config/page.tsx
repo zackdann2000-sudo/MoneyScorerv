@@ -104,7 +104,7 @@ export default function Config() {
         ) : (
           <div className="text-center py-2">
             <p className="font-display font-bold uppercase text-lg">Entre na sua conta</p>
-            <p className="text-[11px] text-mut">Cadastro com e-mail = 2 dias de acesso. Sem assinatura.</p>
+            <p className="text-[11px] text-mut">Cadastro com e-mail = 24h de acesso. Sem assinatura.</p>
             <div className="flex gap-2 justify-center mt-3">
               <Link href="/login" className="px-5 py-2 rounded-full bg-panel2 border border-line text-xs font-extrabold">ENTRAR</Link>
               <Link href="/cadastro" className="px-5 py-2 rounded-full bg-acc text-black text-xs font-extrabold">CRIAR CONTA</Link>
@@ -117,8 +117,8 @@ export default function Config() {
       <div id="planos" className="relative rounded-2xl overflow-hidden border border-warn/40">
         <img src="/banner-vip.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
         <div className="relative p-4 bg-gradient-to-b from-transparent to-bg/80">
-          <p className="font-display font-bold text-xl uppercase">Acesso de 2 dias</p>
-          <p className="text-[12px] mt-2 text-ink">Não há assinatura. Toda conta criada com e-mail recebe 2 dias para ver oportunidades, dicas e estratégias. Depois, essas telas ficam ocultas. Placares, ligas e estatísticas de partida continuam disponíveis.</p>
+          <p className="font-display font-bold text-xl uppercase">Acesso de 24h</p>
+          <p className="text-[12px] mt-2 text-ink">Não há assinatura. Toda conta criada com e-mail recebe 24h para ver oportunidades, dicas e estratégias. Depois, essas telas ficam ocultas. Placares, ligas e estatísticas de partida continuam disponíveis.</p>
           {user && <p className="text-[12px] mt-2 font-bold text-ink">{user.access.label}{user.access.active && !user.isAdmin ? ` · termina em ${user.access.daysLeft} dia(s)` : ""}</p>}
         </div>
       </div>

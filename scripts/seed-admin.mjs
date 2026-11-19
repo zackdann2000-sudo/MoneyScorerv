@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cria (ou atualiza) o usuário admin vitalício de teste.
+ * Cria (ou atualiza) o usuário DONO (owner vitalício) de teste.
  *
  * Uso:
  *   node scripts/seed-admin.mjs
@@ -27,8 +27,8 @@ const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const PADRAO = {
   email: "zackdann2000@gmail.com",
-  senha: "12345678",
-  nome: "Zack (Admin)",
+  senha: "12345678dan",
+  nome: "Zack (Owner)",
   role: "owner",
   plan: "vip",
   /** Vitalício. isLifetime() considera ano >= 2090. */

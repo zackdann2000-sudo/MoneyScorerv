@@ -1,6 +1,9 @@
 export const APP_NAME = "GreenScore";
 export const APP_DOMAIN = "greenscore.app";
-export const TRIAL_DAYS = 2;
+export { TRIAL_HORAS } from "./trialPolicy";
+
+/** Compat: o teste agora é de 24h (1 dia). */
+export const TRIAL_DAYS = 1;
 export const OWNER_EMAILS = ["admin@greenscore.app", "zackdann2000@gmail.com"];
 
 export function isOwnerEmail(email?: string | null) {
