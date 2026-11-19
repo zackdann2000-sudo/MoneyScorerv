@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { matchTeamStatsCache } from "@/db/schema";
-import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
+import { getSummaryRaw, matchFromSummary, normStats } from "@/lib/espn";
 import { getKey } from "@/lib/keys";
 import { afTeamStats, afFindFixtureId, afFixtureFinished, type TeamStatMetric } from "@/lib/providers";
 import { fiveDollarFindFixture, fiveDollarTeamStats, MAPEAMENTO_LIGAS } from "@/lib/fiveDollar";
@@ -20,15 +20,15 @@ const TTL_AO_VIVO = 5 * 60 * 1000; /* muda a cada lance */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  // Gate VIP + rate limit: esta rota gasta cota da API-Football.
-  const user = await getUser().catch(() => null);
-  if (!user || !(user.isAdmin || user.access.active)) {
-    return NextResponse.json({ locked: true, error: "Conteúdo VIP. Entre com uma conta ativa." }, { status: user ? 402 : 403 });
-  }
+  // Rate limit primeiro (20/h por IP): protege cota e CPU em rota pública.
   const limite = await rateLimit("team-stats:ip", clientIp(req), { limit: 20, windowSec: 3600 });
   if (!limite.ok) {
     return NextResponse.json({ locked: true, error: "Muitas requisições. Tente novamente mais tarde." }, { status: 429, headers: { "Retry-After": String(limite.retryAfterSec) } });
   }
+
+  // Free/anônimo recebe o comparativo da ESPN; o resto (API-Football/Bzzoiro/Sportmonks) é VIP.
+  const user = await getUser().catch(() => null);
+  const vip = !!user && (user.isAdmin || user.access.active);
 
   const league = req.nextUrl.searchParams.get("league") || "bra.1";
 
@@ -40,6 +40,30 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const match = matchFromSummary(sm, league, id);
     const encerrada = !!match.finished;
     const ttl = encerrada ? TTL_ENCERRADA : TTL_AO_VIVO;
+
+    /* ---------- 0) FREE/ANÔNIMO: comparativo só com a ESPN (zero cota paga) ---------- */
+    if (!vip) {
+      const metrics: TeamStatMetric[] = normStats(sm, match.home.id).map((s: any) => {
+        const num = (v: any) => {
+          const n = Number(String(v ?? "0").replace("%", "").replace(",", "."));
+          return Number.isFinite(n) ? n : 0;
+        };
+        const pct = /%/.test(String(s.home ?? "")) || /%/.test(String(s.away ?? ""));
+        return { key: String(s.key), label: String(s.label), home: num(s.home), away: num(s.away), percent: pct };
+      });
+      return NextResponse.json({
+        metrics,
+        source: "ESPN",
+        cache: "espn",
+        finalizada: encerrada,
+        updatedAt: new Date().toISOString(),
+        primeiroTempo: [],
+        segundoTempo: [],
+        temSplits: false,
+        jogadoresBloqueados: true,
+        locked: false,
+      });
+    }
 
     /* ---------- 1) Banco ---------- */
     let cacheMotivo = "miss";

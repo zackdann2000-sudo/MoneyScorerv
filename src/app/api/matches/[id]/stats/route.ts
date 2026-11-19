@@ -276,15 +276,15 @@ async function statsDaPartida(
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
 
-  // Gate VIP + rate limit: esta rota gasta cota da API-Football.
-  const user = await getUser().catch(() => null);
-  if (!user || !(user.isAdmin || user.access.active)) {
-    return NextResponse.json({ locked: true, error: "Conteúdo VIP. Entre com uma conta ativa." }, { status: user ? 402 : 403 });
-  }
+  // Rate limit primeiro (20/h por IP): protege cota e CPU em rota pública.
   const limite = await rateLimit("stats:ip", clientIp(req), { limit: 20, windowSec: 3600 });
   if (!limite.ok) {
     return NextResponse.json({ locked: true, error: "Muitas requisições. Tente novamente mais tarde." }, { status: 429, headers: { "Retry-After": String(limite.retryAfterSec) } });
   }
+
+  // Free/anônimo recebe o que a ESPN entrega; só o bloco de jogadores (API-Football) é VIP.
+  const user = await getUser().catch(() => null);
+  const vip = !!user && (user.isAdmin || user.access.active);
 
   const league = req.nextUrl.searchParams.get("league") || "bra.1";
   const side = req.nextUrl.searchParams.get("side") === "away" ? "away" : "home";
@@ -349,6 +349,58 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         stats: {},
         source: "indisponível",
         fontes: ["ESPN"],
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    /* --- FREE/ANÔNIMO: só ESPN (gols, assistências e cartões dos eventos).
+       Nenhuma chamada paga é feita aqui. --- */
+    if (!vip) {
+      const espnCats: { id: StatCat; campo: "gols" | "assistencias" | "amarelos" }[] = [
+        { id: "gols", campo: "gols" },
+        { id: "assistencias", campo: "assistencias" },
+        { id: "amarelos", campo: "amarelos" },
+      ];
+      for (const c of espnCats) {
+        const rows = list
+          .map((p, i) => {
+            const vals = (p[c.campo] || []).map((v) => Number(v) || 0);
+            const total = vals.reduce((s, v) => s + v, 0);
+            const meta = byAthlete.get(normName(p.name));
+            return {
+              id: `espn-${c.id}-${i}`,
+              name: p.name,
+              team: meta?.team || team.name,
+              photo: meta?.photo || "",
+              position: meta?.position || "",
+              total,
+              average: sample ? +(total / sample).toFixed(2) : null,
+              values: vals,
+              gameCount: sample,
+              source: "ESPN",
+            };
+          })
+          .filter((r) => r.total > 0);
+        result[c.id] = rows.length ? rank(rows, 10) : null;
+        if (!rows.length) result[`${c.id}Reason`] = "Sem registro desta métrica nos últimos jogos.";
+      }
+      for (const cat of CATS) {
+        if (cat.id in result) continue;
+        result[cat.id] = null;
+        result[`${cat.id}Reason`] = "Métrica detalhada disponível no acesso VIP.";
+      }
+      return NextResponse.json({
+        team: { id: team.id, name: team.name, logo: team.logo },
+        opponent: { id: adversario.id, name: adversario.name, logo: adversario.logo },
+        cats: CATS,
+        sample,
+        baseParcial: hist.baseParcial,
+        sportmonks: false,
+        stats: result,
+        source: "ESPN",
+        fontes: ["ESPN"],
+        jogadoresBloqueados: true,
+        locked: false,
         updatedAt: new Date().toISOString(),
       });
     }
