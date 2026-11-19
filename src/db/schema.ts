@@ -389,3 +389,27 @@ export const teamXgCache = pgTable("team_xg_cache", {
   source: text("source").notNull().default("api-football"),
   fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 });
+
+/**
+ * Tokens de dispositivo FCM (Firebase Cloud Messaging).
+ * Um usuário pode ter vários aparelhos. Token é a chave (único por instalação).
+ */
+export const fcmTokens = pgTable("fcm_tokens", {
+  token: text("token").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull().default("android"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+}, (t) => [index("fcm_tokens_user_idx").on(t.userId)]);
+
+/**
+ * Log de alertas de valor já enviados — evita push duplicado da mesma
+ * oportunidade (chave = matchId:mercado) dentro da janela de dedupe.
+ */
+export const valueAlertLog = pgTable("value_alert_log", {
+  chave: text("chave").primaryKey(),
+  matchId: text("match_id").notNull().default(""),
+  mercado: text("mercado").notNull().default(""),
+  evPct: real("ev_pct").notNull().default(0),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+});
