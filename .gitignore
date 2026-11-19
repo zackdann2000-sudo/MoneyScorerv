@@ -61,3 +61,7 @@ yarn-error.log*
 replica/sports_alert/extracted/
 *.xapk
 *.apk
+
+# artefatos de recon/APK (não versionar)
+.rea_sports/
+apk_extracted/
