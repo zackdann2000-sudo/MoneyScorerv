@@ -374,3 +374,18 @@ export const stripeEventos = pgTable("stripe_eventos", {
   tipo: text("tipo").notNull().default(""),
   criadoEm: timestamp("criado_em").notNull().defaultNow(),
 });
+
+/**
+ * Cache do xG oficial por time (API-Football).
+ * Chave = ID do time na API-Football; TTL de 24h controlado por `fetched_at`.
+ * Evita estourar a cota refazendo `/fixtures/statistics` a cada render.
+ */
+export const teamXgCache = pgTable("team_xg_cache", {
+  teamId: text("team_id").primaryKey(),
+  teamName: text("team_name").notNull().default(""),
+  xgFor: real("xg_for").notNull().default(0),
+  xgAgainst: real("xg_against").notNull().default(0),
+  sample: integer("sample").notNull().default(0),
+  source: text("source").notNull().default("api-football"),
+  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+});

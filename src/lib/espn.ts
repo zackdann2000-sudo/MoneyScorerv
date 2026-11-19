@@ -294,6 +294,12 @@ export type HistGame = {
   oppCorners: number | null; oppSot: number | null; oppFouls: number | null; oppYellow: number | null;
   /** xG estimado pelo adversário (mesma fórmula, chutes do adversário). */
   oppXgEst: number | null;
+  /** xG OFICIAL do time (API-Football) — preenchido fora da ESPN, quando disponível. */
+  xgF?: number | null;
+  /** xG OFICIAL sofrido (API-Football). */
+  xgA?: number | null;
+  /** Fonte do xG oficial aplicado neste histórico. */
+  xgFonte?: "api-football" | null;
   events: { type: string; player: string; assist?: string; period: number; side: string; minute: number }[];
 };
 

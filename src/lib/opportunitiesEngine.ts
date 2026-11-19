@@ -21,6 +21,7 @@ import {
 } from "@/lib/espn";
 import { runModel, type Analysis } from "@/lib/model";
 import { oddsDoJogoComFallback } from "@/lib/providers";
+import { getXgOficial } from "@/lib/xgOfficial";
 import {
   avaliarOportunidades,
   calcularKelly,
@@ -49,6 +50,8 @@ export type AnaliseJogo = MetaJogo & {
   xgHome: number | null;
   xgAway: number | null;
   xgCoverage: number;
+  /** Origem do xG usado no blend: oficial (API-Football) ou estimado (ESPN). */
+  xgFonte: "api-football" | "espn" | null;
   topScores: Analysis["topScores"];
   confianca: Confianca;
   h2hAjuste: Analysis["h2hAjuste"];
@@ -93,6 +96,18 @@ async function analisarJogo(
     getTeamHistory(m.league, m.away.id, 10).catch(() => null),
   ]);
   if (!hh || !ah) return null;
+
+  /* xG OFICIAL (API-Football) com cache 24h no Neon. Quando vem, é anexado ao
+     histórico e o motor mescla 50% gols + 50% xG oficial. Falhou (time não
+     achado / cota) → segue com o xG estimado da ESPN que já vem no histórico. */
+  if (process.env.XG_OFICIAL_DISABLED !== "1") {
+    const [xgH, xgA] = await Promise.all([
+      getXgOficial(m.home.name).catch(() => null),
+      getXgOficial(m.away.name).catch(() => null),
+    ]);
+    if (xgH) hh.games.forEach((g) => { g.xgF = xgH.xgFor; g.xgA = xgH.xgAgainst; g.xgFonte = "api-football"; });
+    if (xgA) ah.games.forEach((g) => { g.xgF = xgA.xgFor; g.xgA = xgA.xgAgainst; g.xgFonte = "api-football"; });
+  }
 
   // Uma chamada de resumo dá odds (normOdds) e H2H (normH2H) de uma vez.
   const sm = await getSummaryRaw(m.league, m.id, m.state).catch(() => null);
@@ -159,6 +174,7 @@ async function analisarJogo(
     xgHome: model.xg.home,
     xgAway: model.xg.away,
     xgCoverage: model.xg.coverage,
+    xgFonte: model.xg.fonte,
     topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,

@@ -16,11 +16,13 @@ export type TeamRates = {
   xgCoverage: number;
   /** Média de gols já mesclada com xG (50/50 quando há xG; senão só gols). */
   weightedGfXg: number; weightedGaXg: number;
+  /** Origem do xG usado no blend (null quando não havia xG). */
+  xgFonte: "api-football" | "espn" | null;
 };
 
 export function teamRates(games: HistGame[]): TeamRates {
   const n = games.length;
-  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0, xgF: null, xgA: null, xgCoverage: 0, weightedGfXg: 0, weightedGaXg: 0 };
+  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0, xgF: null, xgA: null, xgCoverage: 0, weightedGfXg: 0, weightedGaXg: 0, xgFonte: null };
   const sum = (f: (g: HistGame) => number, arr = games) => arr.reduce((s, g) => s + f(g), 0);
   const home = games.filter((g) => g.home), away = games.filter((g) => !g.home);
   // Peso da forma recente: 1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º e 0.5 do
@@ -34,9 +36,13 @@ export function teamRates(games: HistGame[]): TeamRates {
     const v = vals.filter((x): x is number => x != null && Number.isFinite(x));
     return v.length ? getWeightedAverage(v) : null;
   };
-  const xgF = wAvgXg(janela.map((g) => g.xgEst ?? null));
-  const xgA = wAvgXg(janela.map((g) => g.oppXgEst ?? null));
-  const xgCoverage = janela.length ? janela.filter((g) => g.xgEst != null).length / janela.length : 0;
+  const xgOficial = janela.some((g) => g.xgF != null);
+  const xgF = xgOficial ? wAvgXg(janela.map((g) => g.xgF ?? null)) : wAvgXg(janela.map((g) => g.xgEst ?? null));
+  const xgA = xgOficial ? wAvgXg(janela.map((g) => g.xgA ?? null)) : wAvgXg(janela.map((g) => g.oppXgEst ?? null));
+  const xgFonte: TeamRates["xgFonte"] = xgOficial ? "api-football" : xgF != null ? "espn" : null;
+  const xgCoverage = janela.length
+    ? janela.filter((g) => (xgOficial ? g.xgF != null : g.xgEst != null)).length / janela.length
+    : 0;
   const gfBase = ponderadaGf ?? sum((g) => g.gf) / n;
   const gaBase = ponderadaGa ?? sum((g) => g.ga) / n;
   // Mescla 50% gols reais + 50% xG quando o xG existe; senão cai para gols puros.
@@ -52,7 +58,7 @@ export function teamRates(games: HistGame[]): TeamRates {
     formPts: pts / (3 * n), csRate: games.filter((g) => g.ga === 0).length / n, scoredRate: games.filter((g) => g.gf > 0).length / n,
     weightedGf: gfBase,
     weightedGa: gaBase,
-    xgF, xgA, xgCoverage, weightedGfXg, weightedGaXg,
+    xgF, xgA, xgCoverage, weightedGfXg, weightedGaXg, xgFonte,
   };
 }
 
@@ -75,7 +81,7 @@ export type Analysis = {
   sample: { home: number; away: number; leagueAvg: number | null };
   lambdaHome: number; lambdaAway: number;
   /** xG médio usado por cada time (null quando a fonte não trouxe) + cobertura. */
-  xg: { home: number | null; away: number | null; coverage: number };
+  xg: { home: number | null; away: number | null; coverage: number; fonte: "api-football" | "espn" | null };
   probs: { home: number; draw: number; away: number; over05: number; over15: number; over25: number; under25: number; btts: number; homeScore: number; awayScore: number; cleanSheetHome: number; cleanSheetAway: number } | null;
   topScores: { score: string; p: number }[];
   confidence: "alta" | "média" | "baixa";
@@ -91,7 +97,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const rh = teamRates(homeGames), ra = teamRates(awayGames);
   const base: Analysis = {
     status: "dados_insuficientes", model_type: "nenhum", sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
-    lambdaHome: 0, lambdaAway: 0, xg: { home: null, away: null, coverage: 0 }, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
+    lambdaHome: 0, lambdaAway: 0, xg: { home: null, away: null, coverage: 0, fonte: null }, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
     rates: { home: rh, away: ra },
     narrative: { resumo: "Análise em processamento. O histórico recente deste confronto ainda está sendo indexado pelo modelo.", mandante: "", visitante: "", decisivos: [], cenarios: [], conclusao: "", alerta: null, mercados: [] },
     updatedAt: new Date().toISOString(),
@@ -188,7 +194,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
     sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
     h2hAjuste,
     lambdaHome: +lh.toFixed(2), lambdaAway: +la.toFixed(2),
-    xg: { home: rh.xgF, away: ra.xgF, coverage: Math.min(rh.xgCoverage, ra.xgCoverage) },
+    xg: { home: rh.xgF, away: ra.xgF, coverage: Math.min(rh.xgCoverage, ra.xgCoverage), fonte: rh.xgFonte === "api-football" && ra.xgFonte === "api-football" ? "api-football" : rh.xgFonte ?? ra.xgFonte },
     probs: { home: +pH.toFixed(4), draw: +pD.toFixed(4), away: +pA.toFixed(4), over05: +pOver(0.5).toFixed(4), over15: +pOver(1.5).toFixed(4), over25: +pOver(2.5).toFixed(4), under25: +pOver(2.5) <= 1 ? +(1 - pOver(2.5)).toFixed(4) : 0, btts: +btts.toFixed(4), homeScore: +homeScores.toFixed(4), awayScore: +awayScores.toFixed(4), cleanSheetHome: +csHome.toFixed(4), cleanSheetAway: +csAway.toFixed(4) },
     topScores: top, confidence, factors, rates: { home: rh, away: ra }, narrative, updatedAt: new Date().toISOString(),
   };

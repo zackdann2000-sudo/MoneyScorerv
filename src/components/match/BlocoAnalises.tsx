@@ -74,7 +74,7 @@ function Card({ item }: { item: AnaliseBloco }) {
                 className="text-[8px] font-bold text-sky-400 shrink-0"
                 title="Modelo ajustado pela qualidade das chances (xG)"
               >
-                · xG {num(item.xg, 2)}
+                · xG {num(item.xg, 2)} {item.xgFonte === "api-football" ? "Oficial" : "Est."}
               </span>
             )}
           </div>

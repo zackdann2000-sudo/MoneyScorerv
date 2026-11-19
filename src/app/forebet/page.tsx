@@ -156,7 +156,7 @@ export default async function ForebetPage({
                             className="ml-1 text-[8px] font-bold text-sky-400"
                             title={`xG médio das duas equipes (ajuste pela qualidade das chances, ${Math.round(j.xgCoverage * 100)}% da janela)`}
                           >
-                            xG {(j.xgHome + j.xgAway).toFixed(1)}
+                            xG {j.xgHome + j.xgAway} {j.xgFonte === "api-football" ? "Oficial" : "Est."}
                           </span>
                         )}
                       </td>
