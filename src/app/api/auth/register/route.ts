@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { hashPass, createSession, getUser } from "@/lib/auth";
-import { decidirAcesso, TRIAL_HORAS } from "@/lib/trialPolicy";
+import { decidirAcesso, motivoBloqueio, TRIAL_HORAS } from "@/lib/trialPolicy";
 import { isOwnerEmail } from "@/lib/appConfig";
 import { str } from "@/lib/validate";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
@@ -52,25 +52,24 @@ export async function POST(req: NextRequest) {
     const exists = await db.select().from(users).where(eq(users.email, em)).limit(1);
     if (exists.length) return NextResponse.json({ error: "Este e-mail já tem conta. Faça login." }, { status: 409 });
 
-    // ---- Anti-fraude do trial: 24h uma única vez por dispositivo/IP ----
+    // ---- Anti-fraude do trial: device é bloqueio primário; IP só a partir da 3ª conta ----
     const deviceId = typeof body.deviceId === "string" && DEVICE_RE.test(body.deviceId) ? body.deviceId : null;
     const ip = clientIp(req);
     const ipValido = /^[0-9a-fA-F.:]{3,64}$/.test(ip) && ip !== "unknown";
-    const condicoes = [];
-    if (deviceId) condicoes.push(eq(users.deviceId, deviceId));
-    if (ipValido) condicoes.push(eq(users.registrationIp, ip));
-    let reusado = false;
-    if (condicoes.length) {
-      const jaUsado = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(condicoes.length > 1 ? or(...condicoes) : condicoes[0])
-        .limit(1);
-      reusado = jaUsado.length > 0;
-    }
+
+    const [devUsado, contasNoIp] = await Promise.all([
+      deviceId
+        ? db.select({ id: users.id }).from(users).where(eq(users.deviceId, deviceId)).limit(1).then((r) => r.length > 0)
+        : Promise.resolve(false),
+      // Família/CGNAT: 2 contas no mesmo IP ainda ganham o teste; a 3ª não.
+      ipValido
+        ? db.select({ id: users.id }).from(users).where(eq(users.registrationIp, ip)).then((r) => r.length)
+        : Promise.resolve(0),
+    ]);
 
     const isOwner = isOwnerEmail(em);
-    const acesso = decidirAcesso({ isOwner, reusado });
+    const acesso = decidirAcesso({ isOwner, reusado: devUsado, contasNoIp });
+    const bloqueio = motivoBloqueio({ isOwner, reusado: devUsado, contasNoIp });
     const rows = await db.insert(users).values({
       name, email: em, passHash: hashPass(pass),
       role: acesso.role, plan: acesso.plan, expiresAt: acesso.expiresAt,
@@ -80,10 +79,10 @@ export async function POST(req: NextRequest) {
     const user = await getUser();
     const bonus = isOwner
       ? null
-      : reusado
+      : bloqueio
         ? null
         : `Conta criada. Você tem ${TRIAL_HORAS}h de acesso às oportunidades, dicas e estratégias.`;
-    return NextResponse.json({ user, bonus, trialReusado: reusado });
+    return NextResponse.json({ user, bonus, trialReusado: bloqueio !== null, motivo: bloqueio });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no cadastro." }, { status: 500 });
   }
