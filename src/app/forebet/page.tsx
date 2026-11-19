@@ -3,6 +3,8 @@ import { leagueInfo } from "@/lib/espn";
 import { analisarOportunidades, type AnaliseJogo } from "@/lib/opportunitiesEngine";
 import { stakeSugerida } from "@/lib/valueBet";
 import { evCor } from "@/components/ValorEsperado";
+import DesempenhoHistorico from "@/components/DesempenhoHistorico";
+import { estatisticas, type TrackStats } from "@/lib/trackRecord";
 
 /* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
    O Forebet é conhecido por uma TABELA densa de palpites: por jogo, a
@@ -66,6 +68,13 @@ export default async function ForebetPage({
     erro = e?.message || "Não foi possível carregar os palpites agora.";
   }
 
+  let stats: TrackStats | null = null;
+  try {
+    stats = await estatisticas();
+  } catch {
+    stats = null;
+  }
+
   const prev = shiftDia(data, -1);
   const next = shiftDia(data, 1);
 
@@ -81,6 +90,8 @@ export default async function ForebetPage({
         </p>
         <p className="text-[9px] text-acc/90 mt-2">Modelo Poisson/Dixon-Coles · forma recente (últimos 10) + H2H</p>
       </header>
+
+      <DesempenhoHistorico stats={stats} />
 
       {/* Navegação por data */}
       <div className="flex items-center gap-2">

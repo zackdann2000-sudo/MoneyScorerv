@@ -28,6 +28,7 @@ SUITES+=(
   "apitou-engine|src/lib/apitou/engine.ts src/lib/formaRecente.ts|src/lib/apitou/engine.test.cjs"
   "veredito|src/lib/veredito.ts src/lib/formaRecente.ts|src/lib/veredito.test.cjs"
   "mainLeagues|src/lib/mainLeagues.ts|src/lib/mainLeagues.test.cjs"
+  "trackStats|src/lib/trackStats.ts|src/lib/trackStats.test.cjs"
 )
 
 for suite in "${SUITES[@]}"; do

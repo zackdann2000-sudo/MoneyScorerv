@@ -413,3 +413,33 @@ export const valueAlertLog = pgTable("value_alert_log", {
   evPct: real("ev_pct").notNull().default(0),
   sentAt: timestamp("sent_at").notNull().defaultNow(),
 });
+
+/**
+ * Track record (histórico de resultados) das oportunidades de valor.
+ * Cada linha = um palpite gerado; `status` vai de pendente → green/red na
+ * liquidação. Unidade de stake = % da banca (Half-Kelly).
+ */
+export const valueBetHistory = pgTable("value_bet_history", {
+  id: serial("id").primaryKey(),
+  matchId: text("match_id").notNull(),
+  mercado: text("mercado").notNull(),
+  rotulo: text("rotulo").notNull().default(""),
+  linha: real("linha"),
+  odd: real("odd").notNull().default(0),
+  evPct: real("ev_pct").notNull().default(0),
+  stake: real("stake").notNull().default(0),
+  probModelo: real("prob_modelo").notNull().default(0),
+  matchDate: text("match_date").notNull().default(""),
+  homeName: text("home_name").notNull().default(""),
+  awayName: text("away_name").notNull().default(""),
+  leagueName: text("league_name").notNull().default(""),
+  status: text("status").notNull().default("pendente"), // pendente | green | red
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("vbh_match_mercado").on(t.matchId, t.mercado),
+  index("vbh_status_idx").on(t.status),
+  index("vbh_date_idx").on(t.matchDate),
+]);
