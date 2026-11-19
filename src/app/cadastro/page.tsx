@@ -42,6 +42,9 @@ export default function Cadastro() {
         <input type="password" required minLength={6} value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Senha (mín. 6 caracteres)" className="w-full bg-panel2 border border-line rounded-xl px-3 py-3 text-sm" />
         {err && <p className="text-xs text-danger bg-danger/10 rounded-lg p-2">{err}</p>}
         <button disabled={loading} className="w-full py-3 rounded-xl bg-acc text-black font-extrabold text-sm disabled:opacity-60">{loading ? "CRIANDO…" : "CRIAR CONTA ⚡"}</button>
+        <p className="text-[11px] font-semibold text-acc text-center leading-snug">
+          Crie sua conta e ganhe 24h de acesso VIP completo a todas as estatísticas e alertas
+        </p>
         <p className="text-[9px] text-mut text-center">Após o teste, o acesso VIP é liberado pelo administrador (PIX). Estatísticas básicas continuam gratuitas.</p>
       </form>
       <p className="text-center text-xs text-mut mt-4">Já tem conta? <Link href="/login" className="text-acc font-bold">Entrar</Link></p>

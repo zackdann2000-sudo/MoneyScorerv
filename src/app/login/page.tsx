@@ -38,6 +38,9 @@ export default function Login() {
         <button disabled={loading} className="w-full py-3 rounded-xl bg-acc text-black font-extrabold text-sm disabled:opacity-60">{loading ? "ENTRANDO…" : "ENTRAR ⚡"}</button>
       </form>
       <p className="text-center text-xs text-mut mt-4">Não tem conta? <Link href="/cadastro" className="text-acc font-bold">Criar agora — 24h de acesso, sem assinatura</Link></p>
+      <p className="text-center text-[11px] font-semibold text-acc mt-2 leading-snug">
+        Crie sua conta e ganhe 24h de acesso VIP completo a todas as estatísticas e alertas
+      </p>
     </div>
   );
 }

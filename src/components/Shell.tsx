@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
+import TrialBanner from "@/components/TrialBanner";
 
 const NAV = [
   { href: "/ao-vivo", label: "Ao vivo", icon: Radio },
@@ -68,6 +69,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </header>
+      <TrialBanner />
       <div className="sticky top-14 z-40 bg-bg/95 border-b border-line">
         <div className="max-w-3xl mx-auto px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar">
           {[
