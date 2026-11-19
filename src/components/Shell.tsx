@@ -23,7 +23,8 @@ const DRAWER_NAV = [
 ];
 
 const DRAWER_ANALYSIS = [
-  { href: "/supertips/palpites", label: "Palpites IA", icon: Sparkles },
+  { href: "/palpites-ia", label: "Palpites IA", icon: Sparkles },
+  { href: "/supertips/palpites", label: "SuperTips IA", icon: Sparkles },
   { href: "/money-tips", label: "Money Tips", icon: Gem },
   { href: "/ev", label: "Oportunidades +EV", icon: CircleDollarSign },
   { href: "/gameread", label: "GameRead (props)", icon: Radar },

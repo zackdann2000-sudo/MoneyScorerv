@@ -1,0 +1,20 @@
+feature,area,priority,original,clone,notes
+Palpites do dia na home,Discovery,must,yes,no,S01 hero + grid de jogos
+Barra de probabilidade 1X2,Discovery,must,yes,no,casa/empate/fora %
+Mercado Over/Under 2.5,Predictions,must,yes,no,Alt/Üst
+Mercado BTTS (ambas marcam),Predictions,must,yes,no,KG Var
+Mercado 1º tempo +0.5,Predictions,should,yes,no,İY 0.5 Üst
+Selo de confiança,Predictions,must,yes,no,alta/media/baixa
+Cupom do dia,Predictions,must,yes,no,S06 seleção de múltiplas
+Track record / taxa de acerto,Trust,must,yes,no,S07 % por janela
+Lista de jogos por data,Predictions,should,yes,no,/predictions/<data>
+Detalhe da partida com IA,Analysis,must,yes,no,resumo + números + top placares
+Odds de mercado,Analysis,should,yes,no,1X2 e O/U
+H2H no detalhe,Analysis,should,yes,no,últimos confrontos
+Placar ao vivo,Live,should,yes,no,/live
+Grid de ligas populares,Discovery,should,yes,no,6 ligas + contagem
+Multi-idioma (7 locales),Platform,could,yes,no,path-based /pt /en
+PWA / instalar no celular,Platform,could,yes,no,manifest + install
+Planos / VIP,Pricing,should,yes,no,Stripe já existe
+Blog / SEO orgânico,Growth,must,yes,no,conteúdo próprio (não copiar)
+Institucional (sobre/faq/terms),Trust,could,yes,no,páginas legais
