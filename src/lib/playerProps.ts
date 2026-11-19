@@ -7,7 +7,7 @@
  * para `player_props_cache` com TTL de 24h, então abrir a aba não gasta cota.
  *
  * Cota: N jogos × 2 times + 2 buscas de time por partida na primeira visita.
- * `PROPS_MAX_JOGOS` (default 5) e `PLAYER_PROPS_DISABLED=1` controlam isso.
+ * `PROPS_MAX_JOGOS` (default 4) e `PLAYER_PROPS_DISABLED=1` controlam isso.
  */
 import { db } from "@/db";
 import { playerPropsCache } from "@/db/schema";
@@ -16,7 +16,7 @@ import { afFetch } from "./providers";
 import type { JogadorAmostra, JogoValores } from "./playerPropsEngine";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
-export const PROPS_MAX_JOGOS = Math.max(3, Math.min(10, Number(process.env.PROPS_MAX_JOGOS || 5)));
+export const PROPS_MAX_JOGOS = Math.max(3, Math.min(10, Number(process.env.PROPS_MAX_JOGOS || 4)));
 export const PROPS_DISABLED = process.env.PLAYER_PROPS_DISABLED === "1";
 
 export type JogadorCache = {
