@@ -24,6 +24,7 @@ const DRAWER_NAV = [
 
 const DRAWER_ANALYSIS = [
   { href: "/palpites-ia", label: "Palpites IA", icon: Sparkles },
+  { href: "/forebet", label: "Forebet (tabela)", icon: Trophy },
   { href: "/supertips/palpites", label: "SuperTips IA", icon: Sparkles },
   { href: "/money-tips", label: "Money Tips", icon: Gem },
   { href: "/ev", label: "Oportunidades +EV", icon: CircleDollarSign },

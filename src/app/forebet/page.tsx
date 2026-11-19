@@ -1,0 +1,176 @@
+import Link from "next/link";
+import { leagueInfo } from "@/lib/espn";
+import { analisarOportunidades, type AnaliseJogo } from "@/lib/opportunitiesEngine";
+
+/* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
+   O Forebet é conhecido por uma TABELA densa de palpites: por jogo, a
+   probabilidade 1X2, o resultado previsto (com placar exato), média de gols e
+   Over 2.5. Aqui reproduzimos esse formato com o nosso motor Poisson/Dixon-
+   Coles (forma recente + H2H). Nada copiado do original. */
+
+export const revalidate = 600;
+
+const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+function hojeSP(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+function shiftDia(ymd: string, delta: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+}
+function rotuloDia(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return `${DIAS[dt.getUTCDay()]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+}
+function horaSP(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+}
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+/** Resultado previsto (0=casa, 1=empate, 2=fora) a partir das probabilidades. */
+function previsto(p: { home: number; draw: number; away: number }): 0 | 1 | 2 {
+  return p.home >= p.draw && p.home >= p.away ? 0 : p.away >= p.draw ? 2 : 1;
+}
+
+function Celula({ valor, on, cor }: { valor: string; on: boolean; cor: string }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-9 h-6 rounded text-[10px] font-extrabold tabular-nums ${
+        on ? `${cor} text-black/90` : "text-mut"
+      }`}
+    >
+      {valor}
+    </span>
+  );
+}
+
+export default async function ForebetPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ data?: string }>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const data = sp.data && /^\d{4}-\d{2}-\d{2}$/.test(sp.data) ? sp.data : hojeSP();
+
+  let jogos: AnaliseJogo[] = [];
+  let erro = "";
+  try {
+    const r = await analisarOportunidades({ date: data, maxMatches: 12, usarApiFootball: false });
+    jogos = r.analisados;
+  } catch (e: any) {
+    erro = e?.message || "Não foi possível carregar os palpites agora.";
+  }
+
+  const prev = shiftDia(data, -1);
+  const next = shiftDia(data, 1);
+
+  return (
+    <main className="mx-auto max-w-screen-md px-3 py-4 space-y-3">
+      <header className="rounded-2xl border border-line bg-gradient-to-br from-cyan/10 via-panel to-panel p-4">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-cyan">Tabela de palpites · estilo Forebet</p>
+        <h1 className="font-display text-2xl font-extrabold text-ink leading-tight mt-1">
+          Palpites, probabilidades e placar previsto
+        </h1>
+        <p className="text-[11px] text-mut mt-1">
+          1X2 em %, resultado mais provável com placar exato, média de gols e Over 2.5 — por jogo.
+        </p>
+        <p className="text-[9px] text-acc/90 mt-2">Modelo Poisson/Dixon-Coles · forma recente (últimos 10) + H2H</p>
+      </header>
+
+      {/* Navegação por data */}
+      <div className="flex items-center gap-2">
+        <Link href={`/forebet?data=${prev}`} className="h-8 px-3 rounded-xl border border-line bg-panel text-[11px] font-bold text-ink inline-flex items-center">
+          ← {rotuloDia(prev)}
+        </Link>
+        <span className="flex-1 text-center text-[11px] font-extrabold text-ink">
+          {rotuloDia(data)}
+          {data === hojeSP() && <span className="ml-1 text-[9px] text-acc">hoje</span>}
+        </span>
+        <Link href={`/forebet?data=${next}`} className="h-8 px-3 rounded-xl border border-line bg-panel text-[11px] font-bold text-ink inline-flex items-center">
+          {rotuloDia(next)} →
+        </Link>
+      </div>
+
+      {erro && (
+        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-[11px] text-danger">{erro}</div>
+      )}
+
+      {jogos.length === 0 && !erro && (
+        <p className="text-[11px] text-mut text-center py-8 bg-panel border border-dashed border-line rounded-xl">
+          Sem jogos com histórico suficiente nesta data.
+        </p>
+      )}
+
+      {jogos.length > 0 && (
+        <div className="rounded-2xl border border-line bg-panel overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border-collapse min-w-[520px]">
+              <thead>
+                <tr className="text-[9px] uppercase text-mut border-b border-line">
+                  <th className="text-left font-bold px-2 py-1.5">Hora</th>
+                  <th className="text-left font-bold px-2 py-1.5">Jogo</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Probabilidade casa">1</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Probabilidade empate">X</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Probabilidade fora">2</th>
+                  <th className="text-center font-bold px-1 py-1.5">Placar</th>
+                  <th className="text-center font-bold px-1 py-1.5">Gols</th>
+                  <th className="text-center font-bold px-1 py-1.5">+2.5</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jogos.map((j) => {
+                  const pred = previsto(j.probs);
+                  const mediaGols = (j.lambdaHome + j.lambdaAway).toFixed(1);
+                  const placar = j.topScores?.[0]?.score ?? "—";
+                  return (
+                    <tr key={j.matchId} className="border-b border-line/50 last:border-0 hover:bg-panel2/50">
+                      <td className="px-2 py-1.5 align-top whitespace-nowrap">
+                        <span className="block text-[10px] font-bold text-ink tabular-nums">{horaSP(j.kickoff)}</span>
+                        <span className="block text-[8px] text-mut truncate max-w-[72px]">{j.estado.startsWith("AO VIVO") ? "AO VIVO" : leagueInfo(j.league).flag + " " + (j.country || "")}</span>
+                      </td>
+                      <td className="px-2 py-1.5 align-top">
+                        <Link href={`/apitou?jogo=${j.matchId}&data=${data}`} className="block min-w-0 hover:text-acc">
+                          <span className="block text-[11px] font-bold text-ink truncate max-w-[190px]">{j.home.name}</span>
+                          <span className="block text-[11px] font-bold text-ink truncate max-w-[190px]">{j.away.name}</span>
+                          <span className="block text-[8px] text-mut truncate max-w-[190px]">{leagueInfo(j.league).flag} {j.leagueName}</span>
+                        </Link>
+                      </td>
+                      <td className="text-center px-0.5"><Celula valor={pct(j.probs.home)} on={pred === 0} cor="bg-home" /></td>
+                      <td className="text-center px-0.5"><Celula valor={pct(j.probs.draw)} on={pred === 1} cor="bg-mut" /></td>
+                      <td className="text-center px-0.5"><Celula valor={pct(j.probs.away)} on={pred === 2} cor="bg-away" /></td>
+                      <td className="text-center px-1 py-1.5 font-extrabold text-ink tabular-nums">{placar}</td>
+                      <td className="text-center px-1 py-1.5 text-mut tabular-nums">{mediaGols}</td>
+                      <td className="text-center px-1 py-1.5 text-acc font-bold tabular-nums">{pct(j.probs.over25)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[8px] text-mut px-3 py-2 border-t border-line/60">
+            Destaque em cor = resultado mais provável do modelo. Placar = resultado exato mais provável.
+            Gols = média esperada (λ casa + λ fora). Probabilidades estatísticas, não garantia.
+          </p>
+        </div>
+      )}
+
+      <section className="rounded-2xl border border-line bg-panel/60 p-3">
+        <h2 className="text-[10px] font-extrabold uppercase tracking-wide text-ink mb-1.5">O que a tabela mostra</h2>
+        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">1 · X · 2</b><p className="text-[9px] text-mut">Probabilidade de casa/empate/fora. A cor marca o previsto.</p></div>
+          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">Placar</b><p className="text-[9px] text-mut">Resultado exato mais provável (matriz de Poisson).</p></div>
+          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">Gols</b><p className="text-[9px] text-mut">Média esperada do confronto (λ casa + λ fora).</p></div>
+          <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">+2.5</b><p className="text-[9px] text-mut">Probabilidade de sair mais de 2.5 gols.</p></div>
+        </div>
+      </section>
+
+      <footer className="text-center text-[9px] text-mut pb-4">
+        MVP de recon clean-room do Forebet · dados ESPN + motor próprio ·{" "}
+        <Link href="/palpites-ia" className="text-acc">ver oportunidades de valor</Link>
+      </footer>
+    </main>
+  );
+}

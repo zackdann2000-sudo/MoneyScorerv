@@ -6,6 +6,7 @@ import {
   type ModelProbs,
   type OportunidadeValor,
 } from "@/lib/opportunitiesEngine";
+import { PorqueValor } from "@/components/ValorEsperado";
 
 /* Palpites IA (MVP inspirado no core loop do Gol Sinyali — recon em
    replica/recon.md). Uma única passada do motor de valor (Poisson/Dixon-Coles
@@ -127,7 +128,9 @@ export default async function PalpitesIaPage() {
                     <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(o.probModelo)}</span>
                   </span>
                 </div>
-                <p className="mt-1 text-[10px] font-semibold text-acc tabular-nums">{o.porque}</p>
+                <p className="mt-1 text-[10px] font-semibold text-mut tabular-nums">
+                  <PorqueValor probModelo={o.probModelo} odd={o.odd} evPct={o.evPct} />
+                </p>
               </li>
             ))}
           </ul>
@@ -213,7 +216,9 @@ export default async function PalpitesIaPage() {
                   <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Over 2.5 <b className="text-acc">{pct(a.probs.over25)}</b></span>
                   <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Ambas marcam <b className="text-acc">{pct(a.probs.btts)}</b></span>
                   {op ? (
-                    <span className="text-[9px] bg-acc/10 border border-acc/40 rounded px-1.5 py-0.5 text-acc font-semibold">{op.porque}</span>
+                    <span className="text-[9px] bg-acc/10 border border-acc/40 rounded px-1.5 py-0.5 text-ink">
+                      <PorqueValor probModelo={op.probModelo} odd={op.odd} evPct={op.evPct} />
+                    </span>
                   ) : (
                     <span className="text-[9px] bg-panel2 border border-line rounded px-1.5 py-0.5">Destaque: {destaque.mercado} {pct(destaque.prob)}</span>
                   )}

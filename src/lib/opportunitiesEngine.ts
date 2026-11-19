@@ -42,6 +42,7 @@ export type AnaliseJogo = MetaJogo & {
   probs: ModelProbs;
   lambdaHome: number;
   lambdaAway: number;
+  topScores: Analysis["topScores"];
   confianca: Confianca;
   h2hAjuste: Analysis["h2hAjuste"];
   odds: OddsMercado | null;
@@ -148,6 +149,7 @@ async function analisarJogo(
     probs: model.probs,
     lambdaHome: model.lambdaHome,
     lambdaAway: model.lambdaAway,
+    topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,
     odds,

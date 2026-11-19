@@ -17,6 +17,7 @@ import {
   horaJogo,
   diaCurto,
 } from "./Ui";
+import { PorqueValor } from "@/components/ValorEsperado";
 import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 type Nivel = "quente" | "bom" | "neutro";
@@ -121,10 +122,8 @@ export default function DesajustesTab({
 
               <ProbBar modelo={d.probModelo} mercado={d.probMercado} />
 
-              <p className="text-[9px] font-semibold text-acc tabular-nums">
-                Modelo: {Math.round(d.probModelo * 100)}% de acerto | Odd: {d.odd.toFixed(2)} | Valor Esperado:{" "}
-                {d.probModelo * d.odd - 1 >= 0 ? "+" : ""}
-                {((d.probModelo * d.odd - 1) * 100).toFixed(1)}%
+              <p className="text-[9px] font-semibold text-mut tabular-nums">
+                <PorqueValor probModelo={d.probModelo} odd={d.odd} evPct={(d.probModelo * d.odd - 1) * 100} />
               </p>
 
               <div className="flex items-center justify-between pt-1 border-t border-line/60">
