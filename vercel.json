@@ -3,6 +3,10 @@
     {
       "path": "/api/apitou/sync",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/track-record/run",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

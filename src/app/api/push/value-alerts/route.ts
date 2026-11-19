@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dispararAlertasValor } from "@/lib/valueAlertPush";
+import { motivoCronAutorizado, cronConfigurado } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,25 +10,21 @@ export const maxDuration = 300;
  * POST /api/push/value-alerts
  * Dispara os alertas de valor (EV ≥ 15%) para os VIPs via FCM.
  *
- * Protegida por segredo de cron:
- *   Header: x-cron-secret: <PUSH_CRON_SECRET>
- *   (ou ?secret=... para agendadores simples)
+ * Protegida pelo mesmo esquema das outras rotas internas:
+ *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
+ *   - Manual: header `x-cron-secret: <PUSH_CRON_SECRET>` (ou ?secret=)
  *
  * Query/body opcionais: date, minEv, maxXgApi, maxMatches, limite, dryRun.
  * `dryRun=1` calcula tudo e devolve o que SERIA enviado, sem chamar a FCM.
  */
 export async function POST(req: NextRequest) {
-  const segredo = process.env.PUSH_CRON_SECRET || "";
-  if (!segredo) {
+  if (!motivoCronAutorizado(req, "PUSH_CRON_SECRET")) {
     return NextResponse.json(
-      { error: "PUSH_CRON_SECRET não configurado — disparo bloqueado." },
-      { status: 503 },
+      cronConfigurado("PUSH_CRON_SECRET")
+        ? { error: "não autorizado." }
+        : { error: "nenhum segredo configurado (CRON_SECRET ou PUSH_CRON_SECRET)." },
+      { status: cronConfigurado("PUSH_CRON_SECRET") ? 401 : 503 },
     );
-  }
-  const header = req.headers.get("x-cron-secret") || "";
-  const qs = req.nextUrl.searchParams.get("secret") || "";
-  if (header !== segredo && qs !== segredo) {
-    return NextResponse.json({ error: "não autorizado." }, { status: 401 });
   }
 
   let body: any = {};
