@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { BrainCircuit, ShieldAlert, Info } from "lucide-react";
 import { VipLock, SourceFoot } from "@/components/ui";
 import { VereditoDoJogo } from "./VereditoCard";
+import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -91,6 +92,11 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
         <span className="text-[9px] text-mut ml-auto">{a.model_type}</span>
       </div>
 
+      {/* Nota do modelo: deixa explícito que a base é a forma recente ponderada. */}
+      <p className="text-[9px] text-acc/90 -mt-1 flex items-center gap-1">
+        <Info size={9} className="shrink-0" /> Modelo ajustado com peso para a forma recente (últimos 10 jogos)
+      </p>
+
       {/* Base do número: o modelo não usa a temporada inteira, e sim a forma
           recente ponderada (1.5 / 1.0 / 0.5) cruzada com o H2H. */}
       <p className="text-[9px] text-mut -mt-1">
@@ -105,6 +111,14 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
           </p>
           <p className="text-[9px] text-mut leading-snug mt-0.5">{a.h2hAjuste.texto}</p>
         </div>
+      )}
+
+      {/* Palpite Fixo do H2H: só aparece quando há histórico suficiente; o
+          card devolve null sozinho abaixo da amostra mínima. */}
+      {Array.isArray(a.h2h) && a.h2h.length > 0 && (
+        <H2HPalpiteCard
+          jogos={a.h2h.map((g: any) => ({ golsCasa: Number(g.homeScore) || 0, golsFora: Number(g.awayScore) || 0 }))}
+        />
       )}
 
       {/* 1X2 */}

@@ -1,5 +1,6 @@
 import type { HistGame } from "./espn";
 import { JANELA_FORMA, JANELA_H2H, ajusteH2H, mediaPonderada, type AjusteH2H } from "./formaRecente";
+import { getWeightedAverage, FORM_JANELA } from "./formWeight";
 
 /* ============================================================
    MODELO ESTATÍSTICO PREDITIVO — Poisson com ajuste Dixon-Coles
@@ -17,10 +18,10 @@ export function teamRates(games: HistGame[]): TeamRates {
   const sum = (f: (g: HistGame) => number, arr = games) => arr.reduce((s, g) => s + f(g), 0);
   const home = games.filter((g) => g.home), away = games.filter((g) => !g.home);
   // Peso da forma recente: 1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º e 0.5 do
-  // 8º ao 10º. Substitui a média chapada da temporada — ver lib/formaRecente.
-  const janela = games.slice(0, JANELA_FORMA);
-  const ponderadaGf = mediaPonderada(janela.map((g) => g.gf));
-  const ponderadaGa = mediaPonderada(janela.map((g) => g.ga));
+  // 8º ao 10º (janela de 10). Substitui a média chapada da temporada — é o que
+  // faz uma sequência de vitórias elevar a chance de marcar. Ver lib/formWeight.
+  const ponderadaGf = getWeightedAverage(games.slice(0, FORM_JANELA).map((g) => g.gf));
+  const ponderadaGa = getWeightedAverage(games.slice(0, FORM_JANELA).map((g) => g.ga));
   const pts = sum((g) => (g.res === "V" ? 3 : g.res === "E" ? 1 : 0));
   return {
     games: n, gfAvg: sum((g) => g.gf) / n, gaAvg: sum((g) => g.ga) / n,
@@ -29,8 +30,8 @@ export function teamRates(games: HistGame[]): TeamRates {
     gfAway: away.length ? sum((g) => g.gf, away) / away.length : sum((g) => g.gf) / n,
     gaAway: away.length ? sum((g) => g.ga, away) / away.length : sum((g) => g.ga) / n,
     formPts: pts / (3 * n), csRate: games.filter((g) => g.ga === 0).length / n, scoredRate: games.filter((g) => g.gf > 0).length / n,
-    weightedGf: ponderadaGf.media ?? sum((g) => g.gf) / n,
-    weightedGa: ponderadaGa.media ?? sum((g) => g.ga) / n,
+    weightedGf: ponderadaGf ?? sum((g) => g.gf) / n,
+    weightedGa: ponderadaGa ?? sum((g) => g.ga) / n,
   };
 }
 
