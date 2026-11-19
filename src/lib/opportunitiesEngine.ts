@@ -52,6 +52,8 @@ export type AnaliseJogo = MetaJogo & {
   xgCoverage: number;
   /** Origem do xG usado no blend: oficial (API-Football) ou estimado (ESPN). */
   xgFonte: "api-football" | "espn" | null;
+  /** Mercados extras (cartões/escanteios) calculados pelo modelo. */
+  extras: Analysis["extras"];
   topScores: Analysis["topScores"];
   confianca: Confianca;
   h2hAjuste: Analysis["h2hAjuste"];
@@ -165,6 +167,7 @@ async function analisarJogo(
     meta,
     probs: model.probs,
     odds,
+    extras: model.extras,
     confianca: model.confidence,
     fonteOdd,
     minProb: opts.minProb,
@@ -181,6 +184,7 @@ async function analisarJogo(
     xgAway: model.xg.away,
     xgCoverage: model.xg.coverage,
     xgFonte: model.xg.fonte,
+    extras: model.extras,
     topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,

@@ -8,7 +8,17 @@
  * e reusado sem arrastar db/providers.
  */
 
-export type MercadoValor = "home" | "draw" | "away" | "over25" | "under25" | "btts";
+export type MercadoValor =
+  | "home"
+  | "draw"
+  | "away"
+  | "over25"
+  | "under25"
+  | "btts"
+  | "cards_over"
+  | "cards_under"
+  | "corners_over"
+  | "corners_under";
 
 /** Odds de mercado em formato decimal (1/odd = probabilidade implícita). */
 export type OddsMercado = {
@@ -19,6 +29,10 @@ export type OddsMercado = {
   under?: number | null;
   ou?: number | null;
   btts?: number | null;
+  /** Linha e odds de cartões (Over/Under) quando a fonte publica. */
+  cards?: { linha: number; over?: number | null; under?: number | null } | null;
+  /** Linha e odds de escanteios (Over/Under) quando a fonte publica. */
+  corners?: { linha: number; over?: number | null; under?: number | null } | null;
   provider?: string | null;
 };
 
@@ -118,6 +132,11 @@ export function avaliarOportunidades(args: {
   minProb?: number;
   oddMin?: number;
   oddMax?: number;
+  /** Probabilidades de cartões/escanteios que o modelo calculou por linha. */
+  extras?: {
+    cards?: { probs: { line: number; over: number }[] };
+    corners?: { probs: { line: number; over: number }[] };
+  } | null;
 }): OportunidadeValor[] {
   const { meta, probs, odds, confianca, fonteOdd } = args;
   const minProb = args.minProb ?? MIN_PROB;
@@ -141,6 +160,25 @@ export function avaliarOportunidades(args: {
 
   // Ambas marcam — só quando a fonte publica a odd do mercado.
   if (odds.btts != null) cands.push({ mercado: "btts", rotulo: "Ambas marcam", linha: null, prob: probs.btts, odd: odds.btts });
+
+  // Cartões e escanteios — Poisson sobre as médias dos últimos 10. Só cruza
+  // com a odd quando a linha do mercado casa com a linha calculada pelo modelo.
+  const probNaLinha = (arr: { line: number; over: number }[] | undefined, linha: number) =>
+    arr?.find((p) => Math.abs(p.line - linha) <= TOL_LINHA)?.over ?? null;
+  if (odds.cards) {
+    const p = probNaLinha(args.extras?.cards?.probs, odds.cards.linha);
+    if (p != null && odds.cards.over != null)
+      cands.push({ mercado: "cards_over", rotulo: `Cartões Over ${odds.cards.linha}`, linha: odds.cards.linha, prob: p, odd: odds.cards.over });
+    if (p != null && odds.cards.under != null)
+      cands.push({ mercado: "cards_under", rotulo: `Cartões Under ${odds.cards.linha}`, linha: odds.cards.linha, prob: 1 - p, odd: odds.cards.under });
+  }
+  if (odds.corners) {
+    const p = probNaLinha(args.extras?.corners?.probs, odds.corners.linha);
+    if (p != null && odds.corners.over != null)
+      cands.push({ mercado: "corners_over", rotulo: `Escanteios Over ${odds.corners.linha}`, linha: odds.corners.linha, prob: p, odd: odds.corners.over });
+    if (p != null && odds.corners.under != null)
+      cands.push({ mercado: "corners_under", rotulo: `Escanteios Under ${odds.corners.linha}`, linha: odds.corners.linha, prob: 1 - p, odd: odds.corners.under });
+  }
 
   const out: OportunidadeValor[] = [];
   for (const c of cands) {

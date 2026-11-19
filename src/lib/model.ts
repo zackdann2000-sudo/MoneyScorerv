@@ -18,11 +18,13 @@ export type TeamRates = {
   weightedGfXg: number; weightedGaXg: number;
   /** Origem do xG usado no blend (null quando não havia xG). */
   xgFonte: "api-football" | "espn" | null;
+  /** Média de cartões por jogo (time + adversário) e escanteios por jogo. */
+  cardsAvg: number | null; cornersAvg: number | null;
 };
 
 export function teamRates(games: HistGame[]): TeamRates {
   const n = games.length;
-  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0, xgF: null, xgA: null, xgCoverage: 0, weightedGfXg: 0, weightedGaXg: 0, xgFonte: null };
+  if (!n) return { games: 0, gfAvg: 0, gaAvg: 0, gfHome: 0, gaHome: 0, gfAway: 0, gaAway: 0, formPts: 0, csRate: 0, scoredRate: 0, weightedGf: 0, weightedGa: 0, xgF: null, xgA: null, xgCoverage: 0, weightedGfXg: 0, weightedGaXg: 0, xgFonte: null, cardsAvg: null, cornersAvg: null };
   const sum = (f: (g: HistGame) => number, arr = games) => arr.reduce((s, g) => s + f(g), 0);
   const home = games.filter((g) => g.home), away = games.filter((g) => !g.home);
   // Peso da forma recente: 1.5 nos 3 últimos jogos, 1.0 do 4º ao 7º e 0.5 do
@@ -45,6 +47,16 @@ export function teamRates(games: HistGame[]): TeamRates {
     : 0;
   const gfBase = ponderadaGf ?? sum((g) => g.gf) / n;
   const gaBase = ponderadaGa ?? sum((g) => g.ga) / n;
+  // Cartões (amarelos + vermelhos do time + amarelos do adversário) e escanteios
+  // totais por jogo — base das linhas de Over de cartões/escanteios.
+  const cardsVals = janela.map((g) =>
+    g.yellow == null && g.oppYellow == null ? null : (g.yellow ?? 0) + (g.red ?? 0) + (g.oppYellow ?? 0),
+  );
+  const cornersVals = janela.map((g) =>
+    g.corners == null && g.oppCorners == null ? null : (g.corners ?? 0) + (g.oppCorners ?? 0),
+  );
+  const cardsAvg = wAvgXg(cardsVals);
+  const cornersAvg = wAvgXg(cornersVals);
   // Mescla 50% gols reais + 50% xG quando o xG existe; senão cai para gols puros.
   const weightedGfXg = xgF != null ? +(K_GOALS * gfBase + K_XG * xgF).toFixed(4) : gfBase;
   const weightedGaXg = xgA != null ? +(K_GOALS * gaBase + K_XG * xgA).toFixed(4) : gaBase;
@@ -59,6 +71,7 @@ export function teamRates(games: HistGame[]): TeamRates {
     weightedGf: gfBase,
     weightedGa: gaBase,
     xgF, xgA, xgCoverage, weightedGfXg, weightedGaXg, xgFonte,
+    cardsAvg, cornersAvg,
   };
 }
 
@@ -66,6 +79,36 @@ const fact = (n: number): number => (n <= 1 ? 1 : n * fact(n - 1));
 // Peso da mescla gols/xG no λ (50% gols reais + 50% xG quando disponível).
 const K_GOALS = 0.5, K_XG = 0.5;
 const pois = (k: number, l: number) => (Math.pow(l, k) * Math.exp(-l)) / fact(k);
+/** P(X > linha) para X ~ Poisson(lambda). */
+export function caudaPoisson(linha: number, lambda: number): number {
+  if (!(lambda > 0)) return 0;
+  const k = Math.floor(linha);
+  let c = 0;
+  for (let i = 0; i <= k; i++) c += pois(i, lambda);
+  return Math.max(0, Math.min(1, 1 - c));
+}
+const LINHAS_CARTOES = [2.5, 3.5, 4.5, 5.5];
+const LINHAS_ESCANTEIOS = [7.5, 8.5, 9.5, 10.5, 11.5];
+
+/** λ e probabilidades de Over para cartões/escanteios, cruzando os dois times. */
+function extrasDosTimes(rh: TeamRates, ra: TeamRates): Analysis["extras"] {
+  const media = (a: number | null, b: number | null): { lambda: number; sample: number } => {
+    const vals = [a, b].filter((v): v is number => v != null && Number.isFinite(v));
+    return { lambda: vals.length ? +(vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2) : 0, sample: vals.length };
+  };
+  const cards = media(rh.cardsAvg, ra.cardsAvg);
+  const corners = media(rh.cornersAvg, ra.cornersAvg);
+  return {
+    cards: {
+      lambda: cards.lambda, sample: cards.sample,
+      probs: cards.lambda > 0 ? LINHAS_CARTOES.map((line) => ({ line, over: +caudaPoisson(line, cards.lambda).toFixed(4) })) : [],
+    },
+    corners: {
+      lambda: corners.lambda, sample: corners.sample,
+      probs: corners.lambda > 0 ? LINHAS_ESCANTEIOS.map((line) => ({ line, over: +caudaPoisson(line, corners.lambda).toFixed(4) })) : [],
+    },
+  };
+}
 const RHO = -0.06; // ajuste Dixon-Coles para placares baixos
 function dcTau(x: number, y: number, lh: number, la: number) {
   if (x === 0 && y === 0) return 1 - lh * la * RHO;
@@ -82,6 +125,11 @@ export type Analysis = {
   lambdaHome: number; lambdaAway: number;
   /** xG médio usado por cada time (null quando a fonte não trouxe) + cobertura. */
   xg: { home: number | null; away: number | null; coverage: number; fonte: "api-football" | "espn" | null };
+  /** Mercados extras (Poisson sobre as médias dos últimos 10): cartões e escanteios. */
+  extras: {
+    cards: { lambda: number; probs: { line: number; over: number }[]; sample: number };
+    corners: { lambda: number; probs: { line: number; over: number }[]; sample: number };
+  };
   probs: { home: number; draw: number; away: number; over05: number; over15: number; over25: number; under25: number; btts: number; homeScore: number; awayScore: number; cleanSheetHome: number; cleanSheetAway: number } | null;
   topScores: { score: string; p: number }[];
   confidence: "alta" | "média" | "baixa";
@@ -97,7 +145,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const rh = teamRates(homeGames), ra = teamRates(awayGames);
   const base: Analysis = {
     status: "dados_insuficientes", model_type: "nenhum", sample: { home: rh.games, away: ra.games, leagueAvg: leagueAvgGoals },
-    lambdaHome: 0, lambdaAway: 0, xg: { home: null, away: null, coverage: 0, fonte: null }, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
+    lambdaHome: 0, lambdaAway: 0, xg: { home: null, away: null, coverage: 0, fonte: null }, extras: { cards: { lambda: 0, probs: [], sample: 0 }, corners: { lambda: 0, probs: [], sample: 0 } }, probs: null, topScores: [], confidence: "baixa", factors: [], h2hAjuste: null,
     rates: { home: rh, away: ra },
     narrative: { resumo: "Análise em processamento. O histórico recente deste confronto ainda está sendo indexado pelo modelo.", mandante: "", visitante: "", decisivos: [], cenarios: [], conclusao: "", alerta: null, mercados: [] },
     updatedAt: new Date().toISOString(),
@@ -196,7 +244,8 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
     lambdaHome: +lh.toFixed(2), lambdaAway: +la.toFixed(2),
     xg: { home: rh.xgF, away: ra.xgF, coverage: Math.min(rh.xgCoverage, ra.xgCoverage), fonte: rh.xgFonte === "api-football" && ra.xgFonte === "api-football" ? "api-football" : rh.xgFonte ?? ra.xgFonte },
     probs: { home: +pH.toFixed(4), draw: +pD.toFixed(4), away: +pA.toFixed(4), over05: +pOver(0.5).toFixed(4), over15: +pOver(1.5).toFixed(4), over25: +pOver(2.5).toFixed(4), under25: +pOver(2.5) <= 1 ? +(1 - pOver(2.5)).toFixed(4) : 0, btts: +btts.toFixed(4), homeScore: +homeScores.toFixed(4), awayScore: +awayScores.toFixed(4), cleanSheetHome: +csHome.toFixed(4), cleanSheetAway: +csAway.toFixed(4) },
-    topScores: top, confidence, factors, rates: { home: rh, away: ra }, narrative, updatedAt: new Date().toISOString(),
+    topScores: top, confidence, factors, rates: { home: rh, away: ra },
+    extras: extrasDosTimes(rh, ra), narrative, updatedAt: new Date().toISOString(),
   };
 }
 

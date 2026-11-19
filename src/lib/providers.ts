@@ -688,6 +688,8 @@ export async function oddsDoJogoComFallback(
         const triple = await afOddsByFixture(achado.id, achado.invertido);
         if (triple && (triple.home != null || triple.away != null)) {
           attempts.push({ provider: "api-football", ok: true });
+          // Cartões/escanteios vêm do mesmo `/odds` (cache reaproveitado).
+          const extra = await afExtraOdds(achado.id);
           return {
             odds: {
               provider: triple.bookmaker || "API-Football",
@@ -698,6 +700,8 @@ export async function oddsDoJogoComFallback(
               ou: espnOdds?.ou ?? null,
               over: espnOdds?.over ?? null,
               under: espnOdds?.under ?? null,
+              cards: extra.cards ?? null,
+              corners: extra.corners ?? null,
             },
             source: "API-Football",
             attempts,
@@ -995,4 +999,57 @@ export async function afTeamStats(
     homeTeamId: String(boxHome?.team?.id ?? ""),
     awayTeamId: String(boxAway?.team?.id ?? ""),
   };
+}
+
+/* ============================================================
+   Odds de CARTÕES e ESCANTEIOS (Over/Under) da API-Football.
+   Reaproveita o mesmo `/odds?fixture=` já cacheado pelo 1X2 — sem gasto extra.
+   ============================================================ */
+export type ExtraOdds = {
+  cards?: { linha: number; over?: number; under?: number };
+  corners?: { linha: number; over?: number; under?: number };
+};
+
+/** Extrai a linha Over/Under mais próxima da linha ideal num mercado de odds. */
+function extrairLinhaOU(entry: any, alvo: RegExp, linhaIdeal: number): { linha: number; over?: number; under?: number } | null {
+  const mapa = new Map<number, { over?: number; under?: number }>();
+  for (const bm of entry?.bookmakers || []) {
+    for (const bet of bm?.bets || []) {
+      if (!alvo.test(String(bet?.name ?? ""))) continue;
+      for (const v of bet?.values || []) {
+        const m = String(v?.value ?? "").match(/^(over|under)\s*([\d.,]+)/i);
+        if (!m) continue;
+        const linha = Number(m[2].replace(",", "."));
+        const odd = Number(String(v?.odd ?? "").replace(",", "."));
+        if (!Number.isFinite(linha) || !Number.isFinite(odd) || odd <= 1) continue;
+        const cur = mapa.get(linha) || {};
+        if (m[1].toLowerCase() === "over") cur.over = cur.over ?? odd;
+        else cur.under = cur.under ?? odd;
+        mapa.set(linha, cur);
+      }
+    }
+  }
+  if (!mapa.size) return null;
+  const linhas = [...mapa.keys()].sort((a, b) => Math.abs(a - linhaIdeal) - Math.abs(b - linhaIdeal));
+  for (const l of linhas) {
+    const cur = mapa.get(l)!;
+    if (cur.over != null || cur.under != null) return { linha: l, ...cur };
+  }
+  return null;
+}
+
+/** Odds de cartões (linha ~3.5) e escanteios (linha ~9.5). Vazio = mercado ausente. */
+export async function afExtraOdds(fixtureId: string | number): Promise<ExtraOdds> {
+  const extra: ExtraOdds = {};
+  try {
+    const d = await afFetch(`/odds?fixture=${encodeURIComponent(String(fixtureId))}`, 600000);
+    for (const entry of (d?.response || []) as any[]) {
+      if (!extra.cards) extra.cards = extrairLinhaOU(entry, /card/i, 3.5) ?? undefined;
+      if (!extra.corners) extra.corners = extrairLinhaOU(entry, /corner/i, 9.5) ?? undefined;
+      if (extra.cards && extra.corners) break;
+    }
+  } catch {
+    /* sem odds extras → segue sem esses mercados */
+  }
+  return extra;
 }

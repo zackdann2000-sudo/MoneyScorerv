@@ -109,7 +109,7 @@ export default async function ForebetPage({
       {jogos.length > 0 && (
         <div className="rounded-2xl border border-line bg-panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] border-collapse min-w-[520px]">
+            <table className="w-full text-[11px] border-collapse min-w-[600px]">
               <thead>
                 <tr className="text-[9px] uppercase text-mut border-b border-line">
                   <th className="text-left font-bold px-2 py-1.5">Hora</th>
@@ -120,6 +120,7 @@ export default async function ForebetPage({
                   <th className="text-center font-bold px-1 py-1.5">Placar</th>
                   <th className="text-center font-bold px-1 py-1.5">Gols</th>
                   <th className="text-center font-bold px-1 py-1.5">+2.5</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Over 3.5 cartões / Over 9.5 escanteios (Poisson, últimos 10)">Cart/Esc</th>
                   <th className="text-center font-bold px-1 py-1.5" title="Valor Esperado · Stake sugerida (Kelly, teto 5%)">EV · Stake</th>
                 </tr>
               </thead>
@@ -132,6 +133,8 @@ export default async function ForebetPage({
                     ? j.oportunidades.reduce((a, b) => (b.valor > a.valor ? b : a))
                     : null;
                   const stake = best ? stakeSugerida(best.probModelo, best.odd) * 100 : 0;
+                  const c35 = j.extras?.cards?.probs.find((p) => p.line === 3.5)?.over;
+                  const k95 = j.extras?.corners?.probs.find((p) => p.line === 9.5)?.over;
                   return (
                     <tr key={j.matchId} className="border-b border-line/50 last:border-0 hover:bg-panel2/50">
                       <td className="px-2 py-1.5 align-top whitespace-nowrap">
@@ -161,6 +164,9 @@ export default async function ForebetPage({
                         )}
                       </td>
                       <td className="text-center px-1 py-1.5 text-acc font-bold tabular-nums">{pct(j.probs.over25)}</td>
+                      <td className="text-center px-1 py-1.5 tabular-nums text-mut whitespace-nowrap" title={`Over 3.5 cartões ${c35 != null ? pct(c35) + "%" : "—"} · Over 9.5 escanteios ${k95 != null ? pct(k95) + "%" : "—"}`}>
+                        {c35 == null && k95 == null ? "—" : `${c35 == null ? "—" : pct(c35)}/${k95 == null ? "—" : pct(k95)}`}
+                      </td>
                       <td className="text-center px-1 py-1.5 whitespace-nowrap">
                         {best ? (
                           <span title={`EV ${best.evPct >= 0 ? "+" : ""}${best.evPct.toFixed(1)}% · Kelly ${stake.toFixed(1)}% da banca (teto 5%)`} className="cursor-help">
