@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2 } from "lucide-react";
+import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2, Clock } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { mensagemAcesso } from "@/lib/accessMessage";
 import { Toggle, Crest } from "@/components/ui";
 
 function urlB64ToUint8(base64: string) {
@@ -114,12 +115,20 @@ export default function Config() {
       </div>
 
       {/* Planos */}
-      <div id="planos" className="relative rounded-2xl overflow-hidden border border-warn/40">
-        <img src="/banner-vip.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
-        <div className="relative p-4 bg-gradient-to-b from-transparent to-bg/80">
-          <p className="font-display font-bold text-xl uppercase">Acesso de 24h</p>
+      <div id="planos" className="rounded-2xl overflow-hidden border border-warn/40 bg-gradient-to-br from-warn/10 via-panel to-panel">
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <span className="w-9 h-9 rounded-xl bg-warn/15 border border-warn/40 text-warn flex items-center justify-center shrink-0">
+              <Clock size={18} />
+            </span>
+            <p className="font-display font-bold text-xl uppercase">Acesso de 24h</p>
+          </div>
           <p className="text-[12px] mt-2 text-ink">Não há assinatura. Toda conta criada com e-mail recebe 24h para ver oportunidades, dicas e estratégias. Depois, essas telas ficam ocultas. Placares, ligas e estatísticas de partida continuam disponíveis.</p>
-          {user && <p className="text-[12px] mt-2 font-bold text-ink">{user.access.label}{user.access.active && !user.isAdmin ? ` · termina em ${user.access.daysLeft} dia(s)` : ""}</p>}
+          {user && (
+            <p className={`text-[12px] mt-2 font-bold ${vip ? "text-acc" : "text-danger"}`}>
+              {mensagemAcesso({ isAdmin: user.isAdmin, accessActive: user.access.active, expiresAt: user.expiresAt })}
+            </p>
+          )}
         </div>
       </div>
 

@@ -29,6 +29,7 @@ SUITES+=(
   "veredito|src/lib/veredito.ts src/lib/formaRecente.ts|src/lib/veredito.test.cjs"
   "mainLeagues|src/lib/mainLeagues.ts|src/lib/mainLeagues.test.cjs"
   "trackStats|src/lib/trackStats.ts|src/lib/trackStats.test.cjs"
+  "accessMessage|src/lib/accessMessage.ts|src/lib/accessMessage.test.cjs"
   "trialCountdown|src/lib/trialCountdown.ts|src/lib/trialCountdown.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
