@@ -14,6 +14,8 @@ import {
 } from "@/lib/providers";
 import { getPlayerPhoto } from "@/lib/theSportsDb";
 import { cached } from "@/lib/cache";
+import { getUser } from "@/lib/auth";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -273,6 +275,17 @@ async function statsDaPartida(
 /* ================= Rota ================= */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+
+  // Gate VIP + rate limit: esta rota gasta cota da API-Football.
+  const user = await getUser().catch(() => null);
+  if (!user || !(user.isAdmin || user.access.active)) {
+    return NextResponse.json({ locked: true, error: "Conteúdo VIP. Entre com uma conta ativa." }, { status: user ? 402 : 403 });
+  }
+  const limite = await rateLimit("stats:ip", clientIp(req), { limit: 20, windowSec: 3600 });
+  if (!limite.ok) {
+    return NextResponse.json({ locked: true, error: "Muitas requisições. Tente novamente mais tarde." }, { status: 429, headers: { "Retry-After": String(limite.retryAfterSec) } });
+  }
+
   const league = req.nextUrl.searchParams.get("league") || "bra.1";
   const side = req.nextUrl.searchParams.get("side") === "away" ? "away" : "home";
 
