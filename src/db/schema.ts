@@ -447,3 +447,17 @@ export const valueBetHistory = pgTable("value_bet_history", {
   index("vbh_status_idx").on(t.status),
   index("vbh_date_idx").on(t.matchDate),
 ]);
+
+/**
+ * Cache de Player Props por time (API-Football), TTL 24h.
+ * O campo `payload` guarda a amostra normalizada dos jogadores (últimos jogos)
+ * para não gastar cota a cada visita à aba.
+ */
+export const playerPropsCache = pgTable("player_props_cache", {
+  teamKey: text("team_key").primaryKey(),
+  teamId: text("team_id").notNull().default(""),
+  teamName: text("team_name").notNull().default(""),
+  sample: integer("sample").notNull().default(0),
+  payload: jsonb("payload").notNull().default({}),
+  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+});

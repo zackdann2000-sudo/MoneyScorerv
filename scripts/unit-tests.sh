@@ -31,6 +31,7 @@ SUITES+=(
   "trackStats|src/lib/trackStats.ts|src/lib/trackStats.test.cjs"
   "accessMessage|src/lib/accessMessage.ts|src/lib/accessMessage.test.cjs"
   "trialCountdown|src/lib/trialCountdown.ts|src/lib/trialCountdown.test.cjs"
+  "playerPropsEngine|src/lib/playerPropsEngine.ts|src/lib/playerPropsEngine.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
 )

@@ -64,6 +64,13 @@
       "when": 1795117158977,
       "tag": "0008_certain_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795128602057,
+      "tag": "0009_dapper_sinister_six",
+      "breakpoints": true
     }
   ]
 }

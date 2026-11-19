@@ -9,6 +9,7 @@ import TipsGate from "@/components/TipsGate";
 import OppTab from "./OppTab";
 import IaTab from "./IaTab";
 import { PreLiveTab, H2HTab, StatsTab, TabelaTab, LiveTab, MoneyTab, FormacoesTab, JogadoresTab } from "./InfoTabs";
+import PropsTab from "./PropsTab";
 
 const TABS = [
   { id: "oportunidades", label: "OPORTUNIDADES" },
@@ -16,6 +17,7 @@ const TABS = [
   { id: "live", label: "LIVE" },
   { id: "h2h", label: "H2H" },
   { id: "jogadores", label: "JOGADORES" },
+  { id: "props", label: "PROPS" },
   { id: "estatisticas", label: "ESTATÍSTICAS" },
 ];
 
@@ -175,6 +177,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
         {tab === "live" && <LiveTab d={d} matchId={id} league={league} />}
         {tab === "h2h" && <H2HTab d={d} league={league} />}
         {tab === "jogadores" && <JogadoresTab matchId={id} league={league} home={m.home} away={m.away} lineups={d.lineups} vip={d.vip} />}
+        {tab === "props" && <PropsTab matchId={id} league={league} home={m.home.name} away={m.away.name} />}
         {tab === "estatisticas" && <StatsTab d={d} matchId={id} league={league} />}
         {tab === "formacoes" && <FormacoesTab d={d} matchId={id} league={league} />}
         {tab === "tabela" && <TabelaTab league={league} homeId={m.home.id} awayId={m.away.id} />}
