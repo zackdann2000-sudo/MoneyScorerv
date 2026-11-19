@@ -56,3 +56,8 @@ yarn-error.log*
 /.dbgx/
 /.chk/
 /.run/
+
+# Binários de recon (apenas recon.md é versionado)
+replica/sports_alert/extracted/
+*.xapk
+*.apk
