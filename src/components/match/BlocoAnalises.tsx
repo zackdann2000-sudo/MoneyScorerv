@@ -15,8 +15,8 @@
  * é travado, o total de gols/cartões é corrigido antes de virar probabilidade —
  * e o card diz que corrigiu. Número ausente na fonte → "sem dados", nunca zero.
  */
-import { useMemo } from "react";
-import { Flag, Footprints, Goal, Info, SquareStack } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Eye, EyeOff, Flag, Footprints, Goal, Info, SquareStack } from "lucide-react";
 import {
   BASE_ULTIMOS,
   blocoAnalises,
@@ -25,6 +25,10 @@ import {
   type MediasTime,
   type MetricaId,
 } from "@/lib/blocoAnalises";
+import { LIMIAR_PROB } from "@/lib/oportunidadeFiltros";
+
+/** Piso de exibição em pontos percentuais (mesma régua do resto do app). */
+const PISO_PCT = LIMIAR_PROB * 100;
 
 const ICONES: Record<MetricaId, typeof Goal> = {
   cartoes: SquareStack,
@@ -42,9 +46,12 @@ const CORES: Record<MetricaId, string> = {
 
 const num = (v: number | null, casas = 1) => (v == null ? "—" : v.toFixed(casas));
 
-function Card({ item }: { item: AnaliseBloco }) {
+function Card({ item, ocultarProb }: { item: AnaliseBloco; ocultarProb: boolean }) {
   const Icone = ICONES[item.id];
   const cor = CORES[item.id];
+  /* Abaixo do piso: some o número e a barra. A média e o total esperado ficam,
+     porque são dados descritivos, não probabilidade de aposta. */
+  const escondido = ocultarProb && item.prob != null && item.prob < PISO_PCT;
 
   return (
     <div className="rounded-xl border border-line bg-panel p-2 space-y-1">
@@ -84,15 +91,27 @@ function Card({ item }: { item: AnaliseBloco }) {
           ) : (
             <div className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-bold text-ink tabular-nums">Over {num(item.linha)}</span>
-              <span className={`text-[10px] font-extrabold tabular-nums ${cor}`}>
-                {item.prob == null ? "—" : `${Math.round(item.prob)}%`}
-              </span>
+              {escondido ? (
+                <span
+                  className="text-[9px] font-bold text-mut/80 leading-none shrink-0"
+                  title="Probabilidade abaixo do limite do app (70%) — use &quot;Mostrar < 70%&quot; para ver"
+                >
+                  abaixo de {PISO_PCT}%
+                </span>
+              ) : (
+                <span className={`text-[10px] font-extrabold tabular-nums ${cor}`}>
+                  {item.prob == null ? "—" : `${Math.round(item.prob)}%`}
+                </span>
+              )}
             </div>
           )}
 
           <div className="min-w-0">
             <div className="h-1 rounded-full bg-line overflow-hidden">
-              <div className={`h-full ${cor.replace("text-", "bg-")}`} style={{ width: `${item.prob ?? 0}%` }} />
+              <div
+                className={`h-full ${escondido ? "bg-line" : cor.replace("text-", "bg-")}`}
+                style={{ width: `${escondido ? 0 : (item.prob ?? 0)}%` }}
+              />
             </div>
           </div>
 
@@ -132,6 +151,10 @@ export default function BlocoAnalises({
 }) {
   const itens = useMemo(() => blocoAnalises(casa, fora, h2h), [casa, fora, h2h]);
   const comDados = itens.filter((i) => !i.semDados).length;
+  /* Piso de 70% também aqui: probabilidade abaixo do limite só aparece se o
+     usuário pedir. O botão vive no cartão do bloco, junto de onde o dado some. */
+  const [mostrarAbaixo, setMostrarAbaixo] = useState(false);
+  const ocultos = itens.filter((i) => i.prob != null && i.prob < PISO_PCT).length;
 
   return (
     <section className="rounded-2xl border border-line bg-panel/40 p-2.5 space-y-2">
@@ -155,9 +178,24 @@ export default function BlocoAnalises({
         </p>
       )}
 
+      {ocultos > 0 && (
+        <button
+          type="button"
+          onClick={() => setMostrarAbaixo((v) => !v)}
+          aria-pressed={mostrarAbaixo}
+          title="Mostra as probabilidades abaixo de 70% (cartões, faltas, gols, impedimentos)"
+          className={`inline-flex items-center gap-1 h-6 rounded-full border px-2 text-[9px] font-extrabold ${
+            mostrarAbaixo ? "border-acc text-acc bg-acc/10" : "border-line text-mut bg-panel2"
+          }`}
+        >
+          {mostrarAbaixo ? <Eye size={10} /> : <EyeOff size={10} />}
+          {mostrarAbaixo ? "Ocultar < 70%" : `Mostrar < 70% (${ocultos})`}
+        </button>
+      )}
+
       <div className="grid grid-cols-2 gap-1.5">
         {itens.map((item) => (
-          <Card key={item.id} item={item} />
+          <Card key={item.id} item={item} ocultarProb={!mostrarAbaixo} />
         ))}
       </div>
 
@@ -166,8 +204,8 @@ export default function BlocoAnalises({
         <span>
           Médias dos últimos {BASE_ULTIMOS} jogos, com peso maior nos 3 mais recentes (1.5 / 1.0 / 0.5).
           <strong className="text-ink/80"> Over</strong> é a probabilidade de passar a linha logo abaixo do
-          total esperado (Poisson), já corrigida pelo H2H quando há 3+ confrontos. Não é odd nem promessa
-          de acerto.
+          total esperado (Poisson), já corrigida pelo H2H quando há 3+ confrontos. Probabilidade abaixo de 70%
+          fica oculta por padrão. Não é odd nem promessa de acerto.
         </span>
       </p>
     </section>
