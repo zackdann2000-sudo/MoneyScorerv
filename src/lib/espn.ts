@@ -33,6 +33,32 @@ export const todayYmd = () => ymd(new Date());
 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 
+/* ESPN tem dois hosts com o mesmo formato. O `site.api` costuma devolver 403
+   (Akamai) para IPs que fazem muitas chamadas seguidas — o `site.web` segue
+   respondendo. Guardamos o último host que funcionou. */
+const HOSTS = ["site.api.espn.com", "site.web.api.espn.com"];
+let hostOk = 0;
+
+export async function espnGet(path: string, ttlMs: number, cacheKey?: string): Promise<any> {
+  const ordem = [hostOk, ...[0, 1].filter((i) => i !== hostOk)];
+  let ultimo: unknown = null;
+  for (const i of ordem) {
+    try {
+      const data = await fetchJson(
+        `https://${HOSTS[i]}/apis/site/v2/sports/soccer${path}`,
+        {},
+        ttlMs,
+        cacheKey ? `${cacheKey}@h${i}` : undefined,
+      );
+      hostOk = i;
+      return data;
+    } catch (e) {
+      ultimo = e;
+    }
+  }
+  throw ultimo instanceof Error ? ultimo : new Error("ESPN indisponível");
+}
+
 export type Side = { id: string; name: string; short: string; logo: string; score: number | null; winner?: boolean; form?: string; color?: string };
 export type Match = {
   id: string; league: string; leagueName: string; country: string; flag: string;
@@ -84,16 +110,38 @@ export function normEvent(ev: any, league: string): Match {
 }
 
 export async function getScoreboard(league: string, dateYmd: string): Promise<Match[]> {
-  try {
-    const data = await fetchJson(`${BASE}/${league}/scoreboard?dates=${dateYmd}`, {}, 45000);
-    return (data?.events || []).map((e: any) => normEvent(e, league));
-  } catch { return []; }
+  /* ESPN (Akamai) bloqueia rajadas: 24 ligas em paralelo começam a devolver 403.
+     `espnGet` alterna de host; aqui só reforçamos com uma segunda tentativa. */
+  const key = `sb:${league}:${dateYmd}`;
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    try {
+      const data = await espnGet(`/${league}/scoreboard?dates=${dateYmd}`, 45000, tentativa === 0 ? key : `${key}:r`);
+      return (data?.events || []).map((e: any) => normEvent(e, league));
+    } catch {
+      if (tentativa === 1) return [];
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  return [];
 }
 
 export async function getAllMatches(dateYmd: string, codes?: string[]): Promise<Match[]> {
   const list = codes?.length ? LEAGUES.filter((l) => codes.includes(l.code)) : LEAGUES;
-  const all = await Promise.all(list.map((l) => getScoreboard(l.code, dateYmd)));
-  return all.flat().sort((a, b) => leagueInfo(a.league).priority - leagueInfo(b.league).priority || a.date.localeCompare(b.date));
+  /* Concorrência baixa (2) + espaçamento: rajadas de ~24 requests simultâneas
+     fazem o Akamai do ESPN devolver 403 para o IP inteiro. Sequencial demora
+     ~8s, mas o resultado fica em cache por 45s. */
+  const saida: Match[][] = new Array(list.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(2, list.length) }, async () => {
+    while (cursor < list.length) {
+      const i = cursor++;
+      saida[i] = await getScoreboard(list[i].code, dateYmd);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  });
+  await Promise.all(workers);
+  const all = saida.flat();
+  return all.sort((a, b) => leagueInfo(a.league).priority - leagueInfo(b.league).priority || a.date.localeCompare(b.date));
 }
 
 export function matchFromSummary(sm: any, league: string, id: string): Match {
@@ -103,7 +151,7 @@ export function matchFromSummary(sm: any, league: string, id: string): Match {
 
 export async function getSummaryRaw(league: string, id: string, state = "pre") {
   const ttl = state === "in" ? 30000 : state === "post" ? 3600000 : 300000;
-  return fetchJson(`${BASE}/${league}/summary?event=${id}`, {}, ttl);
+  return espnGet(`/${league}/summary?event=${id}`, ttl);
 }
 
 const STAT_LABELS: Record<string, string> = {
@@ -262,13 +310,13 @@ export async function getStandingsComFonte(league: string) {
 
 export async function getLeaders(league: string) {
   try {
-    const data = await fetchJson(`${BASE}/${league}/statistics`, {}, 1800000);
+    const data = await espnGet(`/${league}/statistics`, 1800000);
     return { season: data?.season?.displayName || data?.season?.year || "", stats: data?.stats || [] };
   } catch { return { season: "", stats: [] }; }
 }
 
 export async function getTeamInfo(league: string, teamId: string) {
-  const data = await fetchJson(`${BASE}/${league}/teams/${teamId}`, {}, 1800000);
+  const data = await espnGet(`/${league}/teams/${teamId}`, 1800000);
   const t = data?.team || {};
   return {
     id: String(t.id), name: t.displayName, short: t.shortDisplayName, logo: t.logos?.[0]?.href || "", color: t.color || "23e57b",
@@ -278,9 +326,9 @@ export async function getTeamInfo(league: string, teamId: string) {
 }
 
 export async function getSchedule(league: string, teamId: string, season?: number): Promise<{ season: number | null; events: Match[] }> {
-  const url = `${BASE}/${league}/teams/${teamId}/schedule${season ? `?season=${season}` : ""}`;
+  const url = `/${league}/teams/${teamId}/schedule${season ? `?season=${season}` : ""}`;
   try {
-    const data = await fetchJson(url, {}, 1800000);
+    const data = await espnGet(url, 1800000);
     return { season: data?.season?.year || null, events: (data?.events || []).map((e: any) => normEvent(e, league)) };
   } catch { return { season: null, events: [] as Match[] }; }
 }

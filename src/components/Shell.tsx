@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit } from "lucide-react";
+import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit, TrendingUp } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
@@ -25,6 +25,7 @@ const DRAWER_NAV = [
 
 const DRAWER_ANALYSIS = [
   { href: "/palpites-ia", label: "Palpites IA", icon: Sparkles },
+  { href: "/edge", label: "Edge (picks + radar)", icon: TrendingUp },
   { href: "/forebet", label: "Forebet (tabela)", icon: Trophy },
   { href: "/supertips/palpites", label: "SuperTips IA", icon: Sparkles },
   { href: "/money-tips", label: "Money Tips", icon: Gem },

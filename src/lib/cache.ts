@@ -29,7 +29,17 @@ export async function fetchJson(url: string, opts: RequestInit = {}, ttlMs = 450
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const res = await fetch(url, { ...opts, signal: ctrl.signal, headers: { Accept: "application/json", ...(opts.headers || {}) } });
+      const res = await fetch(url, {
+        ...opts,
+        signal: ctrl.signal,
+        headers: {
+          Accept: "application/json",
+          // ESPN (Akamai) devolve 403 sem UA de navegador em /scoreboard?dates=.
+          "User-Agent":
+            "Mozilla/5.0 (Linux; Android 14; SM-A155M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
+          ...(opts.headers || {}),
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status} em ${new URL(url).host}${new URL(url).pathname}`);
       return await res.json();
     } finally {

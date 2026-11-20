@@ -1,0 +1,31 @@
+feature,area,priority,original,clone,notes
+Jogos do dia com trilha de datas,navegação,must,yes,no,lista por dia com estado ao vivo/final
+Filtro por estado (todos/ao vivo/final),navegação,must,yes,no,já existe no /ao-vivo
+Torneios agrupados por competição com sinais,jogos,should,yes,no,reaproveita lista por liga
+Picks da IA do dia,análise,must,yes,no,oportunidades do modelo com EV
+Histórico de palpites green/red congelado,análise,must,yes,no,track record já implementado
+Radar de divergências de odds,jogos,must,yes,no,odd de mercado vs referência
+Central de linhas por jogador,props,must,yes,no,player props já implementado
+Desajuste de linha de passes,props,should,yes,no,variante da central de linhas
+Duelos de jogador por faltas/desarmes,props,could,yes,no,precisa stats por par
+Confronto direto jogador × jogador,análise,must,yes,no,calculadora fair odds
+Recorte L20 com linha configurável,análise,should,yes,no,janela e linha do cálculo
+Análise do jogo com probabilidades por mercado,análise,must,yes,no,BlocoAnalises existente
+Árbitros por competição,análise,could,yes,no,sem feed de árbitro no MVP
+Tendências (jogador/time/partida),análise,could,yes,no,depende de série histórica
+Estatísticas/radar de mercado,análise,should,yes,no,ranking por força e horário
+Scout de jogos com busca em linguagem natural,análise,could,yes,no,quota 1/dia no free
+Comparação de dois times,times,should,yes,no,médias de 10 jogos
+Índice de times,times,could,yes,no,precisa listagem
+Monte sua múltipla (Pro),aposta,must,yes,no,escolhe casa e odd e monta bilhete
+Super Odds / boosts,aposta,could,yes,no,depende de feed de odds promocionais
+Correlações entre mercados,análise,could,yes,no,matriz de correlação
+Análise combinada,análise,could,yes,no,combina mercados do mesmo jogo
+Ranking de desempenho,gamificação,could,yes,no,leaderboard entre usuários
+Planos Free/Premium/Pro com paywall,monetização,must,yes,no,já temos trial + vip
+Gate por plano com CTA de upgrade,monetização,must,yes,no,GateVip/PropsTab
+Login e criação de conta,auth,must,yes,no,já existe
+Busca global de times e jogadores,navegação,should,yes,no,precisa índice de busca
+Suporte por Telegram bot com ticket,support,skip,yes,no,usar e-mail no MVP
+App Android nativo,plataforma,skip,yes,no,MVP web responsivo
+Multi-esporte (NBA/NFL/MLB/NHL/tênis/e-sports),escopo,skip,yes,no,só futebol no MVP
