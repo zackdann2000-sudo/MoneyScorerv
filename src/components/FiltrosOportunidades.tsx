@@ -4,7 +4,7 @@
  * Filtros de oportunidade compartilhados (Apitou, Edge, Forebet).
  *
  * Duas coisas sempre juntas:
- *   1. piso de 70% — por padrão o lixo fica oculto;
+ *   1. piso de 75% — por padrão o lixo fica oculto;
  *   2. chips da nata (Elite / Alto EV / Favoritos / Bombas).
  * A matemática fica em `src/lib/oportunidadeFiltros.ts`; aqui só há estado de UI.
  */
@@ -77,7 +77,7 @@ export default function FiltrosOportunidades({
         <button
           onClick={() => onToggleAbaixo(!mostrarAbaixoDe70)}
           aria-pressed={mostrarAbaixoDe70}
-          title="Por padrão escondemos tudo abaixo de 70% de probabilidade do modelo"
+          title="Por padrão escondemos tudo abaixo de 75% de probabilidade do modelo"
           className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-extrabold transition-colors ${
             mostrarAbaixoDe70
               ? "border-warn/60 bg-warn/15 text-warn"

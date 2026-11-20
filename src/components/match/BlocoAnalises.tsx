@@ -88,32 +88,30 @@ function Card({ item, ocultarProb }: { item: AnaliseBloco; ocultarProb: boolean 
 
           {item.linha == null ? (
             <p className="text-[9px] text-mut leading-none">Sem linha (média zerada)</p>
+          ) : escondido ? (
+            /* Abaixo de 75%: some o número E a barra. Ficam só os dados brutos
+               (total esperado, médias e xG) — nada de probabilidade esmaecida. */
+            <p
+              className="text-[9px] font-bold text-mut/80 leading-none"
+              title='Probabilidade abaixo do limite do app (75%) — use "Mostrar < 75%" para ver'
+            >
+              abaixo de {PISO_PCT}%
+            </p>
           ) : (
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold text-ink tabular-nums">Over {num(item.linha)}</span>
-              {escondido ? (
-                <span
-                  className="text-[9px] font-bold text-mut/80 leading-none shrink-0"
-                  title="Probabilidade abaixo do limite do app (70%) — use &quot;Mostrar < 70%&quot; para ver"
-                >
-                  abaixo de {PISO_PCT}%
-                </span>
-              ) : (
+            <>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold text-ink tabular-nums">Over {num(item.linha)}</span>
                 <span className={`text-[10px] font-extrabold tabular-nums ${cor}`}>
                   {item.prob == null ? "—" : `${Math.round(item.prob)}%`}
                 </span>
-              )}
-            </div>
+              </div>
+              <div className="min-w-0">
+                <div className="h-1 rounded-full bg-line overflow-hidden">
+                  <div className={`h-full ${cor.replace("text-", "bg-")}`} style={{ width: `${item.prob ?? 0}%` }} />
+                </div>
+              </div>
+            </>
           )}
-
-          <div className="min-w-0">
-            <div className="h-1 rounded-full bg-line overflow-hidden">
-              <div
-                className={`h-full ${escondido ? "bg-line" : cor.replace("text-", "bg-")}`}
-                style={{ width: `${escondido ? 0 : (item.prob ?? 0)}%` }}
-              />
-            </div>
-          </div>
 
           <div className="flex items-center justify-between text-[9px] text-mut tabular-nums">
             <span className="truncate">
@@ -151,7 +149,7 @@ export default function BlocoAnalises({
 }) {
   const itens = useMemo(() => blocoAnalises(casa, fora, h2h), [casa, fora, h2h]);
   const comDados = itens.filter((i) => !i.semDados).length;
-  /* Piso de 70% também aqui: probabilidade abaixo do limite só aparece se o
+  /* Piso de 75% também aqui: probabilidade abaixo do limite só aparece se o
      usuário pedir. O botão vive no cartão do bloco, junto de onde o dado some. */
   const [mostrarAbaixo, setMostrarAbaixo] = useState(false);
   const ocultos = itens.filter((i) => i.prob != null && i.prob < PISO_PCT).length;
@@ -183,13 +181,13 @@ export default function BlocoAnalises({
           type="button"
           onClick={() => setMostrarAbaixo((v) => !v)}
           aria-pressed={mostrarAbaixo}
-          title="Mostra as probabilidades abaixo de 70% (cartões, faltas, gols, impedimentos)"
+          title="Mostra as probabilidades abaixo de 75% (cartões, faltas, gols, impedimentos)"
           className={`inline-flex items-center gap-1 h-6 rounded-full border px-2 text-[9px] font-extrabold ${
             mostrarAbaixo ? "border-acc text-acc bg-acc/10" : "border-line text-mut bg-panel2"
           }`}
         >
           {mostrarAbaixo ? <Eye size={10} /> : <EyeOff size={10} />}
-          {mostrarAbaixo ? "Ocultar < 70%" : `Mostrar < 70% (${ocultos})`}
+          {mostrarAbaixo ? "Ocultar < 75%" : `Mostrar < 75% (${ocultos})`}
         </button>
       )}
 
@@ -204,7 +202,7 @@ export default function BlocoAnalises({
         <span>
           Médias dos últimos {BASE_ULTIMOS} jogos, com peso maior nos 3 mais recentes (1.5 / 1.0 / 0.5).
           <strong className="text-ink/80"> Over</strong> é a probabilidade de passar a linha logo abaixo do
-          total esperado (Poisson), já corrigida pelo H2H quando há 3+ confrontos. Probabilidade abaixo de 70%
+          total esperado (Poisson), já corrigida pelo H2H quando há 3+ confrontos. Probabilidade abaixo de 75%
           fica oculta por padrão. Não é odd nem promessa de acerto.
         </span>
       </p>

@@ -27,7 +27,7 @@ function categoria(mercado: string): Categoria {
 
 export default function OportunidadesLista({ oportunidades }: { oportunidades: OportunidadeValor[] }) {
   const [filtro, setFiltro] = useState<Filtro>("tudo");
-  // Piso de 70% + chips da nata antes do filtro de mercado.
+  // Piso de 75% + chips da nata antes do filtro de mercado.
   const { filtradas, ocultasPeloPiso, contagem, mostrarAbaixoDe70, setMostrarAbaixoDe70, chips, toggleChip } =
     useFiltroOportunidades(oportunidades);
 
@@ -48,7 +48,7 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
     <section className="rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/10 via-panel to-panel p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Oportunidades de valor</h2>
-        <span className="text-[9px] text-mut shrink-0">modelo ≥ 70% · odd 1.45–2.50</span>
+        <span className="text-[9px] text-mut shrink-0">modelo ≥ 75% · odd 1.45–2.50</span>
       </div>
 
       <FiltrosOportunidades
@@ -80,8 +80,8 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
       {lista.length === 0 ? (
         <p className="text-[10px] text-mut py-2">
           {oportunidades.length > 0 && filtradas.length === 0
-            ? `${oportunidades.length} oportunidade(s) ficaram abaixo de 70% ou fora dos chips. Use "Mostrar < 70%" para ver.`
-            : "Nenhuma oportunidade nesta categoria hoje."}
+            ? `${oportunidades.length} linha(s) ficaram abaixo de 75% ou fora dos chips. Nenhuma oportunidade de elite (75%+) encontrada para este dia/filtro. Use 'Mostrar abaixo de 75%' para ver as linhas de valor.`
+            : "Nenhuma oportunidade de elite (75%+) encontrada para este dia/filtro. Use 'Mostrar abaixo de 75%' para ver as linhas de valor."}
         </p>
       ) : (
         <ul className="space-y-1.5">

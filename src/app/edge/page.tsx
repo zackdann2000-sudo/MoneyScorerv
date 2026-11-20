@@ -70,7 +70,7 @@ export default async function EdgePage({
 }) {
   const sp = await searchParams;
   const aba: Aba = sp.aba === "radar" ? "radar" : sp.aba === "historico" ? "historico" : "picks";
-  /* Piso de 70% + chips vivem na URL (tela é server component). */
+  /* Piso de 75% + chips vivem na URL (tela é server component). */
   const mostrarAbaixoDe70 = sp.min === "1";
   const chipsAtivos = (sp.chip || "")
     .split(",")
@@ -95,7 +95,7 @@ export default async function EdgePage({
   // Copia própria antes de anotar (não sujar o objeto em cache).
   await anotarAcertosRecentes(todas).catch(() => {});
 
-  /* Piso de 70% + chips: a lista publicada é a filtrada, mas os contadores
+  /* Piso de 75% + chips: a lista publicada é a filtrada, mas os contadores
      usam `todas` para o usuário ver quanto ficou de fora e por quê. */
   const oportunidades = filtrarOportunidades(todas, {
     mostrarAbaixoDe70,
@@ -191,10 +191,10 @@ export default async function EdgePage({
 
           {oportunidades.length === 0 && (
             <Vazio
-              titulo={todas.length > 0 ? "Tudo filtrado" : "Sem pick com valor agora"}
+              titulo={todas.length > 0 ? "Nenhuma oportunidade de elite (75%+)" : "Sem pick com valor agora"}
               texto={
                 todas.length > 0
-                  ? `${todas.length} pick(s) ficaram abaixo de 70% de probabilidade ou fora dos chips escolhidos. Use "Mostrar < 70%" para ver todos.`
+                  ? `${todas.length} pick(s) ficaram abaixo de 75% de probabilidade ou fora dos chips escolhidos. Nenhuma oportunidade de elite (75%+) encontrada para este dia/filtro. Use 'Mostrar abaixo de 75%' para ver as linhas de valor.`
                   : "O modelo só publica quando a probabilidade dele passa da odd do mercado. Volte mais perto do horário dos jogos."
               }
             />

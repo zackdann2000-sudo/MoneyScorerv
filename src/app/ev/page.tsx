@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import TipsGate from "@/components/TipsGate";
 import SeloFrescor from "@/components/SeloFrescor";
+import { Eye, EyeOff } from "lucide-react";
+import { LIMIAR_PROB } from "@/lib/oportunidadeFiltros";
 import { toYmd } from "@/components/DateStrip";
 
 export default function EvPage() {
@@ -20,6 +22,9 @@ function EvInner() {
   /* Relógio do cliente: só é marcado quando os dados chegam (nunca no SSR),
      então o selo de idade não gera divergência de hidratação. */
   const [agora, setAgora] = useState(0);
+  /* Piso de elite (75%) também aqui: por padrão só aparece linha cuja
+     probabilidade do MODELO passa do limite. O toggle mostra o resto. */
+  const [mostrarAbaixo, setMostrarAbaixo] = useState(false);
 
   useEffect(() => {
     const dates = [0, 1].map((n) => {
@@ -47,13 +52,31 @@ function EvInner() {
       });
   }, []);
 
-  const valued = (rows || []).filter((r) => r.oportunidade?.ev != null && r.oportunidade.ev > 0 && !r.oportunidade.amostraPequena);
+  const valorEv = (rows || []).filter((r) => r.oportunidade?.ev != null && r.oportunidade.ev > 0 && !r.oportunidade.amostraPequena);
+  /* prob do modelo, não do mercado */
+  const passouPiso = (r: any) => Number(r.oportunidade?.probModelo ?? 0) >= LIMIAR_PROB;
+  const valued = valorEv.filter((r) => mostrarAbaixo || passouPiso(r));
+  const abaixoDoPiso = valorEv.filter((r) => !passouPiso(r)).length;
   const blocked = (rows || []).filter((r) => !valued.includes(r));
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl uppercase">Oportunidades +EV</h1>
-      <p className="text-[12px] text-mut mt-1">Só entra linha com odd de mercado publicada, amostra de 10 jogos e EV positivo. Fonte: ESPN.</p>
+      <p className="text-[12px] text-mut mt-1">Só entra linha com odd de mercado publicada, amostra de 10 jogos, EV positivo e probabilidade do modelo ≥ 75%. Fonte: ESPN.</p>
+      {valorEv.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setMostrarAbaixo((v) => !v)}
+          aria-pressed={mostrarAbaixo}
+          title="Por padrão escondemos tudo abaixo de 75% de probabilidade do modelo"
+          className={`mt-2 inline-flex items-center gap-1 h-6 rounded-full border px-2 text-[9px] font-extrabold ${
+            mostrarAbaixo ? "border-warn/60 bg-warn/15 text-warn" : "border-line bg-panel text-mut"
+          }`}
+        >
+          {mostrarAbaixo ? <Eye size={10} /> : <EyeOff size={10} />}
+          Mostrar abaixo de 75%{abaixoDoPiso > 0 ? ` (${abaixoDoPiso})` : ""}
+        </button>
+      )}
       {at && (
         <div className="mt-1.5">
           <SeloFrescor
@@ -66,8 +89,12 @@ function EvInner() {
       {err && <p className="text-sm text-danger mt-3">{err}</p>}
       {rows && valued.length === 0 && (
         <div className="mt-4 rounded-lg border border-dashed border-line p-6 text-center">
-          <p className="font-bold">Nenhuma oportunidade com valor agora</p>
-          <p className="text-sm text-mut mt-1">A ESPN não publicou odd do mercado calculado, ou a amostra tem menos de 10 jogos, ou o EV não é positivo. Não completamos a lista com número estimado.</p>
+          <p className="font-bold">Nenhuma oportunidade de elite (75%+) encontrada para este dia/filtro</p>
+          <p className="text-sm text-mut mt-1">
+            Use &apos;Mostrar abaixo de 75%&apos; para ver as linhas de valor. A ESPN também pode não ter
+            publicado odd do mercado calculado, ou a amostra ter menos de 10 jogos, ou o EV não ser positivo —
+            não completamos a lista com número estimado.
+          </p>
         </div>
       )}
       <div className="mt-3 space-y-2">

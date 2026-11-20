@@ -39,17 +39,19 @@ ok(
 ok("trust null = 0", perto(F.calcularScoreFinal({ probModelo: 0.8, evPct: 10, trust: null, odd: 1.5 }), 43), F.calcularScoreFinal({ probModelo: 0.8, evPct: 10, trust: null, odd: 1.5 }));
 ok("score nunca passa de 100", F.calcularScoreFinal({ probModelo: 1, evPct: 40, trust: 10, odd: 1.2 }) <= 100);
 
-// ---------- Piso de 70% ----------
+// ---------- Piso de 75% ----------
 const lista = [
   { probModelo: 0.82, evPct: 18, trust: 8, odd: 1.55 },
-  { probModelo: 0.7, evPct: 6, trust: 6, odd: 2.6 },
+  { probModelo: 0.75, evPct: 6, trust: 6, odd: 2.6 },
   { probModelo: 0.54, evPct: 22, trust: 7, odd: 2.9 },
   { probModelo: 0.66, evPct: 3, trust: 4, odd: 1.4 },
 ];
-ok("piso oculta < 70%", F.filtrarOportunidades(lista).length === 2, F.filtrarOportunidades(lista).length);
+ok("piso oculta < 75%", F.filtrarOportunidades(lista).length === 2, F.filtrarOportunidades(lista).length);
 ok("mostrar tudo", F.filtrarOportunidades(lista, { mostrarAbaixoDe70: true }).length === 4);
 ok("contagem de ocultas", F.contarOcultasPeloPiso(lista) === 2, F.contarOcultasPeloPiso(lista));
-ok("limite exato 70% passa", F.passaPiso({ probModelo: 0.7, evPct: 0, trust: 0, odd: 2 }, false) === true);
+ok("limite exato 75% passa", F.passaPiso({ probModelo: 0.75, evPct: 0, trust: 0, odd: 2 }, false) === true);
+ok("74,9% é barrado", F.passaPiso({ probModelo: 0.749, evPct: 0, trust: 0, odd: 2 }, false) === false);
+ok("piso exposto = 0.75", F.LIMIAR_PROB === 0.75, F.LIMIAR_PROB);
 
 // ---------- Chips ----------
 ok("chip elite", F.passaChip({ probModelo: 0.9, evPct: 25, trust: 10, odd: 1.5 }, "elite") === true);

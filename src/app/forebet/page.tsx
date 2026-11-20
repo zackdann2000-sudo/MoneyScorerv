@@ -99,7 +99,7 @@ export default async function ForebetPage({
     stats = null;
   }
 
-  /* Piso de 70% + chips (a tabela é renderizada no servidor, então vem da URL).
+  /* Piso de 75% + chips (a tabela é renderizada no servidor, então vem da URL).
      As linhas filtradas são o que a tabela mostra; os contadores usam `jogos`. */
   const linhas = jogos.filter((j) => {
     const prob = probDaLinha(j);
@@ -179,8 +179,9 @@ export default async function ForebetPage({
 
       {jogos.length > 0 && linhas.length === 0 && !erro && (
         <p className="text-[11px] text-mut text-center py-6 bg-panel border border-dashed border-line rounded-xl">
-          {jogos.length} jogo(s) nesta data ficaram abaixo de 70% ou fora dos chips. Use
-          &quot;Mostrar &lt; 70%&quot; para ver a tabela completa.
+          {jogos.length} jogo(s) nesta data ficaram abaixo de 75% ou fora dos chips. Nenhuma
+          oportunidade de elite (75%+) encontrada para este dia/filtro. Use &apos;Mostrar abaixo de
+          75%&apos; para ver as linhas de valor.
         </p>
       )}
 

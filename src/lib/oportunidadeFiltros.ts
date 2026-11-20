@@ -1,12 +1,12 @@
 /**
- * Filtros de oportunidade: piso de 70%, Score Composto e chips de "nata".
+ * Filtros de oportunidade: piso de 75%, Score Composto e chips de "nata".
  *
  * Módulo puro (sem React, sem I/O) para poder ser testado isolado. Toda a
  * matemática de corte vive aqui; as telas só escolhem quais chips estão ativos.
  */
 
 /** Abaixo disso a linha é ruído: fica oculta por padrão em todas as telas. */
-export const LIMIAR_PROB = 0.7;
+export const LIMIAR_PROB = 0.75;
 
 /* Pesos do Score Composto, exatamente como especificado:
  *   score = probModelo(%) × 0,5 + EV(%) × 0,3 + TRUST × 2,0
