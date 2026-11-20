@@ -1,0 +1,24 @@
+#id,modulo,funcao,detalhe,status_money,prioridade,nota
+1,ao-vivo,Grafico de pressao por jogo,Serie continua das duas pressoes em tempo real (varias densidades de layout),TEMOS (MomentumChart),alta,padrao-largo-compacto-foco renderiza o mesmo dado em 5 tamanhos
+2,ao-vivo,Pressao ultimos 10 min,Coluna com a soma da pressao na janela curta,TEMOS (JANELA_SINAL=10),alta,igual ao nosso sinal FIRE/BALL
+3,ao-vivo,Pressao total do jogo,Soma acumulada desde o inicio,TEMOS (seriePressao com buckets),media,
+4,ao-vivo,Odds 1X2 pre e ao vivo lado a lado,Colunas no fim da linha PAUSA (escolher provedor),media,coincide com a nossa cascata de odds
+5,ao-vivo,Filtros rapidos por estatistica,>65% posse; >15 chutes no gol; >15 escanteios; time com 4+ gols; cartao vermelho; 2+ vermelhos,PARCIAL (filtros por texto),alta,filtros salvos + alerta = o killer
+6,ao-vivo,Salvar filtros e alerta por push,Notifica quando um jogo ao vivo casa com os criterios salvos,PARCIAL (alerts segmentados),alta,encaixa no nosso FCM (value alerts)
+7,pré-jogo,Rankings de equipes por métrica,+2.5 gratis; 20+ metricas PRO; coluna acertos/total; filtro minimo de jogos 7+,TEMOS (Detector? nao),alta,RANKINGS e a feature mais solicitada do nosso recesso
+8,pré-jogo,Estatisticas de jogos (upcoming),Proximos jogos ordenados por probabilidade casa/fora/combinada,TEMOS (Forebet 1x2),alta,ordena por prob - ex.: Basel x Vaduz 95.9%
+9,pré-jogo,Medias de jogo,Gols mar/sor/total por equipe casa-fora-combinado; escanteios/cartoes/xG/posse PRO,TEMOS (media em PreLive),media,colunas identicas ao nosso bloqueio de 4 analises
+10,pré-jogo,Tabelas de apostas,Tabela da liga refeita: +1.5..+3.5, -1.5..-3.5, BTTS, SSG, SM; vista casa/fora; Padrao/Avancado/xG,PARCIAL (tabelas simples),alta,BTTS por equipe + SSG/SM e o ganho aqui
+11,pré-jogo,AI Reports 6 mercados,1X2,+2.5,-2.5,+9.5 esc, +4.5 cartoes, +1.5 1T — 1 gratis/dia, com justificativa,TEMOS (Veredito+palpites),alta,mercado de cartoes/escanteios jah existe; 1 gratis/dia = gating anti-quota
+12,pré-jogo,Filtro por periodo (5 jogos..temporada),Seletor temporal nas metricas,TEMOS (forma recente 10),media,
+13,pré-jogo,Exclusao de ligas (juniores/feminino/selecoes),Checklist de exclusao na busca,PARCIAL,baixa,
+14,pré-jogo,Glossario,Tabela explicando cada metrica,NAO TEMOS,media,barato de fazer
+15,produto,7 idiomas,Bem comum alem de pt/en,TEMOS (so pt),baixa,
+16,produto,Afiliado no registo,Conta em casa parceira + deposito 100€ = acesso,NAO TEMOS,media,modelo de receita deles
+17,produto,Assinatura 19€/mes 49€/3meses,Precos publicos atuais,REFERENCIA (nossos planos),baixa,tudo incluso, sem tiers
+18,produto,SEO de estrategia,3 artigos por idioma sobre estrategias de aposta,NAO TEMOS,baixa,
+19,produto,App iOS+Android,PWA da web (mesmo Next.js em 7 idiomas),PARCIAL (nosso PWA),baixa,500k downloads
+20,ao-vivo,Layout de jogo em linha unica por partida,Linha com mini-grafico de pressao + minutos,NAO OBSERVADO (client-side),alta,precisa de screenshots do app instalado
+21,ao-vivo,Detalhe de jogo ao vivo (tela interna),Visao completa do jogo com estatisticas ao vivo e pression total,NAO OBSERVADO (client-side),alta,precisa de screenshots
+22,pré-jogo,Calculo da pressao (pesos por lance),Formula real dos pesos,NAO OBSERVADO (client-side),alta,implementacao propria e regra do projeto
+23,pré-jogo,AI Report - amanha,Palpites com um dia de antecedencia,TEMOS (previsoes futuras),media,
