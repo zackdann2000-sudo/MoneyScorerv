@@ -13,6 +13,7 @@ import {
 import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
+import { FaixaTag, OddJustaLinha } from "@/components/FaixaRisco";
 import { resumirH2H } from "@/lib/h2hEngine";
 import { alertasVeredito } from "@/lib/vereditoEngine";
 import { estatisticas } from "@/lib/trackRecord";
@@ -197,11 +198,17 @@ function PickCard({ o, bloqueado }: { o: OportunidadeValor; bloqueado: boolean }
 
       <div className="mt-2 flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12px] font-black text-acc">{o.rotulo}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="truncate text-[12px] font-black text-acc">{o.rotulo}</span>
+            <FaixaTag faixa={o.faixa} compacto />
+          </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] font-bold text-mut">
             <span>odd <b className="text-txt">{o.odd.toFixed(2)}</b></span>
             <span>modelo <b className="text-txt">{pct(o.probModelo)}</b></span>
             <span>mercado <b className="text-txt">{pct(o.probImplicita)}</b></span>
+          </div>
+          <div className="mt-1">
+            <OddJustaLinha odd={o.odd} oddJusta={o.oddJusta} margem={o.margemMercado} />
           </div>
         </div>
         <div className="shrink-0 rounded-xl border border-good/40 bg-good/10 px-2.5 py-1.5 text-center">

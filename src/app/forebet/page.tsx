@@ -2,6 +2,7 @@ import Link from "next/link";
 import { leagueInfo } from "@/lib/espn";
 import { analisarOportunidades, type AnaliseJogo } from "@/lib/opportunitiesEngine";
 import { stakeSugerida } from "@/lib/valueBet";
+import { FaixaTag, OddJustaLinha } from "@/components/FaixaRisco";
 import { evCor } from "@/components/ValorEsperado";
 import DesempenhoHistorico from "@/components/DesempenhoHistorico";
 import { estatisticas, type TrackStats } from "@/lib/trackRecord";
@@ -132,7 +133,7 @@ export default async function ForebetPage({
                   <th className="text-center font-bold px-1 py-1.5">Gols</th>
                   <th className="text-center font-bold px-1 py-1.5">+2.5</th>
                   <th className="text-center font-bold px-1 py-1.5" title="Over/Under 3.5 cartões e 9.5 escanteios (Poisson, últimos 10)">Cart/Esc O/U</th>
-                  <th className="text-center font-bold px-1 py-1.5" title="Valor Esperado · Stake sugerida (Kelly, teto 5%)">EV · Stake</th>
+                  <th className="text-center font-bold px-1 py-1.5" title="Valor Esperado · Stake sugerida (Kelly, teto 5%) · faixa de risco e odd justa">EV · Stake</th>
                 </tr>
               </thead>
               <tbody>
@@ -195,10 +196,14 @@ export default async function ForebetPage({
                       </td>
                       <td className="text-center px-1 py-1.5 whitespace-nowrap">
                         {best ? (
-                          <span title={`EV ${best.evPct >= 0 ? "+" : ""}${best.evPct.toFixed(1)}% · Kelly ${stake.toFixed(1)}% da banca (teto 5%)`} className="cursor-help">
+                          <span title={`${best.rotulo} · EV ${best.evPct >= 0 ? "+" : ""}${best.evPct.toFixed(1)}% · Kelly ${stake.toFixed(1)}% da banca (teto 5%)`} className="cursor-help">
                             <span className={`font-extrabold tabular-nums ${evCor(best.evPct)}`}>{best.evPct >= 0 ? "+" : ""}{best.evPct.toFixed(0)}%</span>
                             <span className="text-mut"> · </span>
                             <span className="font-extrabold tabular-nums text-acc">{stake.toFixed(1)}%</span>
+                            <span className="mt-0.5 flex items-center justify-center">
+                              <FaixaTag faixa={best.faixa} compacto />
+                            </span>
+                            <OddJustaLinha odd={best.odd} oddJusta={best.oddJusta} margem={best.margemMercado} className="justify-center" />
                           </span>
                         ) : (
                           <span className="text-mut">—</span>
@@ -212,7 +217,8 @@ export default async function ForebetPage({
           </div>
           <p className="text-[8px] text-mut px-3 py-2 border-t border-line/60">
             Destaque em cor = resultado mais provável do modelo. Placar = resultado exato mais provável.
-            Gols = média esperada (λ casa + λ fora), com xG mesclado 50/50 quando disponível. Probabilidades estatísticas, não garantia.
+            Gols = média esperada (λ casa + λ fora), com xG mesclado 50/50 quando disponível.
+            "Justa" = a odd do mercado sem a comissão da casa (de-vig). Probabilidades estatísticas, não garantia.
           </p>
         </div>
       )}

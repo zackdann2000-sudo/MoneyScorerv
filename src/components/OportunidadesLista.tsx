@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { PorqueValor } from "@/components/ValorEsperado";
+import { FaixaTag, OddJustaLinha } from "@/components/FaixaRisco";
 import type { OportunidadeValor } from "@/lib/opportunitiesEngine";
 
 type Filtro = "tudo" | "gols" | "cartoes" | "escanteios";
@@ -81,6 +82,10 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
                   <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(o.probModelo)}</span>
                 </span>
               </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <FaixaTag faixa={o.faixa} />
+                <OddJustaLinha odd={o.odd} oddJusta={o.oddJusta} margem={o.margemMercado} />
+              </div>
               <p className="mt-1 text-[10px] font-semibold text-mut tabular-nums">
                 <PorqueValor probModelo={o.probModelo} odd={o.odd} evPct={o.evPct} />
               </p>
@@ -90,7 +95,9 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
       )}
 
       <p className="text-[8px] text-mut leading-snug">
-        Valor = probabilidade do modelo − probabilidade implícita da odd (1/odd). EV positivo não é garantia de acerto.
+        Valor = probabilidade do modelo − probabilidade implícita da odd (1/odd). Odd justa = odd da casa sem a
+        comissão do mercado (de-vig). Faixas: 🛡️ Favorito (odd ≥ 1.25 e prob &gt; 55%) · ⚖️ Valor (odd 1.75–2.90) ·
+        💣 Bomba (odd &gt; 2.90 e prob &gt; 25%). EV positivo não é garantia de acerto.
       </p>
     </section>
   );

@@ -48,6 +48,28 @@ export type ModelProbs = {
 
 export type Confianca = "alta" | "média" | "baixa";
 
+/**
+ * Faixas de risco do pick (as três do Pronostic.io, regra pública deles).
+ *
+ * A ORDEM DE CHECAGEM IMPORTA: a faixa é decidida pela **odd** primeiro, porque
+ * as três janelas de odd não se sobrepõem (1.25–1.75 · 1.75–2.90 · > 2.90).
+ * A probabilidade entra como filtro dentro da janela. Assim uma odd 3.50 com
+ * 60% de probabilidade é Bomba (não Favorito), e uma odd 1.50 com 40% não é
+ * nada — não inventamos faixa para pick sem confiança.
+ */
+export type FaixaRisco = "favorito" | "valor" | "bomba";
+
+/** Odd mínima do Favorito (cobertura de resultado provável). */
+export const FAVORITO_ODD_MIN = 1.25;
+/** Probabilidade mínima do Favorito. */
+export const FAVORITO_PROB_MIN = 0.55;
+/** Início da janela de Valor (fim da janela de Favorito). */
+export const VALOR_ODD_MIN = 1.75;
+/** Fim da janela de Valor — acima disso é Bomba. */
+export const VALOR_ODD_MAX = 2.9;
+/** Probabilidade mínima da Bomba. */
+export const BOMBA_PROB_MIN = 0.25;
+
 export type MetaJogo = {
   matchId: string;
   league: string;
@@ -78,6 +100,22 @@ export type OportunidadeValor = MetaJogo & {
   fonteOdd: string;
   /** Fração de Kelly sugerida (% da banca, 0..KELLY_CAP). 0 = não apostar. */
   stake: number;
+  /**
+   * Odd justa (fair odd): a odd do mercado sem o overround da casa.
+   * `null` quando o mercado não é par (ex.: "ambas marcam" só com o lado sim) —
+   * sem os dois lados não existe margem a remover.
+   */
+  oddJusta: number | null;
+  /** Probabilidade implícita da odd justa (0..1). */
+  probJusta: number | null;
+  /** Overround do mercado em fração (0.06 = 6% de comissão embutida). */
+  margemMercado: number | null;
+  /** Quanto a casa paga abaixo da odd justa, em % (negativo = pagando menos). */
+  folgaOddPct: number | null;
+  /** true quando a odd da casa supera a odd justa (paga mais do que o justo). */
+  ehValorOdd: boolean;
+  /** Faixa de risco do pick (favorito/valor/bomba) ou null. */
+  faixa: FaixaRisco | null;
   /** Frase de transparência pronta para a UI. */
   porque: string;
 };
@@ -115,7 +153,103 @@ export function stakeSugerida(probModelo: number, odd: number, cap = KELLY_CAP):
   return Math.min(k * KELLY_FRACAO, cap);
 }
 
-type Candidato = { mercado: MercadoValor; rotulo: string; linha: number | null; prob: number; odd: number };
+type Candidato = {
+  mercado: MercadoValor;
+  rotulo: string;
+  linha: number | null;
+  prob: number;
+  odd: number;
+  /** Overround do mercado de origem (null = mercado não é par, ex. BTTS). */
+  margem?: number | null;
+};
+
+/** Quanto da comissão é removida ao montar a odd justa (1 = remove toda). */
+export const FRACAO_COMISSAO = 1;
+
+export type MercadoDesvigado = {
+  /** Soma das probabilidades implícitas (1/odd) de todos os lados. */
+  somaImplicita: number;
+  /** Overround em fração: somaImplicita − 1 (0.06 = 6% de margem). */
+  margem: number;
+  /** Divisor aplicado a cada 1/odd para chegar à probabilidade justa. */
+  denominador: number;
+  /** Odd justa de cada lado, na mesma ordem da entrada (null quando a odd era inválida). */
+  oddsJustas: (number | null)[];
+};
+
+/**
+ * Remove o overround de um mercado completo (todos os lados do MESMO mercado).
+ *
+ * Uma odd sozinha não tem margem: a comissão só aparece quando você soma as
+ * probabilidades implícitas dos lados. Ex.: 1.90 / 3.40 / 4.20 →
+ * 1/1.9 + 1/3.4 + 1/4.2 = 1.0588 → a casa está cobrando 5,9%.
+ *
+ * De-vig proporcional: cada 1/odd é dividido pela soma, então as probabilidades
+ * justas somam exatamente 1. A odd justa é sempre ≥ a odd da casa (a casa paga
+ * menos do que o preço justo — é aí que mora a comissão).
+ *
+ * `fracaoComissao` permite devolver só parte da margem (0.5 = devolve metade,
+ * como faz o Pronostic.io); 1 (padrão) remove a comissão inteira.
+ */
+export function desvigar(
+  odds: (number | null | undefined)[],
+  fracaoComissao: number = FRACAO_COMISSAO,
+): MercadoDesvigado | null {
+  const validas = odds.map((o) => (Number.isFinite(Number(o)) && Number(o) > 1 ? Number(o) : null));
+  const usaveis = validas.filter((o): o is number => o != null);
+  // Com menos de dois lados não existe mercado, logo não existe margem.
+  if (usaveis.length < 2) return null;
+
+  const somaImplicita = usaveis.reduce((s, o) => s + 1 / o, 0);
+  if (!Number.isFinite(somaImplicita) || somaImplicita <= 0) return null;
+
+  const margem = +(somaImplicita - 1).toFixed(6);
+  const f = Math.min(Math.max(fracaoComissao, 0), 1);
+  // f = fração da comissão REMOVIDA: f = 1 tira a margem inteira, então o
+  // divisor vira `somaImplicita` (1 + margem) e as probs justas somam 1.
+  const denominador = 1 + f * Math.max(margem, 0);
+
+  return {
+    somaImplicita: +somaImplicita.toFixed(6),
+    margem,
+    denominador,
+    oddsJustas: validas.map((o) => (o == null ? null : +(o * denominador).toFixed(3))),
+  };
+}
+
+/**
+ * Odd justa de um lado a partir da margem do mercado.
+ *   oddJusta = odd × (1 + f × margem)
+ * Devolve `null` para odd inválida ou margem não numérica.
+ */
+export function oddJustaDe(
+  odd: number,
+  margem: number | null,
+  fracaoComissao: number = FRACAO_COMISSAO,
+): { oddJusta: number; probJusta: number } | null {
+  if (!Number.isFinite(odd) || odd <= 1 || margem == null || !Number.isFinite(margem)) return null;
+  const f = Math.min(Math.max(fracaoComissao, 0), 1);
+  const denominador = 1 + f * Math.max(margem, 0);
+  const oddJusta = +(odd * denominador).toFixed(3);
+  return { oddJusta, probJusta: +(1 / oddJusta).toFixed(4) };
+}
+
+/**
+ * Classifica o pick em uma das três faixas de risco.
+ *
+ * Regra (janelas de odd, com filtro de probabilidade dentro de cada uma):
+ *   Favorito → odd ≥ 1.25 e prob > 55%
+ *   Valor    → odd entre 1.75 e 2.90
+ *   Bomba    → odd > 2.90 e prob > 25%
+ * `null` = não merece etiqueta (ex.: odd 1.50 com 40% de probabilidade).
+ */
+export function faixaRisco(odd: number, probModelo: number): FaixaRisco | null {
+  if (!Number.isFinite(odd) || !Number.isFinite(probModelo)) return null;
+  if (odd > VALOR_ODD_MAX) return probModelo > BOMBA_PROB_MIN ? "bomba" : null;
+  if (odd >= VALOR_ODD_MIN) return "valor";
+  if (odd >= FAVORITO_ODD_MIN) return probModelo > FAVORITO_PROB_MIN ? "favorito" : null;
+  return null;
+}
 
 /**
  * Avalia um jogo já calculado (probs do modelo + odds de mercado) e devolve
@@ -146,17 +280,23 @@ export function avaliarOportunidades(args: {
 
   const cands: Candidato[] = [];
 
+  // Margem (overround) de cada mercado completo — é o que permite a odd justa.
+  const m1x2 = desvigar([odds.home, odds.draw, odds.away])?.margem ?? null;
+  const mOU = desvigar([odds.over, odds.under])?.margem ?? null;
+  const mCards = odds.cards ? (desvigar([odds.cards.over, odds.cards.under])?.margem ?? null) : null;
+  const mCorners = odds.corners ? (desvigar([odds.corners.over, odds.corners.under])?.margem ?? null) : null;
+
   // 1X2
-  if (odds.home != null) cands.push({ mercado: "home", rotulo: "Vitória casa", linha: null, prob: probs.home, odd: odds.home });
-  if (odds.draw != null) cands.push({ mercado: "draw", rotulo: "Empate", linha: null, prob: probs.draw, odd: odds.draw });
-  if (odds.away != null) cands.push({ mercado: "away", rotulo: "Vitória fora", linha: null, prob: probs.away, odd: odds.away });
+  if (odds.home != null) cands.push({ mercado: "home", rotulo: "Vitória casa", linha: null, prob: probs.home, odd: odds.home, margem: m1x2 });
+  if (odds.draw != null) cands.push({ mercado: "draw", rotulo: "Empate", linha: null, prob: probs.draw, odd: odds.draw, margem: m1x2 });
+  if (odds.away != null) cands.push({ mercado: "away", rotulo: "Vitória fora", linha: null, prob: probs.away, odd: odds.away, margem: m1x2 });
 
   // Over/Under — só quando a linha de mercado é 2.5 (senão cruzaríamos a
   // probabilidade de 2.5 com a odd de outra linha).
   const linhaOU = Number(odds.ou);
   const ouEh25 = Number.isFinite(linhaOU) && Math.abs(linhaOU - 2.5) <= TOL_LINHA;
-  if (ouEh25 && odds.over != null) cands.push({ mercado: "over25", rotulo: "Over 2.5 gols", linha: 2.5, prob: probs.over25, odd: odds.over });
-  if (ouEh25 && odds.under != null) cands.push({ mercado: "under25", rotulo: "Under 2.5 gols", linha: 2.5, prob: probs.under25, odd: odds.under });
+  if (ouEh25 && odds.over != null) cands.push({ mercado: "over25", rotulo: "Over 2.5 gols", linha: 2.5, prob: probs.over25, odd: odds.over, margem: mOU });
+  if (ouEh25 && odds.under != null) cands.push({ mercado: "under25", rotulo: "Under 2.5 gols", linha: 2.5, prob: probs.under25, odd: odds.under, margem: mOU });
 
   // Ambas marcam — só quando a fonte publica a odd do mercado.
   if (odds.btts != null) cands.push({ mercado: "btts", rotulo: "Ambas marcam", linha: null, prob: probs.btts, odd: odds.btts });
@@ -168,16 +308,16 @@ export function avaliarOportunidades(args: {
   if (odds.cards) {
     const p = probNaLinha(args.extras?.cards?.probs, odds.cards.linha);
     if (p != null && odds.cards.over != null)
-      cands.push({ mercado: "cards_over", rotulo: `Cartões Over ${odds.cards.linha}`, linha: odds.cards.linha, prob: p, odd: odds.cards.over });
+      cands.push({ mercado: "cards_over", rotulo: `Cartões Over ${odds.cards.linha}`, linha: odds.cards.linha, prob: p, odd: odds.cards.over, margem: mCards });
     if (p != null && odds.cards.under != null)
-      cands.push({ mercado: "cards_under", rotulo: `Cartões Under ${odds.cards.linha}`, linha: odds.cards.linha, prob: 1 - p, odd: odds.cards.under });
+      cands.push({ mercado: "cards_under", rotulo: `Cartões Under ${odds.cards.linha}`, linha: odds.cards.linha, prob: 1 - p, odd: odds.cards.under, margem: mCards });
   }
   if (odds.corners) {
     const p = probNaLinha(args.extras?.corners?.probs, odds.corners.linha);
     if (p != null && odds.corners.over != null)
-      cands.push({ mercado: "corners_over", rotulo: `Escanteios Over ${odds.corners.linha}`, linha: odds.corners.linha, prob: p, odd: odds.corners.over });
+      cands.push({ mercado: "corners_over", rotulo: `Escanteios Over ${odds.corners.linha}`, linha: odds.corners.linha, prob: p, odd: odds.corners.over, margem: mCorners });
     if (p != null && odds.corners.under != null)
-      cands.push({ mercado: "corners_under", rotulo: `Escanteios Under ${odds.corners.linha}`, linha: odds.corners.linha, prob: 1 - p, odd: odds.corners.under });
+      cands.push({ mercado: "corners_under", rotulo: `Escanteios Under ${odds.corners.linha}`, linha: odds.corners.linha, prob: 1 - p, odd: odds.corners.under, margem: mCorners });
   }
 
   const out: OportunidadeValor[] = [];
@@ -191,6 +331,9 @@ export function avaliarOportunidades(args: {
     if (valor <= 0) continue;
     const evPct = +((c.prob * odd - 1) * 100).toFixed(1);
     const stake = stakeSugerida(c.prob, odd);
+    // Odd justa: a mesma odd sem a comissão do mercado (de-vig).
+    const justa = oddJustaDe(odd, c.margem ?? null);
+    const folgaOddPct = justa ? +((odd / justa.oddJusta - 1) * 100).toFixed(1) : null;
     const porque = `Modelo: ${pct(c.prob)}% de acerto | Odd: ${odd.toFixed(2)} | Valor Esperado: ${evPct >= 0 ? "+" : ""}${evPct.toFixed(1)}% | Stake: ${(stake * 100).toFixed(1)}% da banca`;
     out.push({
       ...meta,
@@ -206,6 +349,12 @@ export function avaliarOportunidades(args: {
       confianca,
       fonteOdd,
       stake: +stake.toFixed(4),
+      oddJusta: justa?.oddJusta ?? null,
+      probJusta: justa?.probJusta ?? null,
+      margemMercado: c.margem ?? null,
+      folgaOddPct,
+      ehValorOdd: justa ? odd > justa.oddJusta : false,
+      faixa: faixaRisco(odd, c.prob),
       porque,
     });
   }
