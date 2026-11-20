@@ -110,12 +110,13 @@ export function normEvent(ev: any, league: string): Match {
 }
 
 export async function getScoreboard(league: string, dateYmd: string): Promise<Match[]> {
-  /* ESPN (Akamai) bloqueia rajadas: 24 ligas em paralelo começam a devolver 403.
-     `espnGet` alterna de host; aqui só reforçamos com uma segunda tentativa. */
-  const key = `sb:${league}:${dateYmd}`;
+  /* ESPN só aceita AAAAMMDD. Aceitamos "2026-11-19" e normalizamos aqui — sem
+     isso o endpoint devolve 400 e a lista vem vazia. */
+  const dia = String(dateYmd || "").replace(/\D/g, "").slice(0, 8);
+  const key = `sb:${league}:${dia}`;
   for (let tentativa = 0; tentativa < 2; tentativa++) {
     try {
-      const data = await espnGet(`/${league}/scoreboard?dates=${dateYmd}`, 45000, tentativa === 0 ? key : `${key}:r`);
+      const data = await espnGet(`/${league}/scoreboard?dates=${dia}`, 45000, tentativa === 0 ? key : `${key}:r`);
       return (data?.events || []).map((e: any) => normEvent(e, league));
     } catch {
       if (tentativa === 1) return [];
