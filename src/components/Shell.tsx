@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit, TrendingUp } from "lucide-react";
+import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit, TrendingUp, BarChart3 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
@@ -37,6 +37,7 @@ const DRAWER_ANALYSIS = [
   { href: "/nerdytips", label: "NerdyTips", icon: BrainCircuit },
   { href: "/desempenho", label: "Track Record", icon: Scale },
   { href: "/detector", label: "Detector", icon: Activity },
+  { href: "/rankings", label: "Rankings por métrica", icon: BarChart3 },
   { href: "/jogadores", label: "Estatísticas", icon: Users },
   { href: "/metodologia", label: "Metodologia", icon: BookOpen },
   { href: "/config#alertas", label: "APIs e alertas", icon: Cable },
@@ -82,6 +83,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             ["/ligas", "Ligas"],
             ["/money-tips", "Money Tips"],
             ["/detector", "Detector"],
+            ["/rankings", "Rankings"],
             ["/supertips/tendencias", "Desapitos"],
             ["/fontes/sportmonks", "Sports Alert"],
             ["/fontes/football-data", "FD.org"],

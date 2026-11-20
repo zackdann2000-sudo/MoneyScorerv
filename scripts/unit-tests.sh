@@ -43,6 +43,7 @@ SUITES+=(
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
   "semana|src/lib/semana.ts|src/lib/semana.test.cjs"
   "oportunidadeFiltros|src/lib/oportunidadeFiltros.ts|src/lib/oportunidadeFiltros.test.cjs"
+  "rankingsEngine|src/lib/rankingsEngine.ts|src/lib/rankingsEngine.test.cjs"
 )
 
 for suite in "${SUITES[@]}"; do
