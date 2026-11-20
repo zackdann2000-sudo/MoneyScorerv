@@ -35,6 +35,7 @@ SUITES+=(
   "duelosEngine|src/lib/duelosEngine.ts src/lib/playerPropsEngine.ts|src/lib/duelosEngine.test.cjs"
   "h2hEngine|src/lib/h2hEngine.ts|src/lib/h2hEngine.test.cjs"
   "vereditoEngine|src/lib/vereditoEngine.ts src/lib/h2hEngine.ts src/lib/model.ts src/lib/formWeight.ts|src/lib/vereditoEngine.test.cjs"
+  "momentum|src/lib/momentum.ts|src/lib/momentum.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
 )

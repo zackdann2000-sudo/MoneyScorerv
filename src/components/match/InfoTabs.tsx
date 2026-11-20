@@ -6,6 +6,7 @@ import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge 
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import { VereditoBlock } from "@/components/match/VereditoBlock";
+import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
 import type { ContextoH2H } from "@/lib/blocoAnalises";
@@ -63,6 +64,7 @@ export function Timeline({ events, vip }: { events: any[]; vip: boolean }) {
 /* ================= LIVE + ORACLE ================= */
 export function LiveTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {
   const [oracle, setOracle] = useState<any>(null);
+  const [sinal, setSinal] = useState<{ nivel: "fire" | "ball" | null; lado: "home" | "away" | null; pct: number | null; rotulo: string } | null>(null);
   useEffect(() => {
     let on = true;
     const load = () => fetch(`/api/matches/${matchId}/oracle?league=${league}`).then((r) => r.json()).then((j) => on && setOracle(j)).catch(() => {});
@@ -71,24 +73,20 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
     return () => { on = false; clearInterval(t); };
   }, [matchId, league]);
 
-  const momentum = useMemo(() => {
-    const buckets: { min: number; home: number; away: number }[] = [];
-    const evs = d.events || [];
-    for (let m = 5; m <= 95; m += 5) {
-      const inB = evs.filter((e: any) => { const mm = parseInt(e.minute) || 0; return mm > m - 5 && mm <= m; });
-      let h = 0, a = 0;
-      inB.forEach((e: any) => { const w = ["goal", "pen"].includes(e.type) ? 3 : e.type === "red" ? 1.5 : e.type === "yellow" ? 0.6 : 0.3; if (e.side === "home") h += w; else a += w; });
-      buckets.push({ min: m, home: h, away: -a });
-    }
-    const has = evs.filter((e: any) => e.type !== "sub").length >= 3;
-    if (!has) return { data: buckets.map((b, i) => ({ min: b.min, home: 1.2 + Math.sin(i * 0.9) * 1.1, away: -(1 + Math.cos(i * 0.7) * 0.9) })), mock: true };
-    return { data: buckets, mock: false };
-  }, [d.events]);
+  const nomeCasa = d.match?.home?.name || "Casa";
+  const nomeFora = d.match?.away?.name || "Fora";
 
   const V_COLOR: Record<string, string> = { MANTER: "bg-acc text-black", COBRIR: "bg-warn text-black", MUDAR: "bg-away text-black", SAIR: "bg-danger text-white" };
 
   return (
     <div className="space-y-3">
+      {/* Sinal de pressão (FIRE/BALL) — topo da aba ao vivo */}
+      {sinal?.nivel && (
+        <div className="flex justify-end">
+          <PressureBadge sinal={sinal} nomeCasa={nomeCasa} nomeFora={nomeFora} />
+        </div>
+      )}
+
       {/* Scouter Oracle */}
       <div className="bg-panel border border-line rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
@@ -109,10 +107,9 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
         )}
       </div>
 
-      {/* Momentum */}
+      {/* Momentum ao vivo — lances reais da ESPN */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <p className="text-[10px] font-bold text-mut uppercase mb-1">Match Momentum · pressão por lances</p>
-        <Momentum data={momentum.data} illustrative={momentum.mock} />
+        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} />
       </div>
 
       {/* Timeline */}
