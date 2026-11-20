@@ -201,9 +201,9 @@ export default function BlocoAnalises({
         <Info size={9} className="mt-0.5 shrink-0" />
         <span>
           Médias dos últimos {BASE_ULTIMOS} jogos, com peso maior nos 3 mais recentes (1.5 / 1.0 / 0.5).
-          <strong className="text-ink/80"> Over</strong> é a probabilidade de passar a linha logo abaixo do
-          total esperado (Poisson), já corrigida pelo H2H quando há 3+ confrontos. Probabilidade abaixo de 75%
-          fica oculta por padrão. Não é odd nem promessa de acerto.
+          <strong className="text-ink/80"> Over</strong> é a probabilidade de passar a linha mostrada — e a
+          linha é a mais alta que ainda fica com ~80% de chance (Poisson), já corrigida pelo H2H quando há 3+
+          confrontos. Probabilidade abaixo de 75% fica oculta por padrão. Não é odd nem promessa de acerto.
         </span>
       </p>
     </section>

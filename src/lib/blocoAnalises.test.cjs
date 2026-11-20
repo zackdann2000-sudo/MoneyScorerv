@@ -10,7 +10,7 @@
  *     --outDir .babuild --skipLibCheck
  *   cp src/lib/blocoAnalises.test.cjs .babuild/ && node .babuild/blocoAnalises.test.cjs
  */
-const { blocoAnalises, linhaSugerida, poissonAcima, ORDEM, BASE_ULTIMOS, TEXTO_BASE } = require("./blocoAnalises.js");
+const { blocoAnalises, linhaSugerida, linhaParaAlvo, ALVO_PROB_LINHA, poissonAcima, ORDEM, BASE_ULTIMOS, TEXTO_BASE } = require("./blocoAnalises.js");
 
 let ok = 0;
 const falhas = [];
@@ -66,21 +66,21 @@ console.log("\n=== 4. Cartões = amarelos + vermelhos ===");
 perto("média casa 2.3 + 0.1", itens[0].mediaCasa, 2.4);
 perto("média fora 2.6 + 0.1", itens[0].mediaFora, 2.7);
 perto("total do jogo", itens[0].total, 5.1);
-check("linha do total 5.1", itens[0].linha, 4.5);
-perto("probabilidade de over 4.5", itens[0].prob, poissonAcima(4.5, 5.1) * 100);
+check("linha do total 5.1 sobe até o alvo de 80%", itens[0].linha, 2.5);
+perto("probabilidade de over 2.5", itens[0].prob, poissonAcima(2.5, 5.1) * 100);
 
 console.log("\n=== 5. Faltas ===");
 perto("média casa", itens[1].mediaCasa, 14.1);
 perto("total 14.1 + 12.5", itens[1].total, 26.6);
-check("linha 25.5 (piso de 26.6)", itens[1].linha, 25.5);
-perto("probabilidade", itens[1].prob, poissonAcima(25.5, 26.6) * 100);
+check("linha 21.5 (alvo de 80% para 26.6)", itens[1].linha, 21.5);
+perto("probabilidade", itens[1].prob, poissonAcima(21.5, 26.6) * 100);
 
 console.log("\n=== 6. Gols cruzam ataque e defesa ===");
 perto("média casa (só os gols marcados)", itens[2].mediaCasa, 1.6);
 perto("média fora", itens[2].mediaFora, 2.0);
 perto("(1.6+0.9)/2 + (2.0+1.7)/2", itens[2].total, 3.1);
-check("linha 2.5", itens[2].linha, 2.5);
-perto("probabilidade", itens[2].prob, poissonAcima(2.5, 3.1) * 100);
+check("linha 1.5 (alvo de 80% para 3.1)", itens[2].linha, 1.5);
+perto("probabilidade", itens[2].prob, poissonAcima(1.5, 3.1) * 100);
 
 console.log("\n=== 7. Impedimentos e amostra ===");
 perto("total de impedimentos", itens[3].total, 3.8);
@@ -119,6 +119,26 @@ check("média continua visível", [totalZero[0].mediaCasa, totalZero[0].mediaFor
 console.log("\n=== 10. Coerência ===");
 check("todos os itens com dados têm prob entre 0 e 100", itens.every((i) => i.prob >= 0 && i.prob <= 100), true);
 check("linha sempre abaixo do total", itens.every((i) => i.linha < i.total), true);
+
+console.log("\n=== 10b. Alvo de elite: linha escolhida para passar de 75% ===");
+check("alvo exposto = 0.8", ALVO_PROB_LINHA, 0.8);
+check("2.5 → 0.5", linhaParaAlvo(2.5), 0.5);
+check("3.1 → 1.5", linhaParaAlvo(3.1), 1.5);
+check("5.1 → 2.5", linhaParaAlvo(5.1), 2.5);
+check("10.5 → 7.5", linhaParaAlvo(10.5), 7.5);
+check("26.6 → 21.5", linhaParaAlvo(26.6), 21.5);
+check("nunca desce de 0.5", linhaParaAlvo(0.9), 0.5);
+check("total zero não explode", linhaParaAlvo(0), 0.5);
+check(
+  "cada linha escolhida passa do piso de 75%",
+  [2.5, 3.1, 5.1, 10.5, 26.6].every((t) => poissonAcima(linhaParaAlvo(t), t) >= 0.75),
+  true,
+);
+check(
+  "média alta: meia-linha colada na média NÃO passaria (motivo da mudança)",
+  poissonAcima(linhaSugerida(5.1), 5.1) < 0.75,
+  true,
+);
 check(
   "total maior com a mesma linha dá probabilidade maior",
   poissonAcima(2.5, 3.0) < poissonAcima(2.5, 4.0),
@@ -137,7 +157,7 @@ perto("fator no piso 0.85", golsTravado.ajuste.fator, 0.85);
 check("ajuste marcado como aplicado", golsTravado.ajuste.aplicado, true);
 check("probabilidade cai", golsTravado.prob < semH2H.prob, true);
 perto("3.1 x 0.85 = 2.64", golsTravado.total, 2.64);
-perto("probabilidade recalculada na linha 2.5", golsTravado.prob, poissonAcima(2.5, 2.64) * 100);
+perto("probabilidade recalculada na linha 1.5", golsTravado.prob, poissonAcima(1.5, 2.64) * 100);
 
 check("cartões também cruzam com o H2H", h2hTravado[0].ajuste.aplicado, true);
 check("faltas não cruzam (sem H2H confiável)", h2hTravado[1].ajuste, null);

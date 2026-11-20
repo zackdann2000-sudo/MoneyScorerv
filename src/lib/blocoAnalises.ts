@@ -156,6 +156,27 @@ export function linhaSugerida(total: number): number {
   return Math.max(0.5, Math.floor(total) - 0.5);
 }
 
+/**
+ * Alvo de probabilidade da linha mostrada no bloco.
+ * 80% é o piso que faz o card passar pelo filtro de elite (75%) com folga.
+ */
+export const ALVO_PROB_LINHA = 0.8;
+
+/**
+ * Maior meia-linha cuja probabilidade de passar ainda fica >= `alvo`.
+ *
+ * A meia-linha colada na média sempre rende ~55–70% (é P(X ≥ teto da média)), o
+ * que deixaria o bloco mudo no filtro de 75%. Descer a linha até bater o alvo é
+ * o que faz o card mostrar número de verdade — e o número continua sendo a
+ * probabilidade real do mesmo Poisson, não um valor inflado.
+ */
+export function linhaParaAlvo(total: number, alvo: number = ALVO_PROB_LINHA): number {
+  if (!(total > 0)) return 0.5;
+  let linha = linhaSugerida(total);
+  while (linha > 0.5 && poissonAcima(linha, total) < alvo) linha -= 1;
+  return Math.max(0.5, linha);
+}
+
 function montar(
   id: MetricaId,
   mediaCasa: number | null,
@@ -199,11 +220,12 @@ function montar(
       ajuste,
     };
   }
-  // A linha continua ancorada no total dos últimos 10 jogos: é a linha que o
-  // mercado oferece. O H2H mexe na probabilidade dessa linha, não na linha —
+  // A linha é escolhida pelo ALVO (>= 80% no total dos últimos 10 jogos), não
+  // pela meia-linha colada na média: aquela ficaria em ~55–70% e sumiria no
+  // filtro de 75%. O H2H mexe na probabilidade dessa linha, não na linha —
   // senão um confronto travado "abaixaria" a linha e a chance subiria, o
   // contrário do que o histórico diz.
-  const linha = linhaSugerida(total);
+  const linha = linhaParaAlvo(total);
   const prob = arred(poissonAcima(linha, totalAjustado) * 100);
   return {
     id,
