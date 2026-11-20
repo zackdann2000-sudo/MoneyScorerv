@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Gavel, Sparkles } from "lucide-react";
 import type { Veredito } from "@/lib/vereditoEngine";
+import { LadderGols, type LadderInfo } from "@/components/match/LadderGols";
 
 /**
  * Bloco "Veredito Estatístico" da aba Pré-Live.
@@ -12,6 +13,7 @@ import type { Veredito } from "@/lib/vereditoEngine";
  */
 export function VereditoBlock({ matchId }: { matchId: string }) {
   const [v, setV] = useState<Veredito | null>(null);
+  const [ladder, setLadder] = useState<LadderInfo>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
 
@@ -22,6 +24,7 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
+        if (j?.ladder) setLadder(j.ladder as LadderInfo);
         if (j?.veredito) setV(j.veredito as Veredito);
         else setErro(j?.error || "sem-base");
       })
@@ -43,14 +46,17 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
 
   if (!v) {
     return (
-      <div className="rounded-2xl border border-line bg-panel p-3.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-mut">
-          <Gavel className="h-3.5 w-3.5" /> veredito estatístico
+      <div className="space-y-2">
+        <div className="rounded-2xl border border-line bg-panel p-3.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-mut">
+            <Gavel className="h-3.5 w-3.5" /> veredito estatístico
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-mut">
+            Sem dados suficientes para cruzar forma e confrontos diretos nesta partida. Preferimos não
+            dar veredito a chutar.
+          </p>
         </div>
-        <p className="mt-1 text-[11px] leading-snug text-mut">
-          Sem dados suficientes para cruzar forma e confrontos diretos nesta partida. Preferimos não
-          dar veredito a chutar.
-        </p>
+        <LadderGols ladder={ladder} />
       </div>
     );
   }
@@ -70,6 +76,7 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
   const favorito = max === p.home ? "mandante" : max === p.away ? "visitante" : "empate";
 
   return (
+    <div className="space-y-2">
     <div className="rounded-2xl border border-acc/25 bg-panel p-3.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-acc">
@@ -120,6 +127,9 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
         <span>base {v.base.jogosCasa}+{v.base.jogosFora} jogos, {v.base.jogosH2H} H2H</span>
       </div>
       <p className="mt-1 text-[9px] leading-snug text-mut/80">{v.motivoConfianca}</p>
+    </div>
+
+    <LadderGols ladder={ladder} />
     </div>
   );
 }
