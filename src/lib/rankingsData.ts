@@ -3,6 +3,7 @@
 
 import { cached, fetchJson } from "./cache";
 import { espnGet, getSchedule, leagueInfo, ymd, type Match } from "./espn";
+import { FRESCOR_CACHE_MS, gravarRankingsCache, lerRankingsCache } from "./rankingsStore";
 import {
   extrairEstatisticasScoreboard,
   type EntradaTime,
@@ -82,67 +83,93 @@ async function estatisticasDaData(liga: string, data: Date): Promise<Map<string,
 }
 
 /** Monta a base de uma liga: todos os times da classificação + histórico + estatística. */
-async function ligaParaRanking(code: string): Promise<EntradaTime[]> {
-  return cached(`rankings-liga-${code}`, TTL_LIGA, async () => {
-    const info = leagueInfo(code);
-    const linhas = (await timesDaTabela(code)).slice(0, MAX_TIMES);
-    if (!linhas.length) return [];
+async function montarBase(code: string): Promise<EntradaTime[]> {
+  const info = leagueInfo(code);
+  const linhas = (await timesDaTabela(code)).slice(0, MAX_TIMES);
+  if (!linhas.length) return [];
 
-    /* 1) Agenda de cada time: é a fonte do placar (exata e completa por equipe). */
-    const base = await mapLimit(linhas, CONCORRENCIA, async (row: any) => {
-      const teamId = String(row.teamId);
-      const { events } = await getSchedule(code, teamId).catch(() => ({ season: null, events: [] as Match[] }));
-      const jogos = jogosDoTime(events, teamId)
-        .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-        .slice(0, MAX_JOGOS_POR_TIME);
-      return { row, teamId, jogos };
-    });
-
-    /* 2) Datas que faltam estatística: escolhidas por VOLUME (a data que cobre mais
-          jogos entra primeiro), até o teto. Assim o pouco orçamento disponível rende
-          a maior cobertura possível — e quem não foi coberto fica null, não zero. */
-    const jogosPorData = new Map<string, Date>();
-    for (const b of base) {
-      for (const j of b.jogos) {
-        const d = new Date(j.date);
-        if (!Number.isNaN(d.getTime())) jogosPorData.set(ymd(d), d);
-      }
-    }
-    const alvo = [...jogosPorData.values()]
-      .sort((a, b) => b.getTime() - a.getTime())
-      .slice(0, MAX_DATAS_ESTAT);
-
-    const stats = new Map<string, EstatJogo>();
-    const porData = await mapLimit(alvo, 3, (d) => estatisticasDaData(code, d));
-    for (const m of porData) for (const [id, v] of m) stats.set(id, v);
-
-    /* 3) Junta tudo: o jogo herda corners/cards quando a data foi observada. */
-    return base.map((b) => ({
-      id: b.teamId,
-      nome: b.row.name || b.row.short || "—",
-      escudo: b.row.logo || "",
-      liga: info.name,
-      ligaCodigo: code,
-      jogos: b.jogos.map((j) => {
-        const st = stats.get(j.id);
-        return { ...j, corners: st?.corners ?? null, cards: st?.cards ?? null };
-      }),
-    }));
+  /* 1) Agenda de cada time: é a fonte do placar (exata e completa por equipe). */
+  const base = await mapLimit(linhas, CONCORRENCIA, async (row: any) => {
+    const teamId = String(row.teamId);
+    const { events } = await getSchedule(code, teamId).catch(() => ({ season: null, events: [] as Match[] }));
+    const jogos = jogosDoTime(events, teamId)
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+      .slice(0, MAX_JOGOS_POR_TIME);
+    return { row, teamId, jogos };
   });
+
+  /* 2) Datas que faltam estatística: escolhidas por VOLUME (a data que cobre mais
+        jogos entra primeiro), até o teto. Assim o pouco orçamento disponível rende
+        a maior cobertura possível — e quem não foi coberto fica null, não zero. */
+  const jogosPorData = new Map<string, Date>();
+  for (const b of base) {
+    for (const j of b.jogos) {
+      const d = new Date(j.date);
+      if (!Number.isNaN(d.getTime())) jogosPorData.set(ymd(d), d);
+    }
+  }
+  const alvo = [...jogosPorData.values()]
+    .sort((a, b) => b.getTime() - a.getTime())
+    .slice(0, MAX_DATAS_ESTAT);
+
+  const stats = new Map<string, EstatJogo>();
+  const porData = await mapLimit(alvo, 3, (d) => estatisticasDaData(code, d));
+  for (const m of porData) for (const [id, v] of m) stats.set(id, v);
+
+  /* 3) Junta tudo: o jogo herda corners/cards quando a data foi observada. */
+  return base.map((b) => ({
+    id: b.teamId,
+    nome: b.row.name || b.row.short || "—",
+    escudo: b.row.logo || "",
+    liga: info.name,
+    ligaCodigo: code,
+    jogos: b.jogos.map((j) => {
+      const st = stats.get(j.id);
+      return { ...j, corners: st?.corners ?? null, cards: st?.cards ?? null };
+    }),
+  }));
 }
 
 /**
- * Base de uma ou mais ligas. `codigos` é sempre explícito (a UI decide), e cada
- * liga é buscada em sequência para não disparar rajada na ESPN.
+ * Base de uma liga com cache em memória (1 h). É o caminho do cron e do
+ * write-through: sempre recalcula quando a memória está fria.
+ */
+export async function montarLigaRanking(code: string): Promise<EntradaTime[]> {
+  return cached(`rankings-liga-${code}`, TTL_LIGA, () => montarBase(code));
+}
+
+/**
+ * Base de uma ou mais ligas. `codigos` é sempre explícito (a UI decide).
+ *
+ * Ordem: cache do Neon (gravado pelo cron diário) → ESPN na hora. Se a ESPN
+ * responder, o resultado é gravado no Neon em modo write-through, então nem um
+ * cold start deixa o banco vazio de novo.
  */
 export async function dadosRankings(codigos: string[]): Promise<EntradaTime[]> {
   const validos = codigos.filter((c) => (LIGAS_RANKING as readonly string[]).includes(c));
+  if (!validos.length) return [];
+
+  const doBanco = await lerRankingsCache(validos);
   const out: EntradaTime[] = [];
+
   for (const code of validos) {
+    const cache = doBanco.get(code);
+    if (cache && cache.idadeMs < FRESCOR_CACHE_MS) {
+      out.push(...cache.times);
+      continue;
+    }
     try {
-      out.push(...(await ligaParaRanking(code)));
+      const times = await montarLigaRanking(code);
+      if (!times.length) {
+        /* ESPN mudou de humor: se existe base antiga no banco, é melhor ela do que tela vazia. */
+        if (cache) out.push(...cache.times);
+        continue;
+      }
+      await gravarRankingsCache(code, times).catch(() => false);
+      out.push(...times);
     } catch {
-      /* Liga que falhou não inventa dado: fica de fora e a UI mostra o aviso. */
+      /* Liga que falhou não inventa dado: fica de fora (ou cai na base antiga). */
+      if (cache) out.push(...cache.times);
     }
   }
   return out;

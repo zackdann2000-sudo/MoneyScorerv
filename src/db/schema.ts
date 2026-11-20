@@ -461,3 +461,18 @@ export const playerPropsCache = pgTable("player_props_cache", {
   payload: jsonb("payload").notNull().default({}),
   fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 });
+
+/**
+ * Cache dos RANKINGS por liga (tela /rankings), gravado pelo cron diário.
+ *
+ * `payload` guarda a base já montada (`EntradaTime[]`: time + jogos, com
+ * escanteios e cartões por jogo). Sem isso o cron não serviria para nada, porque
+ * o cache em memória morre junto com a lambda.
+ */
+export const rankingsCache = pgTable("rankings_cache", {
+  liga: text("liga").primaryKey(),
+  times: integer("times").notNull().default(0),
+  jogos: integer("jogos").notNull().default(0),
+  payload: jsonb("payload").notNull().default([]),
+  atualizadoEm: timestamp("atualizado_em").notNull().defaultNow(),
+});
