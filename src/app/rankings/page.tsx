@@ -2,13 +2,12 @@ import Link from "next/link";
 import { Crest, SourceFoot, EmptyState } from "@/components/ui";
 import { LIGAS_RANKING, dadosRankingsComIdade } from "@/lib/rankingsData";
 import { leagueInfo } from "@/lib/espn";
+import SeloFrescor from "@/components/SeloFrescor";
 import {
   MERCADOS,
   mercadoPorId,
   ranquear,
   maiorAmostra,
-  faixaIdade,
-  rotuloIdade,
   type EntradaTime,
   type Periodo,
 } from "@/lib/rankingsEngine";
@@ -73,9 +72,6 @@ export default async function RankingsPage({ searchParams }: { searchParams?: Pr
      `Math.max(0, …)` porque o relógio do Neon pode estar alguns ms à frente do
      da função — idade negativa por microssegundos não é dado ausente. */
   const idadeMs = atualizadoEm ? Math.max(0, Date.now() - atualizadoEm.getTime()) : null;
-  const faixa = faixaIdade(idadeMs);
-  const seloCor =
-    faixa === "fresco" ? "text-acc" : faixa === "atencao" ? "text-warn" : faixa === "defasado" ? "text-red-400" : "text-mut";
 
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-3">
@@ -91,12 +87,14 @@ export default async function RankingsPage({ searchParams }: { searchParams?: Pr
           <span className="text-[9px] text-acc/90">
             Acerto = jogo finalizado que bateu o mercado · dados ESPN · escanteios e cartões são o total do jogo
           </span>
-          <span
-            title={atualizadoEm ? `Cache gravado pelo cron diário em ${atualizadoEm.toLocaleString("pt-BR")}` : "Cache ainda não gravado pelo cron"}
-            className={`inline-flex items-center gap-1 rounded-full border border-line bg-panel px-2 py-0.5 text-[9px] font-extrabold ${seloCor}`}
-          >
-            <span aria-hidden>🕒</span>Atualizado {rotuloIdade(idadeMs)}
-          </span>
+          <SeloFrescor
+            idadeMs={idadeMs}
+            titulo={
+              atualizadoEm
+                ? `Cache gravado pelo cron diário em ${atualizadoEm.toLocaleString("pt-BR")}`
+                : "Cache ainda não gravado pelo cron"
+            }
+          />
         </div>
       </header>
 

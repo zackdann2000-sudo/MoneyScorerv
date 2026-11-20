@@ -7,6 +7,8 @@ import { evCor } from "@/components/ValorEsperado";
 import DesempenhoHistorico from "@/components/DesempenhoHistorico";
 import { estatisticas, type TrackStats, anotarAcertosRecentes } from "@/lib/trackRecord";
 import FiltrosLinks from "@/components/FiltrosLinks";
+import SeloFrescor from "@/components/SeloFrescor";
+import { idadeMaisAntiga } from "@/lib/cache";
 import { contarPorChip, passaChip, passaPiso, type ChipRapido } from "@/lib/oportunidadeFiltros";
 
 /* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
@@ -126,6 +128,10 @@ export default async function ForebetPage({
 
   const prev = shiftDia(data, -1);
   const next = shiftDia(data, 1);
+
+  /* Idade do payload ESPN mais antigo ainda em uso nesta instância. Se nada
+     estiver em cache, tudo acabou de ser buscado → 0 ("agora"). */
+  const idadeMs = idadeMaisAntiga("/soccer/") ?? 0;
 
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-3">
@@ -306,6 +312,13 @@ export default async function ForebetPage({
           <div className="bg-panel2 rounded-lg p-2"><b className="text-ink">+2.5</b><p className="text-[9px] text-mut">Probabilidade de sair mais de 2.5 gols.</p></div>
         </div>
       </section>
+
+      <div className="flex justify-center pb-2">
+        <SeloFrescor
+          idadeMs={idadeMs}
+          titulo="Idade do payload ESPN mais antigo ainda em memória — a tabela é recalculada a cada visita, os dados de base vêm do cache (30min a 1h)"
+        />
+      </div>
 
       <footer className="text-center text-[9px] text-mut pb-4">
         MVP de recon clean-room do Forebet · dados ESPN + motor próprio ·{" "}

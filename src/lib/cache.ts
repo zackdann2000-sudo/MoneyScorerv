@@ -4,6 +4,26 @@ const g = globalThis as any;
 const store: Map<string, Entry> = g.__gsCache || (g.__gsCache = new Map());
 const inflight: Map<string, Promise<any>> = g.__gsInflight || (g.__gsInflight = new Map());
 
+/**
+ * Idade (ms) do payload MAIS ANTIGO em cache cuja chave contém `trecho`.
+ *
+ * Serve para dizer ao usuário há quanto tempo a instância vem servindo aquele
+ * tipo de dado. Devolve `null` quando não há nada em cache (cold start) — aí a
+ * tela acabou de buscar tudo, e quem chama decide mostrar "agora".
+ *
+ * É pessimista de propósito: pegando o mais antigo, nunca prometemos frescor
+ * que não temos.
+ */
+export function idadeMaisAntiga(trecho: string): number | null {
+  let maisAntiga: number | null = null;
+  for (const [key, entry] of store) {
+    if (!key.includes(trecho)) continue;
+    const idade = Math.max(0, Date.now() - entry.at);
+    if (maisAntiga == null || idade > maisAntiga) maisAntiga = idade;
+  }
+  return maisAntiga;
+}
+
 export async function cached<T = any>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = store.get(key);
   if (hit && Date.now() - hit.at < hit.ttl) return hit.data;
