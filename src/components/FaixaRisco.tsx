@@ -1,5 +1,6 @@
 /**
- * Etiquetas visuais do Value Bet: FAIXA DE RISCO e ODD JUSTA (de-vig).
+ * Etiquetas visuais do Value Bet: FAIXA DE RISCO, ODD JUSTA (de-vig),
+ * nota TRUST x/10 e o selo de acertos recentes.
  *
  * Presentacional puro — serve em Server e Client Component. Cores fixas por
  * faixa (pedido do produto):
@@ -10,7 +11,6 @@
  * Nenhum número é inventado aqui: sem `oddJusta` o componente não mostra nada.
  */
 import { faixaRisco, type FaixaRisco } from "@/lib/valueBet";
-
 type Visual = { emoji: string; label: string; classe: string; dica: string };
 
 const VISUAL: Record<FaixaRisco, Visual> = {
@@ -33,6 +33,69 @@ const VISUAL: Record<FaixaRisco, Visual> = {
     dica: "Faixa Bomba: odd acima de 2.90 com probabilidade do modelo acima de 25%. A mais arriscada — e a que mais erra.",
   },
 };
+
+/** Cor da nota TRUST: verde > 8 · amarelo 6–8 · cinza < 6. */
+export function trustCor(nota: number): string {
+  if (nota > 8) return "text-acc border-acc/50 bg-acc/10";
+  if (nota >= 6) return "text-warn border-warn/50 bg-warn/10";
+  return "text-mut border-line bg-panel2";
+}
+
+/**
+ * Nota de confiança `TRUST x/10` com cor dinâmica.
+ * Sem nota (undefined/null) não renderiza nada — a UI nunca inventa confiança.
+ */
+export function TrustNota({
+  nota,
+  rotulo,
+  amostra,
+  compacto = false,
+}: {
+  nota: number | null | undefined;
+  rotulo?: string | null;
+  amostra?: number | null;
+  compacto?: boolean;
+}) {
+  if (nota == null || !Number.isFinite(nota)) return null;
+  const dica = `TRUST ${nota.toFixed(1)}/10${rotulo ? ` · ${rotulo}` : ""}${
+    amostra != null ? ` · amostra ${amostra} jogos` : ""
+  } — combina probabilidade do modelo (45%), EV (35%) e tamanho da amostra (20%); amostra abaixo de 5 jogos é penalizada.`;
+  return (
+    <span
+      title={dica}
+      className={`inline-flex items-center gap-1 rounded-md border font-black tabular-nums cursor-help ${trustCor(
+        nota,
+      )} ${compacto ? "px-1 py-0 text-[8px]" : "px-1.5 py-0.5 text-[9px]"}`}
+    >
+      <span className="opacity-70">TRUST</span>
+      {nota.toFixed(1)}
+      <span className="opacity-50">/10</span>
+    </span>
+  );
+}
+
+/**
+ * Selo "🎯 IA Acertou os 3 últimos" — só aparece quando o Track Record confirma
+ * que TODOS os últimos palpites liquidados do time naquele mercado deram green.
+ */
+export function SeloAcertos({
+  acertosRecentes,
+  serie,
+}: {
+  acertosRecentes: boolean | null | undefined;
+  serie?: string | null;
+}) {
+  if (!acertosRecentes) return null;
+  const quantos = serie ? serie.split("/")[0] : "3";
+  return (
+    <span
+      title={`No nosso Track Record, os últimos ${serie ?? "3/3"} palpites liquidados deste time neste mercado deram green (dados reais, não estimativa).`}
+      className="inline-flex items-center gap-1 rounded-full border border-acc bg-acc/20 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-acc shadow-[0_0_8px_rgba(34,224,107,0.45)]"
+    >
+      🎯 IA acertou os {quantos} últimos
+    </span>
+  );
+}
 
 /** Selo da faixa de risco; não renderiza nada quando o pick não tem faixa. */
 export function FaixaTag({

@@ -11,13 +11,14 @@
  */
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { getAllMatches, getSummaryRaw, normStats, type Match } from "./espn";
 import { analisarOportunidades } from "./opportunitiesEngine";
 import { calcularStats, type TrackStats } from "./trackStats";
+import { montarSeries, serieDoPalpite, rotuloSerie, type SerieAcertos } from "./acertosRecentes";
 
-export type { TrackStats };
-export { calcularStats };
+export type { TrackStats, SerieAcertos };
+export { calcularStats, montarSeries, serieDoPalpite, rotuloSerie };
 
 type Status = "pendente" | "green" | "red";
 type Row = {
@@ -179,4 +180,56 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
 export async function estatisticas(): Promise<TrackStats> {
   const rows = (await db.select().from(valueBetHistory)) as Row[];
   return calcularStats(rows);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. Acertos recentes (selo "IA Acertou os 3 últimos")                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Carrega o histórico liquidado (mais recente primeiro) e monta o mapa
+ * `time|mercado → série` usado pelo selo. Erro de banco → mapa vazio (nenhum
+ * selo é mostrado: nunca inventamos acerto).
+ */
+export async function seriesAcertosRecentes(
+  opts: { janela?: number; minimo?: number; limite?: number } = {},
+): Promise<Map<string, SerieAcertos>> {
+  const limite = opts.limite ?? 400;
+  let rows: Row[] = [];
+  try {
+    rows = (await db
+      .select()
+      .from(valueBetHistory)
+      .where(inArray(valueBetHistory.status, ["green", "red"]))
+      .orderBy(desc(valueBetHistory.id))
+      .limit(limite)) as Row[];
+  } catch {
+    return new Map();
+  }
+  return montarSeries(rows, opts);
+}
+
+/**
+ * Anota nas oportunidades o campo `acertosRecentes` + `serieRecente`
+ * ("3/3"), consultando o Track Record UMA vez para a lista inteira.
+ *
+ * Muta o array recebido (os objetos já vão ser serializados na página) e
+ * devolve a mesma lista para facilitar o uso em cadeia.
+ */
+export async function anotarAcertosRecentes<T extends { home: { name: string }; away: { name: string }; mercado: string }>(
+  oportunidades: T[],
+  opts: { janela?: number; minimo?: number } = {},
+): Promise<T[]> {
+  if (!oportunidades.length) return oportunidades;
+  const mapa = await seriesAcertosRecentes(opts);
+  if (!mapa.size) return oportunidades;
+
+  for (const o of oportunidades) {
+    const hit = serieDoPalpite(mapa, o.home.name, o.away.name, o.mercado);
+    if (!hit) continue;
+    const alvo = o as T & { acertosRecentes?: boolean; serieRecente?: string | null };
+    alvo.acertosRecentes = hit.serie.acertosRecentes;
+    alvo.serieRecente = rotuloSerie(hit.serie);
+  }
+  return oportunidades;
 }

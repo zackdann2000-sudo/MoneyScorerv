@@ -8,6 +8,7 @@ import {
 } from "@/lib/opportunitiesEngine";
 import { PorqueValor } from "@/components/ValorEsperado";
 import OportunidadesLista from "@/components/OportunidadesLista";
+import { anotarAcertosRecentes } from "@/lib/trackRecord";
 
 /* Palpites IA (MVP inspirado no core loop do Gol Sinyali — recon em
    replica/recon.md). Uma única passada do motor de valor (Poisson/Dixon-Coles
@@ -47,6 +48,8 @@ export default async function PalpitesIaPage() {
     const r = await analisarOportunidades({ date: data, maxMatches: 6 });
     analisados = r.analisados;
     oportunidades = r.oportunidades;
+    // Selo "IA acertou os últimos N": uma consulta ao Track Record por página.
+    await anotarAcertosRecentes(oportunidades).catch(() => {});
   } catch (e: any) {
     erro = e?.message || "Não foi possível carregar os jogos agora.";
   }

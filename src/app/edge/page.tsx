@@ -13,10 +13,10 @@ import {
 import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
-import { FaixaTag, OddJustaLinha } from "@/components/FaixaRisco";
+import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
 import { resumirH2H } from "@/lib/h2hEngine";
 import { alertasVeredito } from "@/lib/vereditoEngine";
-import { estatisticas } from "@/lib/trackRecord";
+import { estatisticas, anotarAcertosRecentes } from "@/lib/trackRecord";
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
 import { desc } from "drizzle-orm";
@@ -69,7 +69,11 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
     }).catch(() => null),
   );
 
-  const oportunidades = [...(dados?.oportunidades ?? [])].sort((a, b) => b.evPct - a.evPct);
+  const oportunidades = [...(dados?.oportunidades ?? [])]
+    .map((o) => ({ ...o }))
+    .sort((a, b) => b.evPct - a.evPct);
+  // Copia própria antes de anotar (não sujar o objeto em cache).
+  await anotarAcertosRecentes(oportunidades).catch(() => {});
   const analisados = dados?.analisados ?? [];
   const stats = await estatisticas().catch(() => null);
   const recentes = await db
@@ -201,6 +205,7 @@ function PickCard({ o, bloqueado }: { o: OportunidadeValor; bloqueado: boolean }
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-[12px] font-black text-acc">{o.rotulo}</span>
             <FaixaTag faixa={o.faixa} compacto />
+            <TrustNota nota={o.trust} rotulo={o.trustRotulo} amostra={o.amostra} compacto />
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] font-bold text-mut">
             <span>odd <b className="text-txt">{o.odd.toFixed(2)}</b></span>
@@ -210,6 +215,11 @@ function PickCard({ o, bloqueado }: { o: OportunidadeValor; bloqueado: boolean }
           <div className="mt-1">
             <OddJustaLinha odd={o.odd} oddJusta={o.oddJusta} margem={o.margemMercado} />
           </div>
+          {o.acertosRecentes && (
+            <div className="mt-1">
+              <SeloAcertos acertosRecentes={o.acertosRecentes} serie={o.serieRecente} />
+            </div>
+          )}
         </div>
         <div className="shrink-0 rounded-xl border border-good/40 bg-good/10 px-2.5 py-1.5 text-center">
           <div className="text-[9px] font-black uppercase text-good/80">EV</div>

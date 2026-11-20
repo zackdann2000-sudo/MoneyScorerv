@@ -36,6 +36,7 @@ SUITES+=(
   "h2hEngine|src/lib/h2hEngine.ts|src/lib/h2hEngine.test.cjs"
   "vereditoEngine|src/lib/vereditoEngine.ts src/lib/h2hEngine.ts src/lib/model.ts src/lib/formWeight.ts|src/lib/vereditoEngine.test.cjs"
   "valueBet|src/lib/valueBet.ts|src/lib/valueBet.test.cjs"
+  "acertosRecentes|src/lib/valueBet.ts src/lib/acertosRecentes.ts|src/lib/acertosRecentes.test.cjs"
   "momentum|src/lib/momentum.ts|src/lib/momentum.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"

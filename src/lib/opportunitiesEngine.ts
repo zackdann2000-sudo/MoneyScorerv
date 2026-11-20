@@ -182,6 +182,8 @@ async function analisarJogo(
     extras: model.extras,
     confianca: model.confidence,
     fonteOdd,
+    // Amostra = menor histórico entre os dois times, o que limita a confiança real.
+    amostra: Math.min(model.sample?.home ?? 0, model.sample?.away ?? 0),
     minProb: opts.minProb,
     oddMin: opts.oddMin,
     oddMax: opts.oddMax,

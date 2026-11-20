@@ -2,10 +2,10 @@ import Link from "next/link";
 import { leagueInfo } from "@/lib/espn";
 import { analisarOportunidades, type AnaliseJogo } from "@/lib/opportunitiesEngine";
 import { stakeSugerida } from "@/lib/valueBet";
-import { FaixaTag, OddJustaLinha } from "@/components/FaixaRisco";
+import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
 import { evCor } from "@/components/ValorEsperado";
 import DesempenhoHistorico from "@/components/DesempenhoHistorico";
-import { estatisticas, type TrackStats } from "@/lib/trackRecord";
+import { estatisticas, type TrackStats, anotarAcertosRecentes } from "@/lib/trackRecord";
 
 /* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
    O Forebet é conhecido por uma TABELA densa de palpites: por jogo, a
@@ -65,6 +65,8 @@ export default async function ForebetPage({
   try {
     const r = await analisarOportunidades({ date: data, maxMatches: 12, usarApiFootball: false });
     jogos = r.analisados;
+    // Selo de acertos recentes em todos os picks da tabela (uma consulta só).
+    await anotarAcertosRecentes(r.oportunidades).catch(() => {});
   } catch (e: any) {
     erro = e?.message || "Não foi possível carregar os palpites agora.";
   }
@@ -203,6 +205,14 @@ export default async function ForebetPage({
                             <span className="mt-0.5 flex items-center justify-center">
                               <FaixaTag faixa={best.faixa} compacto />
                             </span>
+                            <span className="mt-0.5 flex items-center justify-center">
+                              <TrustNota nota={best.trust} rotulo={best.trustRotulo} amostra={best.amostra} compacto />
+                            </span>
+                            {best.acertosRecentes && (
+                              <span className="mt-0.5 flex items-center justify-center">
+                                <SeloAcertos acertosRecentes={best.acertosRecentes} serie={best.serieRecente} />
+                              </span>
+                            )}
                             <OddJustaLinha odd={best.odd} oddJusta={best.oddJusta} margem={best.margemMercado} className="justify-center" />
                           </span>
                         ) : (
@@ -218,7 +228,8 @@ export default async function ForebetPage({
           <p className="text-[8px] text-mut px-3 py-2 border-t border-line/60">
             Destaque em cor = resultado mais provável do modelo. Placar = resultado exato mais provável.
             Gols = média esperada (λ casa + λ fora), com xG mesclado 50/50 quando disponível.
-            "Justa" = a odd do mercado sem a comissão da casa (de-vig). Probabilidades estatísticas, não garantia.
+            "Justa" = a odd do mercado sem a comissão da casa (de-vig). TRUST = nota de confiança
+            0–10 (probabilidade + EV + amostra). Probabilidades estatísticas, não garantia.
           </p>
         </div>
       )}

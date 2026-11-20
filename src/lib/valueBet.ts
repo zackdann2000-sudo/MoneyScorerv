@@ -70,6 +70,77 @@ export const VALOR_ODD_MAX = 2.9;
 /** Probabilidade mínima da Bomba. */
 export const BOMBA_PROB_MIN = 0.25;
 
+/* ------------------------------------------------------------------ */
+/* TRUST SCORE (nota 0–10 de confiança do pick)                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nota de confiança 0–10, no formato do `TRUST x/10` do 180Score.
+ *
+ * Combina três coisas que o pick já carrega:
+ *   - PROBABILIDADE do modelo (peso 45%) — o mais importante: 55% vale 0, 90% vale 1.
+ *   - EV (peso 35%) — 0% de EV vale 0, 25% ou mais vale 1.
+ *   - AMOSTRA (peso 20%) — 10 jogos ou mais vale 1; menos que 5 leva **penalidade**.
+ *
+ * A penalidade é multiplicativa (0.85) e só entra com amostra < 5: um EV alto em
+ * cima de 3 jogos continua sendo um palpite frágil, e a nota tem que dizer isso.
+ *
+ * Rótulos alinhados com as cores da UI: Excelente (≥ 8), Boa (6–8), Cautela (< 6).
+ */
+export type TrustRotulo = "Excelente" | "Boa" | "Cautela";
+
+export type TrustScore = {
+  /** 0.0 a 10.0, uma casa decimal. */
+  nota: number;
+  rotulo: TrustRotulo;
+  /** Componentes normalizados (0..1) — para transparência na UI. */
+  partes: { prob: number; ev: number; amostra: number };
+};
+
+export const TRUST_PESO_PROB = 0.45;
+export const TRUST_PESO_EV = 0.35;
+export const TRUST_PESO_AMOSTRA = 0.2;
+/** Probabilidade que zera a nota e probabilidade que a leva ao máximo. */
+export const TRUST_PROB_PISO = 0.55;
+export const TRUST_PROB_TETO = 0.9;
+/** EV (%) que leva o componente de EV ao máximo. */
+export const TRUST_EV_TETO = 25;
+/** Amostra considerada cheia. */
+export const TRUST_AMOSTRA_CHEIA = 10;
+/** Abaixo disso a amostra é considerada curta e sofre penalidade. */
+export const TRUST_AMOSTRA_MINIMA = 5;
+export const TRUST_PENALIDADE_AMOSTRA = 0.85;
+/** Cortes dos rótulos (e das cores na UI). */
+export const TRUST_CORTE_EXCELENTE = 8;
+export const TRUST_CORTE_BOA = 6;
+
+const clamp01 = (v: number) => (Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0);
+
+/** Nota TRUST 0–10 a partir de probabilidade, EV (%) e tamanho da amostra. */
+export function calcularTrustScore(
+  probModelo: number,
+  evPct: number,
+  amostra: number | null | undefined,
+): TrustScore {
+  const p = clamp01((Number(probModelo) - TRUST_PROB_PISO) / (TRUST_PROB_TETO - TRUST_PROB_PISO));
+  const e = clamp01(Number(evPct) / TRUST_EV_TETO);
+  const n = Number.isFinite(Number(amostra)) ? Math.max(0, Number(amostra)) : 0;
+  const a =
+    n >= TRUST_AMOSTRA_CHEIA
+      ? 1
+      : n >= TRUST_AMOSTRA_MINIMA
+        ? 0.5 + (n - TRUST_AMOSTRA_MINIMA) * 0.1 // 5 jogos → 0.5 · 10 jogos → 1.0
+        : n * 0.1; // amostra curta: 4 → 0.4 · 0 → 0
+
+  const bruto = 10 * (TRUST_PESO_PROB * p + TRUST_PESO_EV * e + TRUST_PESO_AMOSTRA * a);
+  const nota = +(bruto * (n < TRUST_AMOSTRA_MINIMA ? TRUST_PENALIDADE_AMOSTRA : 1)).toFixed(1);
+  return {
+    nota,
+    rotulo: nota >= TRUST_CORTE_EXCELENTE ? "Excelente" : nota >= TRUST_CORTE_BOA ? "Boa" : "Cautela",
+    partes: { prob: +p.toFixed(3), ev: +e.toFixed(3), amostra: +a.toFixed(3) },
+  };
+}
+
 export type MetaJogo = {
   matchId: string;
   league: string;
@@ -116,6 +187,17 @@ export type OportunidadeValor = MetaJogo & {
   ehValorOdd: boolean;
   /** Faixa de risco do pick (favorito/valor/bomba) ou null. */
   faixa: FaixaRisco | null;
+  /** Nota de confiança 0–10 (TRUST) e seu rótulo. */
+  trust: number;
+  trustRotulo: TrustRotulo;
+  /** Jogos usados pelo modelo (amostra) — base da nota de confiança. */
+  amostra: number | null;
+  /**
+   * Série recente do time neste mercado no nosso Track Record
+   * (ex.: "3/3"). Preenchida depois, por `anotarAcertosRecentes`. Nunca inventada aqui.
+   */
+  acertosRecentes?: boolean;
+  serieRecente?: string | null;
   /** Frase de transparência pronta para a UI. */
   porque: string;
 };
@@ -271,6 +353,8 @@ export function avaliarOportunidades(args: {
     cards?: { probs: { line: number; over: number }[] };
     corners?: { probs: { line: number; over: number }[] };
   } | null;
+  /** Jogos que embasaram o modelo (menor amostra entre casa e fora). */
+  amostra?: number | null;
 }): OportunidadeValor[] {
   const { meta, probs, odds, confianca, fonteOdd } = args;
   const minProb = args.minProb ?? MIN_PROB;
@@ -334,6 +418,7 @@ export function avaliarOportunidades(args: {
     // Odd justa: a mesma odd sem a comissão do mercado (de-vig).
     const justa = oddJustaDe(odd, c.margem ?? null);
     const folgaOddPct = justa ? +((odd / justa.oddJusta - 1) * 100).toFixed(1) : null;
+    const trust = calcularTrustScore(c.prob, evPct, args.amostra ?? null);
     const porque = `Modelo: ${pct(c.prob)}% de acerto | Odd: ${odd.toFixed(2)} | Valor Esperado: ${evPct >= 0 ? "+" : ""}${evPct.toFixed(1)}% | Stake: ${(stake * 100).toFixed(1)}% da banca`;
     out.push({
       ...meta,
@@ -355,6 +440,9 @@ export function avaliarOportunidades(args: {
       folgaOddPct,
       ehValorOdd: justa ? odd > justa.oddJusta : false,
       faixa: faixaRisco(odd, c.prob),
+      trust: trust.nota,
+      trustRotulo: trust.rotulo,
+      amostra: args.amostra ?? null,
       porque,
     });
   }
