@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { Crest, SourceFoot, EmptyState } from "@/components/ui";
-import { LIGAS_RANKING, dadosRankings } from "@/lib/rankingsData";
+import { LIGAS_RANKING, dadosRankingsComIdade } from "@/lib/rankingsData";
 import { leagueInfo } from "@/lib/espn";
-import { MERCADOS, mercadoPorId, ranquear, maiorAmostra, type Periodo } from "@/lib/rankingsEngine";
+import {
+  MERCADOS,
+  mercadoPorId,
+  ranquear,
+  maiorAmostra,
+  faixaIdade,
+  rotuloIdade,
+  type EntradaTime,
+  type Periodo,
+} from "@/lib/rankingsEngine";
 
 const PERIODOS: { id: Periodo; rotulo: string }[] = [
   { id: 5, rotulo: "Últimos 5" },
@@ -52,10 +61,21 @@ export default async function RankingsPage({ searchParams }: { searchParams?: Pr
     min: String(minJogos),
   };
 
-  const times = await dadosRankings([ligaAtiva]).catch(() => []);
+  const base: { times: EntradaTime[]; atualizadoEm: Date | null } = await dadosRankingsComIdade([ligaAtiva]).catch(
+    () => ({ times: [], atualizadoEm: null }),
+  );
+  const { times, atualizadoEm } = base;
   const ranking = ranquear(times, mercado.id, { periodo, minJogos, limite: 25 });
   const amostra = maiorAmostra(times, periodo);
   const liga = leagueInfo(ligaAtiva);
+
+  /* Selo "Atualizado há X": a idade vem do campo atualizado_em do Neon.
+     `Math.max(0, …)` porque o relógio do Neon pode estar alguns ms à frente do
+     da função — idade negativa por microssegundos não é dado ausente. */
+  const idadeMs = atualizadoEm ? Math.max(0, Date.now() - atualizadoEm.getTime()) : null;
+  const faixa = faixaIdade(idadeMs);
+  const seloCor =
+    faixa === "fresco" ? "text-acc" : faixa === "atencao" ? "text-warn" : faixa === "defasado" ? "text-red-400" : "text-mut";
 
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-3">
@@ -67,9 +87,17 @@ export default async function RankingsPage({ searchParams }: { searchParams?: Pr
         <p className="text-[11px] text-mut mt-1">
           Taxa de acerto real por equipe — {mercado.descricao}.
         </p>
-        <p className="text-[9px] text-acc/90 mt-2">
-          Acerto = jogo finalizado que bateu o mercado · dados ESPN · escanteios e cartões são o total do jogo
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[9px] text-acc/90">
+            Acerto = jogo finalizado que bateu o mercado · dados ESPN · escanteios e cartões são o total do jogo
+          </span>
+          <span
+            title={atualizadoEm ? `Cache gravado pelo cron diário em ${atualizadoEm.toLocaleString("pt-BR")}` : "Cache ainda não gravado pelo cron"}
+            className={`inline-flex items-center gap-1 rounded-full border border-line bg-panel px-2 py-0.5 text-[9px] font-extrabold ${seloCor}`}
+          >
+            <span aria-hidden>🕒</span>Atualizado {rotuloIdade(idadeMs)}
+          </span>
+        </div>
       </header>
 
       {/* Mercado */}

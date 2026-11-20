@@ -143,6 +143,36 @@ export function contarElegiveis(times: EntradaTime[], mercado: MercadoId, period
   return ranquear(times, mercado, { periodo, minJogos }).length;
 }
 
+/**
+ * Idade do dado em faixas, para a UI decidir a cor do selo "Atualizado há X".
+ *  - `fresco`: até 24 h (é o ciclo do cron diário)
+ *  - `atencao`: 24–48 h (o cron pode ter falhado um dia)
+ *  - `defasado`: acima de 48 h (dado velho de fato)
+ *  - `ausente`: sem registro no banco
+ */
+export type FaixaIdade = "fresco" | "atencao" | "defasado" | "ausente";
+
+export const LIMITE_FRESCO_MS = 24 * 60 * 60 * 1000;
+export const LIMITE_ATENCAO_MS = 48 * 60 * 60 * 1000;
+
+export function faixaIdade(ms: number | null | undefined): FaixaIdade {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "ausente";
+  if (ms < LIMITE_FRESCO_MS) return "fresco";
+  if (ms < LIMITE_ATENCAO_MS) return "atencao";
+  return "defasado";
+}
+
+/** Texto curto do selo: "agora", "há 12min", "há 3h", "há 2d". */
+export function rotuloIdade(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "sem registro";
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min}min`;
+  const horas = Math.floor(min / 60);
+  if (horas < 48) return `há ${horas}h`;
+  return `há ${Math.floor(horas / 24)}d`;
+}
+
 /** Maior amostra disponível dentre todas as equipes (usado no rodapé). */
 export function maiorAmostra(times: EntradaTime[], periodo: Periodo): number {
   return times.reduce((max, t) => Math.max(max, recortarPeriodo(t.jogos, periodo).length), 0);

@@ -145,17 +145,25 @@ export async function montarLigaRanking(code: string): Promise<EntradaTime[]> {
  * responder, o resultado é gravado no Neon em modo write-through, então nem um
  * cold start deixa o banco vazio de novo.
  */
-export async function dadosRankings(codigos: string[]): Promise<EntradaTime[]> {
+export type BaseComIdade = {
+  times: EntradaTime[];
+  /** menor `atualizadoEm` dentre as ligas usadas (ou null sem cache) */
+  atualizadoEm: Date | null;
+};
+
+export async function dadosRankingsComIdade(codigos: string[]): Promise<BaseComIdade> {
   const validos = codigos.filter((c) => (LIGAS_RANKING as readonly string[]).includes(c));
-  if (!validos.length) return [];
+  if (!validos.length) return { times: [], atualizadoEm: null };
 
   const doBanco = await lerRankingsCache(validos);
   const out: EntradaTime[] = [];
+  let maisNovo: Date | null = null;
 
   for (const code of validos) {
     const cache = doBanco.get(code);
     if (cache && cache.idadeMs < FRESCOR_CACHE_MS) {
       out.push(...cache.times);
+      if (cache.atualizadoEm && (!maisNovo || cache.atualizadoEm < maisNovo)) maisNovo = cache.atualizadoEm;
       continue;
     }
     try {
@@ -165,12 +173,19 @@ export async function dadosRankings(codigos: string[]): Promise<EntradaTime[]> {
         if (cache) out.push(...cache.times);
         continue;
       }
-      await gravarRankingsCache(code, times).catch(() => false);
+      const gravou = await gravarRankingsCache(code, times).catch(() => false);
       out.push(...times);
+      /* Calculado agora = dado fresco. O selo tem que refletir isso, mesmo quando a
+         gravação no Neon falha (aí o "agora" é só desta renderização). */
+      if (gravou || !maisNovo) maisNovo = new Date();
     } catch {
       /* Liga que falhou não inventa dado: fica de fora (ou cai na base antiga). */
       if (cache) out.push(...cache.times);
     }
   }
-  return out;
+  return { times: out, atualizadoEm: maisNovo };
+}
+
+export async function dadosRankings(codigos: string[]): Promise<EntradaTime[]> {
+  return (await dadosRankingsComIdade(codigos)).times;
 }

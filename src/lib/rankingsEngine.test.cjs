@@ -8,6 +8,8 @@ const {
   maiorAmostra,
   mercadoPorId,
   extrairEstatisticasScoreboard,
+  faixaIdade,
+  rotuloIdade,
 } = require("./rankingsEngine.js");
 
 
@@ -141,14 +143,34 @@ assert.strictEqual(st.get("3").corners, null, "sem publicação = null, nunca 0"
 assert.strictEqual(st.get("3").cards, null);
 assert.strictEqual(extrairEstatisticasScoreboard(null).size, 0);
 
-/* ---------- 8) mercado inválido cai no padrão Over 2.5 ---------- */
-assert.strictEqual(mercadoPorId("nao-existe").id, "over25");
+/* ---------- 8) mercado inválido cai no padrão Over 2.5 ---------- */assert.strictEqual(mercadoPorId("nao-existe").id, "over25");
 assert.strictEqual(mercadoPorId(undefined).id, "over25");
 assert.strictEqual(MERCADOS.length, 6);
 assert.deepStrictEqual(
   MERCADOS.filter((m) => m.precisaEstat).map((m) => m.id),
   ["over95corners", "over35cards"],
 );
+
+/* ---------- 9) selo "Atualizado há X" ---------- */
+const MIN = 60 * 1000;
+const HORA = 60 * MIN;
+assert.strictEqual(rotuloIdade(null), "sem registro");
+assert.strictEqual(rotuloIdade(undefined), "sem registro");
+assert.strictEqual(rotuloIdade(-5), "sem registro", "idade negativa (relógio torto) não vira 'agora'");
+assert.strictEqual(rotuloIdade(30 * 1000), "agora");
+assert.strictEqual(rotuloIdade(12 * MIN), "há 12min");
+assert.strictEqual(rotuloIdade(3 * HORA), "há 3h");
+assert.strictEqual(rotuloIdade(23 * HORA + 59 * MIN), "há 23h");
+assert.strictEqual(rotuloIdade(30 * HORA), "há 30h", "entre 24h e 48h ainda é hora, não dia");
+assert.strictEqual(rotuloIdade(49 * HORA), "há 2d");
+
+assert.strictEqual(faixaIdade(null), "ausente");
+assert.strictEqual(faixaIdade(1 * HORA), "fresco");
+assert.strictEqual(faixaIdade(23.9 * HORA), "fresco");
+assert.strictEqual(faixaIdade(24 * HORA), "atencao", "24h já é amarelo: o cron diário deveria ter passado");
+assert.strictEqual(faixaIdade(47 * HORA), "atencao");
+assert.strictEqual(faixaIdade(48 * HORA), "defasado");
+assert.strictEqual(faixaIdade(72 * HORA), "defasado");
 
 console.log(
   `✅ rankingsEngine ok — ${MERCADOS.length} mercados · topo: ${ranking[0].nome} ${(ranking[0].taxa * 100).toFixed(0)}% · parser: ${st.size} jogos`,
