@@ -81,7 +81,13 @@ export function normEvent(ev: any, league: string): Match {
   const cs = comp.competitors || [];
   const li = leagueInfo(league);
   const status = ev?.status || comp?.status || {};
-  const st = status?.type?.state || "pre";
+  const rawState = status?.type?.state;
+  /* ESPN usa STATUS_FINISHED / STATUS_FULL_TIME em algumas ligas e o state pode
+     vir vazio. Sem isso, o jogo terminado deixa de ser tratado como encerrado. */
+  const etiqueta = `${status?.type?.name || ""} ${status?.type?.description || ""} ${status?.type?.detail || ""}`.toUpperCase();
+  const encerrado = /STATUS_FINAL|STATUS_FINISHED|FULL.?TIME|FINISHED/.test(etiqueta);
+  const st: "pre" | "in" | "post" =
+    rawState === "in" ? "in" : rawState === "post" || encerrado ? "post" : "pre";
   return {
     id: String(ev.id), league, leagueName: li.name, country: li.country, flag: li.flag,
     date: ev.date, state: st, status: status?.type?.shortDetail || status?.type?.detail || "",

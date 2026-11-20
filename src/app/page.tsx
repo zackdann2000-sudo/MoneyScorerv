@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getUser } from "@/lib/auth";
 import {
   Sparkles,
   Radar,
@@ -68,7 +70,11 @@ const PASSOS = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  /* A landing é só para visitante. Quem já tem sessão cai direto na aba Jogos. */
+  const user = await getUser().catch(() => null);
+  if (user) redirect("/jogos");
+
   return (
     <div className="mx-auto max-w-5xl px-4 pb-12">
       {/* ---------- HERO ---------- */}
