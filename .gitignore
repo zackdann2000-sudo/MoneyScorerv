@@ -65,3 +65,10 @@ replica/sports_alert/extracted/
 # artefatos de recon/APK (não versionar)
 .rea_sports/
 apk_extracted/
+
+# Gonzo Tips: só o recon.md é versionado, binários ficam locais
+reverse_engineering/gonzo/gonzo_extracted/
+reverse_engineering/gonzo/apk_contents/
+reverse_engineering/gonzo/native/
+reverse_engineering/gonzo/*.xapk
+reverse_engineering/gonzo/*.apk
