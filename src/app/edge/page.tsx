@@ -3,6 +3,7 @@ import {
   Sparkles,
   Radar as RadarIcon,
   Scale,
+  Swords,
   TrendingUp,
   Lock,
   ArrowRight,
@@ -110,6 +111,13 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
 
       {/* Abas */}
       <nav className="flex gap-1 rounded-full border border-line bg-panel p-1">
+        <Link
+          href="/edge/duelos"
+          className="flex items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] font-extrabold text-mut transition-colors hover:text-txt"
+        >
+          <Swords className="h-3.5 w-3.5" />
+          <span className="truncate">Duelos</span>
+        </Link>
         {ABAS.map((a) => {
           const Icon = a.icon;
           const on = a.id === aba;
