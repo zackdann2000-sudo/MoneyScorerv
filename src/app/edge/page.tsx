@@ -13,6 +13,7 @@ import {
 import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
+import { resumirH2H } from "@/lib/h2hEngine";
 import { estatisticas } from "@/lib/trackRecord";
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
@@ -259,10 +260,37 @@ function RadarDivergencias({ analisados }: { analisados: AnaliseJogo[] }) {
       });
   });
 
+  /* Placar exato mais repetido, direto do H2H real de cada jogo. */
+  const placares = analisados
+    .map((a) => {
+      const r = resumirH2H(a.h2h);
+      if (!r?.placarComum || r.placarComum.vezes < 2) return null;
+      const oddMercado =
+        typeof (a.odds as any)?.placarExato?.[r.placarComum.placar] === "number"
+          ? (a.odds as any).placarExato[r.placarComum.placar]
+          : null;
+      const evPct = oddMercado != null ? +((r.placarComum.prob * oddMercado - 1) * 100).toFixed(1) : null;
+      return {
+        jogo: `${a.home.name} × ${a.away.name}`,
+        liga: a.leagueName,
+        placar: r.placarComum.placar,
+        vezes: r.placarComum.vezes,
+        total: r.total,
+        pct: r.placarComum.pct,
+        oddJusta: r.placarComum.oddJusta,
+        oddMercado,
+        evPct,
+        marca: evPct == null ? "neutro" : evPct >= 10 ? "valor" : evPct >= 0 ? "neutro" : "evitar",
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p != null)
+    .sort((x, y) => y.vezes - x.vezes || y.pct - x.pct)
+    .slice(0, 6);
+
   linhas.sort((x, y) => Math.abs(y.dif) - Math.abs(x.dif));
   const top = linhas.slice(0, 18);
 
-  if (!top.length) {
+  if (!top.length && !placares.length) {
     return (
       <Vazio
         titulo="Sem odds para comparar"
@@ -272,44 +300,89 @@ function RadarDivergencias({ analisados }: { analisados: AnaliseJogo[] }) {
   }
 
   return (
-    <section className="space-y-1.5">
-      <p className="px-1 text-[11px] leading-snug text-mut">
-        <b className="text-txt">Como ler:</b> a barra é a diferença entre o que o modelo acha e o que a
-        odd paga. Verde = o mercado paga mais do que deveria. A odd muda; confira na casa antes.
-      </p>
-      {top.map((l, i) => {
-        const bom = l.dif > 0;
-        const largura = Math.min(100, Math.abs(l.dif) * 400);
-        return (
-          <div key={`${l.jogo}-${l.rotulo}-${i}`} className="rounded-xl border border-line bg-panel px-2.5 py-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate text-[11px] font-bold text-mut">
-                  {l.liga} · {hhmm(l.kickoff)}
+    <section className="space-y-4">
+      {/* placar exato mais repetido (H2H real) */}
+      {placares.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="px-1 text-[11px] leading-snug text-mut">
+            <b className="text-txt">Placar exato mais repetido (H2H real):</b> frequência contada nos
+            confrontos diretos — não é previsão. Destaque em verde quando a odd de mercado pagar
+            acima do preço justo.
+          </p>
+          {placares.map((p, i) => (
+            <div key={`${p.jogo}-placar-${i}`} className="rounded-xl border border-line bg-panel px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] font-bold text-mut">{p.liga} · {p.jogo}</div>
+                  <div className="text-[12px] font-extrabold text-txt">
+                    Placar {p.placar} · {p.vezes}× em {p.total}
+                  </div>
                 </div>
-                <div className="truncate text-[12px] font-extrabold text-txt">{l.jogo}</div>
+                <div className="shrink-0 text-right">
+                  <div className={`text-[12px] font-black ${p.marca === "valor" ? "text-good" : p.marca === "evitar" ? "text-bad" : "text-mut"}`}>
+                    {p.pct}%
+                  </div>
+                  <div className="text-[9px] font-bold uppercase text-mut">odd justa {p.oddJusta.toFixed(2)}</div>
+                </div>
               </div>
-              <div className={`shrink-0 text-right text-[12px] font-black ${bom ? "text-good" : "text-bad"}`}>
-                {bom ? "+" : ""}
-                {(l.dif * 100).toFixed(1)}%
-                <div className="text-[9px] font-bold uppercase text-mut">{l.rotulo}</div>
-              </div>
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="w-16 shrink-0 text-[10px] font-bold text-mut">odd {l.odd.toFixed(2)}</span>
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
+              {p.oddMercado != null && p.evPct != null && (
                 <div
-                  className={`h-full rounded-full ${bom ? "bg-good" : "bg-bad"}`}
-                  style={{ width: `${largura}%` }}
-                />
-              </div>
-              <span className="w-24 shrink-0 text-right text-[10px] font-bold text-mut">
-                modelo {pct(l.prob)} · odd {pct(l.implicita)}
-              </span>
+                  className={`mt-1.5 rounded-lg border px-2 py-1 text-[10px] font-bold ${
+                    p.marca === "valor"
+                      ? "border-good/40 bg-good/10 text-good"
+                      : p.marca === "evitar"
+                        ? "border-bad/40 bg-bad/10 text-bad"
+                        : "border-line bg-panel2 text-mut"
+                  }`}
+                >
+                  mercado paga {p.oddMercado.toFixed(2)} · EV {p.evPct >= 0 ? "+" : ""}{p.evPct.toFixed(1)}%
+                </div>
+              )}
             </div>
-          </div>
-        );
-      })}
+          ))}
+        </div>
+      )}
+
+      {/* divergências de mercado */}
+      <div className="space-y-1.5">
+        <p className="px-1 text-[11px] leading-snug text-mut">
+          <b className="text-txt">Como ler:</b> a barra é a diferença entre o que o modelo acha e o que a
+          odd paga. Verde = o mercado paga mais do que deveria. A odd muda; confira na casa antes.
+        </p>
+        {top.map((l, i) => {
+          const bom = l.dif > 0;
+          const largura = Math.min(100, Math.abs(l.dif) * 400);
+          return (
+            <div key={`${l.jogo}-${l.rotulo}-${i}`} className="rounded-xl border border-line bg-panel px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] font-bold text-mut">
+                    {l.liga} · {hhmm(l.kickoff)}
+                  </div>
+                  <div className="truncate text-[12px] font-extrabold text-txt">{l.jogo}</div>
+                </div>
+                <div className={`shrink-0 text-right text-[12px] font-black ${bom ? "text-good" : "text-bad"}`}>
+                  {bom ? "+" : ""}
+                  {(l.dif * 100).toFixed(1)}%
+                  <div className="text-[9px] font-bold uppercase text-mut">{l.rotulo}</div>
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="w-16 shrink-0 text-[10px] font-bold text-mut">odd {l.odd.toFixed(2)}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
+                  <div
+                    className={`h-full rounded-full ${bom ? "bg-good" : "bg-bad"}`}
+                    style={{ width: `${largura}%` }}
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right text-[10px] font-bold text-mut">
+                  modelo {pct(l.prob)} · odd {pct(l.implicita)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

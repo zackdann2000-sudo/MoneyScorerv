@@ -33,6 +33,7 @@ SUITES+=(
   "trialCountdown|src/lib/trialCountdown.ts|src/lib/trialCountdown.test.cjs"
   "playerPropsEngine|src/lib/playerPropsEngine.ts|src/lib/playerPropsEngine.test.cjs"
   "duelosEngine|src/lib/duelosEngine.ts src/lib/playerPropsEngine.ts|src/lib/duelosEngine.test.cjs"
+  "h2hEngine|src/lib/h2hEngine.ts|src/lib/h2hEngine.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
 )

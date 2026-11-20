@@ -57,6 +57,8 @@ export type AnaliseJogo = MetaJogo & {
   topScores: Analysis["topScores"];
   confianca: Confianca;
   h2hAjuste: Analysis["h2hAjuste"];
+  /** Confrontos diretos reais (placar) usados pelo motor H2H. */
+  h2h: { golsCasa: number; golsFora: number; data?: string }[];
   odds: OddsMercado | null;
   fonteOdd: string;
   oportunidades: OportunidadeValor[];
@@ -188,6 +190,11 @@ async function analisarJogo(
     topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,
+    h2h: (h2h.games || []).map((g: any) => ({
+      golsCasa: Number(g.homeScore),
+      golsFora: Number(g.awayScore),
+      data: g.date,
+    })),
     odds,
     fonteOdd,
     oportunidades,
