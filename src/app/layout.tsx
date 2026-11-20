@@ -43,7 +43,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               try {
                 await OneSignal.init({
                   appId: "f06a705d-ebd0-4390-9a11-207fe769b81d",
-                  serviceWorkerPath: "TwoSignalSDKWorker.js",
+                  // usa o MESMO worker do PWA: dois workers no scope "/" se anulam e o do
+                  // OneSignal não tem handler de fetch (bloqueia a instalação no Android)
+                  serviceWorkerPath: "sw.js",
                   serviceWorkerParam: { scope: "/" },
                   allowLocalhostAsSecureOrigin: true,
                   notifyButton: { enable: false }

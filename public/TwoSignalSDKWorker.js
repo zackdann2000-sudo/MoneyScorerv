@@ -1,1 +1,0 @@
-importScripts("https://frosty-disk-8a68.moneyiosates.workers.dev/sdks/web/v16/OneSignalSDK.sw.js");
