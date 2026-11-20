@@ -20,6 +20,7 @@ import {
   type Match,
 } from "@/lib/espn";
 import { runModel, type Analysis } from "@/lib/model";
+import { vereditar, type Veredito } from "@/lib/vereditoEngine";
 import { oddsDoJogoComFallback } from "@/lib/providers";
 import { getXgOficial, getXgOficialCache } from "@/lib/xgOfficial";
 import {
@@ -59,6 +60,8 @@ export type AnaliseJogo = MetaJogo & {
   h2hAjuste: Analysis["h2hAjuste"];
   /** Confrontos diretos reais (placar) usados pelo motor H2H. */
   h2h: { golsCasa: number; golsFora: number; data?: string }[];
+  /** Veredito estatístico (forma 70% × H2H 30%) — null sem base. */
+  veredito: Veredito | null;
   odds: OddsMercado | null;
   fonteOdd: string;
   oportunidades: OportunidadeValor[];
@@ -122,6 +125,13 @@ async function analisarJogo(
   // Uma chamada de resumo dá odds (normOdds) e H2H (normH2H) de uma vez.
   const sm = await getSummaryRaw(m.league, m.id, m.state).catch(() => null);
   const h2h = sm ? normH2H(sm) : { games: [] as any[] };
+  const h2hPlacares = (h2h.games || []).map((g: any) => ({
+    golsCasa: Number(g.homeScore),
+    golsFora: Number(g.awayScore),
+    data: g.date,
+  }));
+  /* Veredito Estatístico: usa a base que já está na mão, sem chamada extra. */
+  const veredito = vereditar({ homeGames: hh.games, awayGames: ah.games, h2hGames: h2hPlacares });
   const model = runModel(m.home.name, m.away.name, hh.games, ah.games, 2.65, { games: h2h.games });
   if (model.status !== "ok" || !model.probs) return null;
 
@@ -190,11 +200,8 @@ async function analisarJogo(
     topScores: model.topScores,
     confianca: model.confidence,
     h2hAjuste: model.h2hAjuste,
-    h2h: (h2h.games || []).map((g: any) => ({
-      golsCasa: Number(g.homeScore),
-      golsFora: Number(g.awayScore),
-      data: g.date,
-    })),
+    h2h: h2hPlacares,
+    veredito,
     odds,
     fonteOdd,
     oportunidades,

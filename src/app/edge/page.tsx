@@ -14,6 +14,7 @@ import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
 import { resumirH2H } from "@/lib/h2hEngine";
+import { alertasVeredito } from "@/lib/vereditoEngine";
 import { estatisticas } from "@/lib/trackRecord";
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
@@ -290,6 +291,21 @@ function RadarDivergencias({ analisados }: { analisados: AnaliseJogo[] }) {
   linhas.sort((x, y) => Math.abs(y.dif) - Math.abs(x.dif));
   const top = linhas.slice(0, 18);
 
+  /* Alertas do Veredito: forma (70%) × H2H (30%) contra a odd da casa.
+     Só entra o que passa de EV 10% — o resto é ruído. */
+  const alertas = analisados
+    .flatMap((a) =>
+      alertasVeredito(a.veredito, a.odds).map((x) => ({
+        jogo: `${a.home.name} × ${a.away.name}`,
+        liga: a.leagueName,
+        kickoff: a.kickoff,
+        confianca: a.veredito?.confianca || "baixa",
+        ...x,
+      })),
+    )
+    .sort((x, y) => y.evPct - x.evPct)
+    .slice(0, 8);
+
   if (!top.length && !placares.length) {
     return (
       <Vazio
@@ -301,6 +317,37 @@ function RadarDivergencias({ analisados }: { analisados: AnaliseJogo[] }) {
 
   return (
     <section className="space-y-4">
+      {/* alertas do Veredito Estatístico (EV ≥ 10%) */}
+      {alertas.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="px-1 text-[11px] leading-snug text-mut">
+            <b className="text-txt">Alerta do veredito:</b> forma recente (70%) + H2H (30%) contra a odd
+            da casa. Só aparece o que passa de <b className="text-good">EV +10%</b>.
+          </p>
+          {alertas.map((al, i) => (
+            <div key={`${al.jogo}-${al.mercado}-${i}`} className="rounded-xl border border-good/35 bg-good/5 px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-[11px] font-bold text-mut">{al.liga} · {hhmm(al.kickoff)} · confiança {al.confianca}</div>
+                  <div className="truncate text-[12px] font-extrabold text-txt">{al.jogo}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[12px] font-black text-good">+{al.evPct.toFixed(1)}%</div>
+                  <div className="text-[9px] font-bold uppercase text-mut">{al.rotulo}</div>
+                </div>
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-mut">
+                <span>veredito {pct(al.prob)}</span>
+                <span>·</span>
+                <span>odd {al.odd.toFixed(2)}</span>
+                <span>·</span>
+                <span>implícita {pct(1 / al.odd)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* placar exato mais repetido (H2H real) */}
       {placares.length > 0 && (
         <div className="space-y-1.5">

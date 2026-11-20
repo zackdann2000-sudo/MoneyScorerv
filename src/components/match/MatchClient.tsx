@@ -175,7 +175,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
       <div className="pt-3 rise" key={tab}>
         {tab === "oportunidades" && <TipsGate><OppTab matchId={id} league={league} home={m.home} away={m.away} odds={d.odds} oddsSource={d.oddsSource} /></TipsGate>}
         {tab === "ia" && <TipsGate><IaTab matchId={id} league={league} odds={d.odds} /></TipsGate>}
-        {tab === "prelive" && <PreLiveTab home={m.home} away={m.away} league={league} officials={d.officials} h2h={d.h2h} />}
+        {tab === "prelive" && <PreLiveTab home={m.home} away={m.away} league={league} officials={d.officials} h2h={d.h2h} matchId={id} />}
         {tab === "live" && <LiveTab d={d} matchId={id} league={league} />}
         {tab === "h2h" && <H2HTab d={d} league={league} />}
         {tab === "h2hreal" && <H2HRealTab games={d.h2h?.games} oddPlacarComum={(d as any).odds?.placarComum ?? null} />}

@@ -7,6 +7,7 @@ import { picks, predictions } from "@/db/schema";
 import { wilson, evOf, attachMarket } from "@/lib/credibility";
 import { eq } from "drizzle-orm";
 import { runModel } from "./model";
+import { vereditar } from "./vereditoEngine";
 
 /* ================= OPORTUNIDADES (estilo GreenScorer) ================= */
 export type Oportunidade = { mercado: string; periodo: string; linha: string; media: number; acertos: number; totalJogos: number; oddEstimada: number | null; hist: number[]; baseParcial: boolean };
@@ -273,7 +274,14 @@ export async function analyzeMatch(match: Match) {
       }).onConflictDoNothing();
     } catch {}
   }
-  return { analysis, h2h, sampleInfo: { home: hh.games.length, away: ah.games.length, baseParcial: hh.baseParcial || ah.baseParcial } };
+  /* Veredito Estatístico: forma recente (70%) × H2H (30%). Calculado aqui porque
+     os dois históricos já chegaram — não custa chamada extra. */
+  const veredito = vereditar({
+    homeGames: hh.games,
+    awayGames: ah.games,
+    h2hGames: (h2h.games || []).map((g: any) => ({ golsCasa: Number(g.homeScore), golsFora: Number(g.awayScore), data: g.date })),
+  });
+  return { analysis, h2h, veredito, sampleInfo: { home: hh.games.length, away: ah.games.length, baseParcial: hh.baseParcial || ah.baseParcial } };
 }
 
 export { todayYmd };

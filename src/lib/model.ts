@@ -1,6 +1,41 @@
-import type { HistGame } from "./espn";
 import { JANELA_FORMA, JANELA_H2H, ajusteH2H, mediaPonderada, type AjusteH2H } from "./formaRecente";
 import { getWeightedAverage, FORM_JANELA } from "./formWeight";
+
+/**
+ * Estrutura de um jogo do histórico que este motor consome.
+ *
+ * Fica declarada aqui (em vez de importar `HistGame` de `espn.ts`) de propósito:
+ * o módulo é cálculo puro e não deve arrastar a camada de dados/banco junto.
+ * `HistGame` do espn é um superconjunto disto, então continua atribuível.
+ */
+export type HistGame = {
+  id: string;
+  date: string;
+  league: string;
+  home: boolean;
+  gf: number;
+  ga: number;
+  res: "V" | "E" | "D";
+  xgEst: number | null;
+  oppXgEst: number | null;
+  xgF?: number | null;
+  xgA?: number | null;
+  xgFonte?: "api-football" | null;
+  corners: number | null;
+  oppCorners: number | null;
+  yellow: number | null;
+  red: number | null;
+  oppYellow: number | null;
+  fouls: number | null;
+  oppFouls: number | null;
+  sot: number | null;
+  oppSot: number | null;
+  shots: number | null;
+  poss: number | null;
+  htGf: number | null;
+  htGa: number | null;
+  offsides?: number | null;
+};
 
 /* ============================================================
    MODELO ESTATÍSTICO PREDITIVO — Poisson com ajuste Dixon-Coles

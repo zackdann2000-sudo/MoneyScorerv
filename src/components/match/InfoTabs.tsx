@@ -5,6 +5,7 @@ import { Whistle } from "./icons";
 import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge } from "@/components/ui";
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
+import { VereditoBlock } from "@/components/match/VereditoBlock";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
 import type { ContextoH2H } from "@/lib/blocoAnalises";
@@ -133,7 +134,7 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
 }
 
 /* ================= PRÉ-LIVE (comparativo Last 10) ================= */
-export function PreLiveTab({ home, away, league, officials, h2h }: { home: Team; away: Team; league: string; officials: any[]; h2h?: { games?: any[] } | null }) {
+export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { home: Team; away: Team; league: string; officials: any[]; h2h?: { games?: any[] } | null; matchId?: string }) {
   const [h, setH] = useState<any>(null); const [a, setA] = useState<any>(null);
   const [mode, setMode] = useState<"media" | "total">("media");
   const [cat, setCat] = useState("ATAQUE");
@@ -181,6 +182,9 @@ export function PreLiveTab({ home, away, league, officials, h2h }: { home: Team;
       </div>
       {/* As 4 análises em destaque: o resumo do confronto antes do detalhe. */}
       <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} h2h={h2hCtx} />
+
+      {/* Veredito Estatístico: forma (70%) × H2H (30%), calculado no servidor. */}
+      {matchId && <VereditoBlock matchId={matchId} />}
 
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {Object.keys(CATS).map((c) => <button key={c} onClick={() => setCat(c)} className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-extrabold border ${cat === c ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}>{c}</button>)}
