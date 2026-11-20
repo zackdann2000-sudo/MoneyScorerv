@@ -6,6 +6,7 @@ import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, Calend
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
+import InstallApp from "@/components/InstallApp";
 
 const NAV = [
   { href: "/ao-vivo", label: "Ao vivo", icon: Radio },
@@ -152,8 +153,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         ))}
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-[70] bg-panel border-t border-line" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div className="max-w-3xl mx-auto grid grid-cols-5">
+      <nav className="fixed bottom-0 left-0 right-0 z-[70] bg-panel border-t border-line" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>        <div className="max-w-3xl mx-auto grid grid-cols-5">
           {NAV.map((n) => {
             const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
             const Icon = n.icon;
@@ -167,6 +167,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+
+      {/* convite de instalação: só aparece quando o navegador diz que dá para instalar */}
+      <InstallApp />
     </div>
   );
 }

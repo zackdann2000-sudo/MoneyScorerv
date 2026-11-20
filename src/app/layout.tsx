@@ -9,11 +9,21 @@ const barlow = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "70
 const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-manrope" });
 
 export const metadata: Metadata = {
-  title: { default: "GreenScore · Análises Esportivas PRO", template: "%s | GreenScore" },
+  title: { default: "Money Sênior · Análises Esportivas PRO", template: "%s | Money Sênior" },
   description: "Estatísticas ao vivo, IA preditiva, oportunidades e rankings — estilo GreenScorer, dados reais ESPN.",
+  applicationName: "Money Sênior",
   manifest: "/manifest.json",
+  appleWebApp: { capable: true, title: "MoneySênior", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192x192.png", sizes: "192x192" }],
+  },
 };
-export const viewport: Viewport = { themeColor: "#060f0a", width: "device-width", initialScale: 1, viewportFit: "cover" };
+// #001e28 = --bg do app (globals.css). Antes estava #060f0a, que não existe no tema.
+export const viewport: Viewport = { themeColor: "#001e28", width: "device-width", initialScale: 1, maximumScale: 5, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

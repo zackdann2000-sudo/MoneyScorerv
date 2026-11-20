@@ -1,9 +1,41 @@
 {
-  "name": "GreenScore — Sport Analytics PRO",
-  "short_name": "GreenScore",
+  "id": "/",
+  "name": "Money Sênior",
+  "short_name": "MoneySênior",
+  "description": "Análises esportivas com IA: probabilidades, valor esperado (EV), escalação, momentum e track record auditável.",
+  "lang": "pt-BR",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#060f0a",
-  "theme_color": "#060f0a",
-  "icons": [{ "src": "/icon.png", "sizes": "512x512", "type": "image/png" }]
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "theme_color": "#001e28",
+  "background_color": "#001e28",
+  "categories": ["sports", "news", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Palpites IA", "short_name": "Palpites", "url": "/palpites-ia" },
+    { "name": "Oportunidades +EV", "short_name": "+EV", "url": "/ev" },
+    { "name": "Track Record", "short_name": "Histórico", "url": "/desempenho" }
+  ]
 }
