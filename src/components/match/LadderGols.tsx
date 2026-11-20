@@ -48,7 +48,7 @@ export function LadderGols({ ladder }: { ladder: LadderInfo }) {
         </div>
       </header>
 
-      <div className="mt-2 overflow-hidden rounded-xl border border-line/70">
+      <div className="mt-2 overflow-x-auto rounded-xl border border-line/70">
         <table className="w-full border-collapse text-[11px]">
           <thead>
             <tr className="border-b border-line/70 text-[9px] uppercase text-mut">
@@ -69,15 +69,15 @@ export function LadderGols({ ladder }: { ladder: LadderInfo }) {
                   <td className="px-2 py-1 font-extrabold tabular-nums text-ink">
                     {l.linha.toFixed(1).replace(".", ",")}
                   </td>
-                  <td className={`px-2 py-1 text-right font-extrabold tabular-nums ${overForte ? "text-acc" : "text-mut"}`}>
+                  <td className={`whitespace-nowrap px-2 py-1 text-right font-extrabold tabular-nums ${overForte ? "text-acc" : "text-mut"}`}>
                     {pct(l.over)}
                     {overForte && <span className="ml-1 text-[8px] font-black uppercase tracking-wide text-acc/70">▲</span>}
                   </td>
-                  <td className={`px-2 py-1 text-right font-extrabold tabular-nums ${underForte ? "text-orange-400" : "text-mut"}`}>
+                  <td className={`whitespace-nowrap px-2 py-1 text-right font-extrabold tabular-nums ${underForte ? "text-orange-400" : "text-mut"}`}>
                     {pct(l.under)}
                     {underForte && <span className="ml-1 text-[8px] font-black uppercase tracking-wide text-orange-400/70">▲</span>}
                   </td>
-                  <td className="px-2 py-1 text-right tabular-nums">
+                  <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">
                     {l.oddMercado != null ? (
                       <span title={`Lado destacado: ${l.ladoOdd === "over" ? "Over" : "Under"}`}>
                         <b className="text-ink">{l.oddMercado.toFixed(2)}</b>

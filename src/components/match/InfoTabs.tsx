@@ -169,19 +169,21 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
   const fmt = (avg: any, jogos: number) => avg == null ? "—" : mode === "media" ? Number(avg).toFixed(2) : (Number(avg) * jogos).toFixed(0);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex bg-panel border border-line rounded-full p-0.5">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex bg-panel border border-line rounded-full p-0.5 shrink-0">
           <button onClick={() => setMode("total")} className={`px-3 py-1 rounded-full text-[11px] font-extrabold ${mode === "total" ? "bg-acc text-black" : "text-mut"}`}>TOTAL</button>
           <button onClick={() => setMode("media")} className={`px-3 py-1 rounded-full text-[11px] font-extrabold ${mode === "media" ? "bg-acc text-black" : "text-mut"}`}>MÉDIAS</button>
         </div>
-        <span className="text-[9px] text-mut">últimos {h.averages?.jogos || 0} × {a.averages?.jogos || 0} jogos</span>
+        <span className="text-[9px] text-mut text-right leading-tight">últimos {h.averages?.jogos || 0} × {a.averages?.jogos || 0} jogos</span>
       </div>
-      {/* As 4 análises em destaque: o resumo do confronto antes do detalhe. */}
-      <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} h2h={h2hCtx} />
 
-      {/* Veredito Estatístico: forma (70%) × H2H (30%), calculado no servidor. */}
+      {/* Veredito Estatístico (forma 70% × H2H 30%) + ladder de gols: o resumo
+          do confronto vem primeiro; o detalhe vem depois. */}
       {matchId && <VereditoBlock matchId={matchId} />}
+
+      {/* As 4 análises em destaque: o detalhe do confronto. */}
+      <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} h2h={h2hCtx} />
 
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
         {Object.keys(CATS).map((c) => <button key={c} onClick={() => setCat(c)} className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-extrabold border ${cat === c ? "bg-acc text-black border-acc" : "bg-panel border-line text-mut"}`}>{c}</button>)}

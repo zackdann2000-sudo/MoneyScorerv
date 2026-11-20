@@ -46,7 +46,7 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
 
   if (!v) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-4">
         <div className="rounded-2xl border border-line bg-panel p-3.5">
           <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-mut">
             <Gavel className="h-3.5 w-3.5" /> veredito estatístico
@@ -76,13 +76,13 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
   const favorito = max === p.home ? "mandante" : max === p.away ? "visitante" : "empate";
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
     <div className="rounded-2xl border border-acc/25 bg-panel p-3.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-acc">
-          <Gavel className="h-3.5 w-3.5" /> veredito estatístico
+        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-acc">
+          <Gavel className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">veredito estatístico</span>
         </div>
-        <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${corConf}`}>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase ${corConf}`}>
           confiança {v.confianca}
         </span>
       </div>
@@ -94,10 +94,10 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
 
       <div className="mt-2 grid grid-cols-2 gap-1.5">
         {linhas.map((l) => (
-          <div key={l.rotulo} className="rounded-xl border border-line bg-panel2 px-2 py-1.5">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[9px] font-black uppercase tracking-wide text-mut">{l.rotulo}</span>
-              <span className={`text-[13px] font-black ${l.destaque ? "text-acc" : "text-txt"}`}>{pct(l.valor)}</span>
+          <div key={l.rotulo} className="min-w-0 rounded-xl border border-line bg-panel2 px-2 py-1.5">
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="min-w-0 truncate text-[9px] font-black uppercase tracking-wide text-mut">{l.rotulo}</span>
+              <span className={`shrink-0 text-[13px] font-black tabular-nums ${l.destaque ? "text-acc" : "text-txt"}`}>{pct(l.valor)}</span>
             </div>
             <div className="mt-1 h-1 overflow-hidden rounded-full bg-line">
               <div className={`h-full rounded-full ${l.destaque ? "bg-acc" : "bg-mut"}`} style={{ width: `${Math.min(100, Math.round(l.valor * 100))}%` }} />
@@ -105,10 +105,10 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
           </div>
         ))}
         {v.cartoes && (
-          <div className="rounded-xl border border-line bg-panel2 px-2 py-1.5">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[9px] font-black uppercase tracking-wide text-mut">Cartões +3.5</span>
-              <span className="text-[13px] font-black text-txt">{pct(v.cartoes.over35)}</span>
+          <div className="min-w-0 rounded-xl border border-line bg-panel2 px-2 py-1.5">
+            <div className="flex items-baseline justify-between gap-1">
+              <span className="min-w-0 truncate text-[9px] font-black uppercase tracking-wide text-mut">Cartões +3.5</span>
+              <span className="shrink-0 text-[13px] font-black tabular-nums text-txt">{pct(v.cartoes.over35)}</span>
             </div>
             <div className="mt-1 text-[9px] font-bold text-mut">média {v.cartoes.media.toFixed(2)} por jogo</div>
           </div>
