@@ -92,3 +92,48 @@ calcula EV nem ROI. Não há `odd`, `stake`, `market`, `confidence` no binário.
 - Sem `Retrofit`/`Dio` com baseUrl de domínio próprio, sem `supabase`, sem `execute-api`.
 - Sem chave de API de terceiro (API-Football, SportMonks, etc.) — a "inteligência" é servida pronta pelo Firestore.
 - Sem `firebase-functions`/`cloudfunctions.net` hardcoded.
+
+## 6. Site público `https://betway-f0d42.web.app/` (código estático, sem tocar no banco)
+
+`GET /` → 200, 3.926 bytes, `last-modified: 2021-09-20`, servido por Firebase Hosting.
+
+É um **build Flutter Web antigo** (2021) do mesmo template:
+
+```html
+<title>tips</title>
+<meta name="description" content="A new Flutter project.">
+<meta name="apple-mobile-web-app-title" content="tips">
+<!-- main.dart.js + flutter_service_worker.js -->
+```
+
+`version.json` → `{"app_name":"tips","version":"1.0.0","build_number":"1"}`.
+
+### O bundle `main.dart.js` (1,77 MB) NÃO tem:
+
+- `apiKey` / `projectId` / `appId` / `authDomain` → **nenhuma config Firebase no front web**
+- `firestore`, `identitytoolkit`, `cloudfunctions.net`, `run.app`, `supabase` → **zero ocorrência**
+- nomes de coleção (`"tips"`, `"users"`, `"subscriptions"`) → **nenhum**
+- domínios do produto → só `fonts.googleapis.com`, `unpkg.com`, `play.google.com`, `apps.apple.com`
+- dados de jogo reais → nenhuma liga/time hardcoded
+
+Strings de produto encontradas (é o único vestígio de que o app é do Gonzo):
+
+```
+GONZO TIPS
+Gonzo tips
+GONZO is an artificial intelligence specialized in football events,
+providing the best betting tips from +200 national leagues
+```
+
+### Assets mortos
+
+`AssetManifest.json` lista `assets/logo.png` e `assets/ss1..ss5.png` (screenshots da loja), mas **nenhum
+desses arquivos existe mais**: o Hosting reescreve tudo para `index.html` e devolve o mesmo HTML de 3.926
+bytes. Tentativa de baixar `ss1.png` → retorna o HTML da página.
+
+### Conclusão
+
+O site público **não expõe as coleções do Firestore nem a config do Firebase** — é uma landing/demo de 2021
+parcialmente apagada, sem backend. Portanto: **nenhum endpoint novo, nenhum nome de coleção revelado.**
+As telas de "Premium Tips" só existem no APK Android (S03 `premium_tips_screen.dart`); nenhum print
+recuperável por HTTP.

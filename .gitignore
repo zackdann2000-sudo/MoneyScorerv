@@ -72,3 +72,4 @@ reverse_engineering/gonzo/apk_contents/
 reverse_engineering/gonzo/native/
 reverse_engineering/gonzo/*.xapk
 reverse_engineering/gonzo/*.apk
+reverse_engineering/gonzo/.web/
