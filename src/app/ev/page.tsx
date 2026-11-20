@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import TipsGate from "@/components/TipsGate";
+import SeloFrescor from "@/components/SeloFrescor";
 import { toYmd } from "@/components/DateStrip";
 
 export default function EvPage() {
@@ -16,6 +17,9 @@ function EvInner() {
   const [rows, setRows] = useState<any[] | null>(null);
   const [err, setErr] = useState("");
   const [at, setAt] = useState("");
+  /* Relógio do cliente: só é marcado quando os dados chegam (nunca no SSR),
+     então o selo de idade não gera divergência de hidratação. */
+  const [agora, setAgora] = useState(0);
 
   useEffect(() => {
     const dates = [0, 1].map((n) => {
@@ -35,6 +39,7 @@ function EvInner() {
         }
         list.sort((a, b) => (b.oportunidade?.ev ?? -9) - (a.oportunidade?.ev ?? -9));
         setRows(list);
+        setAgora(Date.now());
       })
       .catch(() => {
         setErr("Falha ao consultar as oportunidades.");
@@ -49,7 +54,14 @@ function EvInner() {
     <div>
       <h1 className="font-display font-bold text-2xl uppercase">Oportunidades +EV</h1>
       <p className="text-[12px] text-mut mt-1">Só entra linha com odd de mercado publicada, amostra de 10 jogos e EV positivo. Fonte: ESPN.</p>
-      {at && <p className="text-[10px] text-mut mt-1">Atualizado {new Date(at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>}
+      {at && (
+        <div className="mt-1.5">
+          <SeloFrescor
+            idadeMs={agora && at ? Math.max(0, agora - Date.parse(at)) : null}
+            titulo={`Último cálculo da lista: ${new Date(at).toLocaleString("pt-BR")}`}
+          />
+        </div>
+      )}
       {rows === null && <div className="space-y-2 mt-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-16" />)}</div>}
       {err && <p className="text-sm text-danger mt-3">{err}</p>}
       {rows && valued.length === 0 && (

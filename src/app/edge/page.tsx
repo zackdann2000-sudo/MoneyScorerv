@@ -15,6 +15,8 @@ import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
 import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
 import FiltrosLinks from "@/components/FiltrosLinks";
+import SeloFrescor from "@/components/SeloFrescor";
+import { idadeMaisAntiga } from "@/lib/cache";
 import {
   contarOcultasPeloPiso,
   contarPorChip,
@@ -140,6 +142,10 @@ export default async function EdgePage({
               plano grátis: 2 picks
             </span>
           )}
+          <SeloFrescor
+            idadeMs={idadeMaisAntiga("/soccer/") ?? 0}
+            titulo="Idade do payload ESPN mais antigo ainda em memória — os picks são recalculados a cada visita, a base vem do cache de 30min a 1h"
+          />
         </div>
       </header>
 
