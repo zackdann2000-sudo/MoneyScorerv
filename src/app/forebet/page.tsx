@@ -122,8 +122,8 @@ export default async function ForebetPage({
 
       {jogos.length > 0 && (
         <div className="rounded-2xl border border-line bg-panel overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px] border-collapse min-w-[600px]">
+          <div className="w-full max-w-full overflow-x-auto">
+            <table className="w-full text-[11px] border-collapse min-w-[480px]">
               <thead>
                 <tr className="text-[9px] uppercase text-mut border-b border-line">
                   <th className="text-left font-bold px-2 py-1.5">Hora</th>
@@ -153,13 +153,12 @@ export default async function ForebetPage({
                     <tr key={j.matchId} className="border-b border-line/50 last:border-0 hover:bg-panel2/50">
                       <td className="px-2 py-1.5 align-top whitespace-nowrap">
                         <span className="block text-[10px] font-bold text-ink tabular-nums">{horaSP(j.kickoff)}</span>
-                        <span className="block text-[8px] text-mut truncate max-w-[72px]">{j.estado.startsWith("AO VIVO") ? "AO VIVO" : leagueInfo(j.league).flag + " " + (j.country || "")}</span>
-                      </td>
+                        <span className="block text-[8px] text-mut truncate max-w-[72px]">{j.estado.startsWith("AO VIVO") ? "AO VIVO" : leagueInfo(j.league).flag + " " + (j.country || "")}</span>                      </td>
                       <td className="px-2 py-1.5 align-top">
                         <Link href={`/apitou?jogo=${j.matchId}&data=${data}`} className="block min-w-0 hover:text-acc">
-                          <span className="block text-[11px] font-bold text-ink truncate max-w-[190px]">{j.home.name}</span>
-                          <span className="block text-[11px] font-bold text-ink truncate max-w-[190px]">{j.away.name}</span>
-                          <span className="block text-[8px] text-mut truncate max-w-[190px]">{leagueInfo(j.league).flag} {j.leagueName}</span>
+                          <span className="block text-[11px] font-bold text-ink truncate max-w-[150px]">{j.home.name}</span>
+                          <span className="block text-[11px] font-bold text-ink truncate max-w-[150px]">{j.away.name}</span>
+                          <span className="block text-[8px] text-mut truncate max-w-[150px]">{leagueInfo(j.league).flag} {j.leagueName}</span>
                         </Link>
                       </td>
                       <td className="text-center px-0.5"><Celula valor={pct(j.probs.home)} on={pred === 0} cor="bg-home" /></td>

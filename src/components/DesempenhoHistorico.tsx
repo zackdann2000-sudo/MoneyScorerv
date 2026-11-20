@@ -6,34 +6,39 @@ import type { TrackStats } from "@/lib/trackRecord";
  */
 export default function DesempenhoHistorico({ stats }: { stats: TrackStats | null }) {
   const s = stats;
-  const unidadeTxt = s ? `${s.unidades >= 0 ? "+" : ""}${s.unidades.toFixed(2)} u` : "—";
+  // "Aguardando" em vez de traço: traço parece número quebrado, não estado vazio.
+  const AGUARDANDO = "Aguardando";
+  const unidadeTxt = s ? `${s.unidades >= 0 ? "+" : ""}${s.unidades.toFixed(2)} u` : AGUARDANDO;
   const roi = s?.roi ?? null;
   const cor = (v: number | null) => (v == null ? "text-mut" : v > 0 ? "text-emerald-400" : v < 0 ? "text-danger" : "text-ink");
 
-  const cards: { label: string; valor: string; cor: string; sub: string }[] = [
+  const cards: { label: string; valor: string; cor: string; sub: string; pequeno?: boolean }[] = [
     {
       label: "Oportunidades",
-      valor: s ? String(s.total) : "—",
+      valor: s ? String(s.total) : "0",
       cor: "text-ink",
-      sub: s ? `${s.pendentes} pendentes` : "sem dados",
+      sub: s ? `${s.pendentes} pendentes` : "nenhuma registrada",
     },
     {
       label: "Taxa de acerto",
-      valor: s?.hitRate == null ? "—" : `${s.hitRate.toFixed(1)}%`,
-      cor: "text-cyan",
+      valor: s?.hitRate == null ? AGUARDANDO : `${s.hitRate.toFixed(1)}%`,
+      cor: s?.hitRate == null ? "text-mut" : "text-cyan",
       sub: s ? `${s.greens}G · ${s.reds}R` : "sem liquidação",
+      pequeno: s?.hitRate == null,
     },
     {
       label: "Lucro / prejuízo",
       valor: unidadeTxt,
       cor: cor(s?.unidades ?? null),
-      sub: s ? `stake ${s.stakeTotal.toFixed(2)} u` : "—",
+      sub: s ? `stake ${s.stakeTotal.toFixed(2)} u` : AGUARDANDO,
+      pequeno: !s,
     },
     {
       label: "ROI",
-      valor: roi == null ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`,
-      cor: cor(roi),
-      sub: "retorno / apostado",
+      valor: roi == null ? AGUARDANDO : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`,
+      cor: roi == null ? "text-mut" : cor(roi),
+      sub: roi == null ? "aguardando liquidação" : "retorno / apostado",
+      pequeno: roi == null,
     },
   ];
 
@@ -48,7 +53,7 @@ export default function DesempenhoHistorico({ stats }: { stats: TrackStats | nul
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border border-line bg-gradient-to-br from-ink/5 to-transparent p-2">
             <p className="text-[9px] font-bold uppercase tracking-wide text-mut leading-tight">{c.label}</p>
-            <p className={`mt-0.5 text-lg font-extrabold tabular-nums leading-none ${c.cor}`}>{c.valor}</p>
+            <p className={`mt-0.5 tabular-nums leading-none ${c.pequeno ? "text-[11px] font-bold" : "text-lg font-extrabold"} ${c.cor}`}>{c.valor}</p>
             <p className="mt-1 text-[9px] text-mut leading-tight">{c.sub}</p>
           </div>
         ))}

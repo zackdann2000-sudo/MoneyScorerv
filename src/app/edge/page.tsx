@@ -213,7 +213,7 @@ function PickCard({ o, bloqueado }: { o: OportunidadeValor; bloqueado: boolean }
             <span>mercado <b className="text-txt">{pct(o.probImplicita)}</b></span>
           </div>
           <div className="mt-1">
-            <OddJustaLinha odd={o.odd} oddJusta={o.oddJusta} margem={o.margemMercado} />
+            <OddJustaLinha odd={o.odd} oddJusta={o.oddJusta} margem={o.margemMercado} explicar />
           </div>
           {o.acertosRecentes && (
             <div className="mt-1">
@@ -469,7 +469,7 @@ function Historico({
 
   const cards = [
     { label: "Palpites", valor: String(stats.total + stats.pendentes) },
-    { label: "Acerto", valor: stats.hitRate == null ? "—" : pct(stats.hitRate, 1) },
+    { label: "Acerto", valor: stats.hitRate == null ? "Aguardando" : pct(stats.hitRate, 1), cor: stats.hitRate == null ? "text-mut" : undefined, pequeno: stats.hitRate == null },
     {
       label: "Lucro",
       valor: `${stats.unidades >= 0 ? "+" : ""}${stats.unidades.toFixed(2)}u`,
@@ -477,8 +477,9 @@ function Historico({
     },
     {
       label: "ROI",
-      valor: stats.roi == null ? "—" : `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%`,
-      cor: (stats.roi ?? 0) >= 0 ? "text-good" : "text-bad",
+      valor: stats.roi == null ? "Aguardando" : `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%`,
+      cor: stats.roi == null ? "text-mut" : (stats.roi ?? 0) >= 0 ? "text-good" : "text-bad",
+      pequeno: stats.roi == null,
     },
   ];
 
@@ -488,7 +489,7 @@ function Historico({
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border border-line bg-panel p-2.5">
             <div className="text-[10px] font-bold uppercase tracking-wide text-mut">{c.label}</div>
-            <div className={`text-base font-black ${c.cor || "text-txt"}`}>{c.valor}</div>
+            <div className={`font-black ${(c as any).pequeno ? "text-[11px] text-mut" : "text-base"} ${(c as any).cor || "text-txt"}`}>{c.valor}</div>
           </div>
         ))}
       </div>

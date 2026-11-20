@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Search, ChevronDown, ChevronUp, Scale, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Scale, ChevronLeft, ChevronRight, Info, Plus, Check } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
 import { PlayerRadar, CompareBars } from "@/components/charts";
 
@@ -87,10 +87,10 @@ export default function Jogadores() {
 
       {/* Comparador */}
       {compare.length > 0 && (
-        <div className="sticky top-14 z-30 bg-purple/15 border border-purple/40 rounded-xl p-2 mb-2 flex items-center gap-2 flex-wrap backdrop-blur">
-          <Scale size={14} className="text-purple" />
+        <div className="sticky top-14 z-30 bg-acc/15 border border-acc/40 rounded-xl p-2 mb-2 flex items-center gap-2 flex-wrap backdrop-blur">
+          <Scale size={14} className="text-acc" />
           {compare.map((c) => <span key={c.id} className="text-[10px] bg-panel px-2 py-0.5 rounded-full font-bold">{c.short || c.name}</span>)}
-          <button onClick={() => setCmpOpen(true)} disabled={compare.length < 2} className="ml-auto px-3 py-1 rounded-full bg-purple text-white text-[10px] font-extrabold disabled:opacity-40">COMPARAR ({compare.length}/4)</button>
+          <button onClick={() => setCmpOpen(true)} disabled={compare.length < 2} className="ml-auto px-3 py-1 rounded-full bg-acc text-black text-[10px] font-extrabold disabled:opacity-40">COMPARAR ({compare.length}/4)</button>
           <button onClick={() => setCompare([])} className="text-[10px] text-mut">limpar</button>
         </div>
       )}
@@ -107,7 +107,9 @@ export default function Jogadores() {
 
       {!loading && (
         <div className="space-y-1.5">
-          {rows.map((r: any) => (
+          {rows.map((r: any) => {
+            const selecionado = compare.some((x) => x.id === r.id);
+            return (
             <div key={r.id} className={`flex items-center gap-2 bg-panel border rounded-xl p-2.5 card-hover ${r.rank <= 3 && order === "desc" && page === 1 ? "border-acc/50" : "border-line"}`}>
               <span className={`font-display font-bold w-7 text-center text-lg ${r.rank === 1 ? "text-warn" : r.rank === 2 ? "text-mut" : r.rank === 3 ? "text-away" : "text-mut/60"}`}>{r.rank}</span>
               <button onClick={() => setProfile(r)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
@@ -121,9 +123,22 @@ export default function Jogadores() {
                 <p className="font-display font-bold text-xl text-acc">{metric === "perGame" ? r.perGame ?? "—" : r.value}</p>
                 <p className="text-[9px] text-mut">{r.matches != null ? `${r.matches} jogos` : "jogos —"}{r.perGame != null && metric !== "perGame" ? ` · ${r.perGame}/j` : ""}</p>
               </div>
-              <input type="checkbox" checked={compare.some((x) => x.id === r.id)} onChange={() => toggleCompare(r)} className="accent-[var(--purple)] ml-1" title="Comparar" />
+              <button
+                onClick={() => toggleCompare(r)}
+                title={selecionado ? "Remover da comparação" : "Comparar este jogador"}
+                aria-label={selecionado ? `Remover ${r.name} da comparação` : `Adicionar ${r.name} à comparação`}
+                aria-pressed={selecionado}
+                className={`ml-1 shrink-0 w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${
+                  selecionado
+                    ? "border-acc bg-acc text-black"
+                    : "border-line bg-panel2 text-mut hover:border-acc/60 hover:text-acc"
+                }`}
+              >
+                {selecionado ? <Check size={13} strokeWidth={3} /> : <Plus size={13} strokeWidth={3} />}
+              </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

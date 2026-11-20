@@ -139,11 +139,14 @@ export function OddJustaLinha({
   oddJusta,
   margem,
   className = "",
+  explicar = false,
 }: {
   odd: number;
   oddJusta: number | null;
   margem?: number | null;
   className?: string;
+  /** Mostra a frase curta explicando o que a diferença significa. */
+  explicar?: boolean;
 }) {
   if (oddJusta == null) {
     return (
@@ -175,6 +178,11 @@ export function OddJustaLinha({
       {margemPct != null && (
         <span className="text-[8px] text-mut/80">
           margem {margemPct.toFixed(1)}%
+        </span>
+      )}
+      {explicar && (
+        <span className={`text-[8px] font-bold ${pagaAcima ? "text-acc" : "text-mut"}`}>
+          {pagaAcima ? "casa paga acima do justo" : "casa paga abaixo do justo"}
         </span>
       )}
     </span>

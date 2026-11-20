@@ -75,9 +75,26 @@ function EvInner() {
 function Card({ r, muted }: { r: any; muted?: boolean }) {
   const op = r.oportunidade;
   const ev = op.ev;
+  // Motivo de o palpite ter ficado fora do filtro +EV — nunca fica sem explicação.
+  const motivos: string[] = [];
+  if (op.oddMercado == null) motivos.push("Sem odd");
+  if (op.amostraPequena) motivos.push("Amostra < 10");
+  if (ev != null && ev <= 0) motivos.push("EV negativo");
+  if (!motivos.length && ev == null) motivos.push("Sem odd");
   return (
     <Link href={`/jogos/${r.matchId}?league=${r.league}&tab=money-tips`} className={`block rounded-lg border border-line p-3 ${muted ? "opacity-80" : "bg-panel"}`}>
-      <p className="text-[12px] font-bold">{r.jogo?.timeCasa} x {r.jogo?.timeFora}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 text-[12px] font-bold truncate">{r.jogo?.timeCasa} x {r.jogo?.timeFora}</p>
+        {muted && motivos.length > 0 && (
+          <span className="shrink-0 flex flex-wrap justify-end gap-1">
+            {motivos.map((m) => (
+              <span key={m} className="rounded-full bg-red-500/20 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-red-400">
+                {m}
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
       <p className="text-[11px] text-mut">{r.jogo?.liga} · {op.mercado} {op.linha} · {op.acertos}/{op.totalJogos}</p>
       <p className="text-[12px] mt-1 tabular-nums">
         Justa {op.oddEstimada != null ? `@${Number(op.oddEstimada).toFixed(2)}` : "—"}
@@ -88,7 +105,6 @@ function Card({ r, muted }: { r: any; muted?: boolean }) {
           {ev == null ? "EV indisponível" : `EV ${ev > 0 ? "+" : ""}${(ev * 100).toFixed(1)}%`}
         </span>
       </p>
-      {op.amostraPequena && <p className="text-[10px] text-warn mt-1">Amostra pequena. Fora do ranking +EV.</p>}
-    </Link>
+      {op.amostraPequena && <p className="text-[10px] text-warn mt-1">Amostra pequena. Fora do ranking +EV.</p>}    </Link>
   );
 }

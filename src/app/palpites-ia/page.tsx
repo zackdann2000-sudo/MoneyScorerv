@@ -77,8 +77,8 @@ export default async function PalpitesIaPage() {
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-4">
       {/* Hero */}
-      <header className="rounded-2xl border border-line bg-gradient-to-br from-purple/15 via-panel to-panel p-4">
-        <p className="text-[10px] font-extrabold uppercase tracking-wide text-purple">Palpites por IA · Value Bet</p>
+      <header className="rounded-2xl border border-line bg-gradient-to-br from-acc/15 via-panel to-panel p-4">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-acc">Palpites por IA · Value Bet</p>
         <h1 className="font-display text-2xl font-extrabold text-ink leading-tight mt-1">
           Palpites de futebol de hoje
         </h1>
@@ -107,7 +107,7 @@ export default async function PalpitesIaPage() {
           <p className="text-[9px] text-mut uppercase">confiança alta</p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-2">
-          <p className="font-display text-xl font-extrabold text-purple">{oportunidades.length}</p>
+          <p className="font-display text-xl font-extrabold text-acc">{oportunidades.length}</p>
           <p className="text-[9px] text-mut uppercase">oportunidades</p>
         </div>
       </div>
@@ -117,22 +117,22 @@ export default async function PalpitesIaPage() {
 
       {/* Cupom do dia */}
       {cupom.length > 0 && (
-        <section className="rounded-2xl border border-purple/40 bg-gradient-to-br from-purple/10 via-panel to-panel p-3 space-y-2">
+        <section className="rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/10 via-panel to-panel p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-purple">Cupom do dia</h2>
+            <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Cupom do dia</h2>
             <span className="text-[9px] text-mut">3 seleções</span>
           </div>
           <ol className="space-y-1.5">
             {cupom.map(({ a, destaque }, i) => (
               <li key={a.matchId} className="flex items-center gap-2 rounded-xl border border-line bg-panel2/70 px-2 py-1.5">
-                <span className="w-5 h-5 shrink-0 rounded-full bg-purple/20 text-purple text-[10px] font-extrabold flex items-center justify-center">{i + 1}</span>
+                <span className="w-5 h-5 shrink-0 rounded-full bg-acc/20 text-acc text-[10px] font-extrabold flex items-center justify-center">{i + 1}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] font-bold text-ink truncate">{a.home.name} × {a.away.name}</span>
                   <span className="block text-[9px] text-mut truncate">{leagueInfo(a.league).flag} {a.leagueName} · {horaSP(a.kickoff)}</span>
                 </span>
                 <span className="text-right shrink-0">
                   <span className="block text-[10px] font-extrabold text-ink">{destaque.mercado}</span>
-                  <span className="block text-[10px] font-extrabold text-purple tabular-nums">{pct(destaque.prob)}</span>
+                  <span className="block text-[10px] font-extrabold text-acc tabular-nums">{pct(destaque.prob)}</span>
                 </span>
               </li>
             ))}
