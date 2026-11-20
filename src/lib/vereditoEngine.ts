@@ -19,6 +19,56 @@ type HistGame = Parameters<typeof teamRates>[0][number];
 
 export type ConfiancaVeredito = "alta" | "media" | "baixa";
 
+/**
+ * Fator Fadiga (descanso entre jogos).
+ *
+ * Sai `null` quando algum dos dois lados não tem data de último jogo — o
+ * produto prefere não mostrar alerta a inventar descanso.
+ */
+export type Fadiga = {
+  /** dias inteiros desde o último jogo de cada lado */
+  casaDias: number | null;
+  foraDias: number | null;
+  /** diferença absoluta em dias */
+  diferenca: number | null;
+  maisDescansado: "casa" | "fora" | null;
+  /** frase pronta para o card (null quando não há diferença relevante) */
+  alerta: string | null;
+};
+
+/** Diferença mínima (dias) para virar alerta — 1 dia é calendário, não fadiga. */
+export const MIN_DIFERENCA_FADIGA = 2;
+
+/** Dias inteiros entre a data de referência e um jogo. */
+function diasDesde(dataJogo: string | undefined | null, referencia: number): number | null {
+  if (!dataJogo) return null;
+  const t = Date.parse(dataJogo);
+  if (!Number.isFinite(t)) return null;
+  const dias = Math.floor((referencia - t) / 86_400_000);
+  return dias >= 0 ? dias : null;
+}
+
+function calcularFadiga(
+  homeUltimo: string | undefined,
+  awayUltimo: string | undefined,
+  refIso: string,
+): Fadiga {
+  const ref = Date.parse(refIso);
+  const referencia = Number.isFinite(ref) ? ref : Date.now();
+  const casaDias = diasDesde(homeUltimo, referencia);
+  const foraDias = diasDesde(awayUltimo, referencia);
+  if (casaDias == null || foraDias == null) {
+    return { casaDias, foraDias, diferenca: null, maisDescansado: null, alerta: null };
+  }
+  const diferenca = Math.abs(casaDias - foraDias);
+  const maisDescansado = diferenca < MIN_DIFERENCA_FADIGA ? null : casaDias > foraDias ? "casa" : "fora";
+  const alerta =
+    maisDescansado === null
+      ? null
+      : `Fator Fadiga: ${maisDescansado === "casa" ? "mandante" : "visitante"} mais descansado (${Math.max(casaDias, foraDias)}d contra ${Math.min(casaDias, foraDias)}d).`;
+  return { casaDias, foraDias, diferenca, maisDescansado, alerta };
+}
+
 export type Veredito = {
   /** Probabilidades finais (0..1). */
   probs: {
@@ -49,6 +99,8 @@ export type Veredito = {
   };
   /** Justificativa legível, montada apenas com números reais. */
   texto: string;
+  /** Descanso entre jogos (Fator Fadiga). */
+  fadiga: Fadiga;
 };
 
 export const PESO_FORMA_VEREDITO = 0.7;
@@ -104,6 +156,8 @@ export function vereditar(opts: {
   awayGames: HistGame[] | null | undefined;
   h2hGames: { golsCasa: number; golsFora: number; data?: string }[] | null | undefined;
   pesoH2H?: number;
+  /** data de referência para o cálculo de descanso (padrão: agora) */
+  dataJogo?: string;
 }): Veredito | null {
   const home = (opts.homeGames || []).slice(0, 10);
   const away = (opts.awayGames || []).slice(0, 10);
@@ -186,6 +240,9 @@ export function vereditar(opts: {
   }
   const texto = `${partes.join(", ")}. Cruzando forma (${pct1(pesoForma)}%) com H2H (${pct1(pesoH2H)}%): mandante ${pct1(p.home)}%, empate ${pct1(p.draw)}%, visitante ${pct1(p.away)}%.`;
 
+  /* ---- Fator Fadiga: descanso desde o último jogo (usa a data do histórico) ---- */
+  const fadiga = calcularFadiga(home[0]?.date, away[0]?.date, opts.dataJogo || new Date().toISOString());
+
   return {
     probs: {
       home: +p.home.toFixed(4),
@@ -207,6 +264,7 @@ export function vereditar(opts: {
       jogosH2H,
     },
     texto,
+    fadiga,
   };
 }
 

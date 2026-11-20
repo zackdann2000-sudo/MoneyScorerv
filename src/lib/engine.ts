@@ -280,6 +280,7 @@ export async function analyzeMatch(match: Match) {
     homeGames: hh.games,
     awayGames: ah.games,
     h2hGames: (h2h.games || []).map((g: any) => ({ golsCasa: Number(g.homeScore), golsFora: Number(g.awayScore), data: g.date })),
+    dataJogo: match.date ? new Date(match.date).toISOString() : undefined,
   });
   return { analysis, h2h, veredito, sampleInfo: { home: hh.games.length, away: ah.games.length, baseParcial: hh.baseParcial || ah.baseParcial } };
 }

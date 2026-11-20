@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarDays } from "lucide-react";
+import { useMemo } from "react";
+import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useApi } from "./useApi";
 import type { JogosResp, JogoLista } from "./types";
 import { ErrorBox, EmptyBox, Spinner, FonteBadge, horaJogo, diaCurto } from "./Ui";
 import { isMainLeague } from "@/lib/mainLeagues";
 import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
+import DateStrip7 from "@/components/DateStrip7";
 
 /**
  * Aba "Jogos do Dia" — lista por dia com o resumo de cada partida.
@@ -17,9 +18,19 @@ import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter"
 export default function JogosTab({
   date,
   onAbrirJogo,
+  onMudarDia,
+  liga,
+  onAbrirLiga,
+  onVoltarLigas,
 }: {
   date: string;
   onAbrirJogo: (id: number) => void;
+  /** Grava o dia na URL (?data=) — o dia não pode viver só em useState. */
+  onMudarDia?: (ymd: string) => void;
+  /** Liga aberta (?liga=) — a lista mostra só ela naquele dia. */
+  liga?: string | null;
+  onAbrirLiga?: (nome: string) => void;
+  onVoltarLigas?: () => void;
 }) {
   // Buscamos TODOS os jogos de uma vez (sem ?date=). Assim a troca de dia é
   // instantânea, no cliente, e um dia vazio não "prende" a tela: a rota devolve
@@ -27,29 +38,20 @@ export default function JogosTab({
   // Passar ?date= fazia a rota devolver só aquele dia, anulando o filtro local.
   const url = "/api/apitou/jogos";
   const { data, loading, error, refresh } = useApi<JogosResp>(url, []);
-  const [diaSel, setDiaSel] = useState<string | null>(null);
   const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   // Dias disponíveis vêm da rota (TODOS os dias cobertos, já ordenados).
   const dias = useMemo(() => data?.dias ?? [], [data]);
 
   /**
-   * Dia efetivamente exibido.
-   *
-   * O bug antigo: fixávamos a data de hoje (`date`), mas quando os jogos de hoje
-   * já saíram do banco a lista ficava vazia e o botão do dia nem aparecia. Agora
-   * o dia é derivado com validação, nesta ordem de prioridade:
-   *   1. o dia escolhido pelo usuário, se ele ainda existir na lista;
-   *   2. a data de hoje, se ela tiver jogos;
-   *   3. o PRIMEIRO dia disponível (o mais próximo).
-   * Derivar em vez de `setState` num efeito evita render extra e a regra
-   * react-hooks/set-state-in-effect.
+   * Dia efetivamente exibido — derivado da URL (`date`), nunca de um estado
+   * paralelo. Se a data da URL não tiver jogos, cai no primeiro dia disponível,
+   * mas assim que o usuário escolhe um dia ele vai para a URL.
    */
   const diaAtivo = useMemo(() => {
-    if (diaSel && dias.includes(diaSel)) return diaSel;
     if (dias.includes(date)) return date;
     return dias[0] ?? date;
-  }, [diaSel, dias, date]);
+  }, [dias, date]);
 
   const jogosDoDia = useMemo(() => {
     if (!data) return [] as JogoLista[];
@@ -59,34 +61,36 @@ export default function JogosTab({
     return soPrincipais ? doDia.filter((j) => isMainLeague(j.competicao)) : doDia;
   }, [data, diaAtivo, soPrincipais]);
 
+  /** Com liga aberta, só os jogos dela — no dia selecionado. */
+  const visiveis = useMemo(
+    () => (liga ? jogosDoDia.filter((j) => j.competicao === liga) : jogosDoDia),
+    [jogosDoDia, liga],
+  );
+
   if (loading && !data) return <Spinner label="Carregando jogos…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
   if (!data) return null;
 
-  const totalDia = jogosDoDia.length;
+  const totalDia = visiveis.length;
 
   return (
     <div className="space-y-3">
       {/* Alternância Principais / Todas (padrão: Principais). */}
       <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
 
-      {/* Seletor de dia horizontal */}
-      {dias.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
-          {dias.map((d) => (
-            <button
-              key={d}
-              // Sem toggle para null: clicar no dia ativo não deve poder voltar
-              // para uma data sem jogos.
-              onClick={() => setDiaSel(d)}
-              aria-pressed={diaAtivo === d}
-              className={`shrink-0 px-3 h-8 rounded-xl border text-[11px] font-bold transition-colors ${
-                diaAtivo === d ? "bg-acc text-bg border-acc" : "bg-panel border-line text-ink"
-              }`}
-            >
-              {diaCurto(d)}
-            </button>
-          ))}
+      {/* Barra de 7 dias (Segunda → Domingo). A data vai para a URL. */}
+      <DateStrip7 value={diaAtivo} onChange={(ymd) => onMudarDia?.(ymd)} />
+
+      {/* Liga aberta: volta para a lista de ligas MANTENDO o dia. */}
+      {liga && (
+        <div className="flex items-center gap-2 rounded-xl border border-acc/40 bg-acc/10 px-2 py-1.5">
+          <button
+            onClick={onVoltarLigas}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-acc/60 bg-panel px-2.5 text-[11px] font-extrabold text-acc"
+          >
+            <ArrowLeft size={13} /> Voltar às ligas
+          </button>
+          <span className="min-w-0 flex-1 truncate text-[12px] font-extrabold text-ink">{liga}</span>
         </div>
       )}
 
@@ -101,14 +105,29 @@ export default function JogosTab({
         </EmptyBox>
       ) : (
         <ul className="space-y-2">
-          {jogosDoDia.map((j) => (
+          {visiveis.map((j) => (
             <li key={j.id}>
               <button
                 onClick={() => onAbrirJogo(j.id)}
                 className="w-full text-left rounded-2xl border border-line bg-panel hover:border-acc/60 transition-colors p-3 space-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-mut uppercase tracking-wide truncate">
+                  <span
+                    role="link"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAbrirLiga?.(j.competicao);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.stopPropagation();
+                        onAbrirLiga?.(j.competicao);
+                      }
+                    }}
+                    title="Ver só os jogos desta liga"
+                    className="text-[10px] font-bold text-mut uppercase tracking-wide truncate hover:text-acc"
+                  >
                     {j.competicao}
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-acc tabular-nums">

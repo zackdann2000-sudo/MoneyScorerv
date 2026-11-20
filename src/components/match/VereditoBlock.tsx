@@ -127,6 +127,19 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
         <span>base {v.base.jogosCasa}+{v.base.jogosFora} jogos, {v.base.jogosH2H} H2H</span>
       </div>
       <p className="mt-1 text-[9px] leading-snug text-mut/80">{v.motivoConfianca}</p>
+
+      {/* Fator Fadiga: só aparece quando a diferença de descanso é real (≥ 2 dias). */}
+      {v.fadiga?.alerta && (
+        <p className="mt-1.5 flex items-start gap-1.5 rounded-lg border border-warn/40 bg-warn/10 px-2 py-1 text-[10px] font-bold leading-snug text-warn">
+          <span aria-hidden>🔋</span>
+          <span className="min-w-0">
+            {v.fadiga.alerta}
+            <span className="block text-[9px] font-semibold text-warn/80">
+              mandante descansou {v.fadiga.casaDias}d · visitante {v.fadiga.foraDias}d
+            </span>
+          </span>
+        </p>
+      )}
     </div>
 
     <LadderGols ladder={ladder} />

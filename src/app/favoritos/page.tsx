@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import GamesBoard from "@/components/flash/GamesBoard";
 import { useApp } from "@/context/AppContext";
@@ -17,7 +17,11 @@ export default function Favoritos() {
           <button key={t} onClick={() => setTab(t)} className={`shrink-0 pb-2 text-[12px] font-bold ${tab === t ? "text-live border-b-2 border-live" : "text-mut"}`}>{t.toUpperCase()}</button>
         ))}
       </div>
-      {tab === "Jogos" && <GamesBoard mode="favorites" />}
+      {tab === "Jogos" && (
+        <Suspense fallback={<div className="py-10 text-center text-sm text-mut">Carregando…</div>}>
+          <GamesBoard mode="favorites" />
+        </Suspense>
+      )}
       {tab === "Equipes" && (
         favorites.length === 0 ? <p className="text-sm text-mut py-8 text-center">Nenhuma equipe favorita. Toque na estrela de um jogo.</p> : (
           <div>{favorites.map((t) => (

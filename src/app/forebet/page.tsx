@@ -6,6 +6,8 @@ import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/Fa
 import { evCor } from "@/components/ValorEsperado";
 import DesempenhoHistorico from "@/components/DesempenhoHistorico";
 import { estatisticas, type TrackStats, anotarAcertosRecentes } from "@/lib/trackRecord";
+import FiltrosLinks from "@/components/FiltrosLinks";
+import { contarPorChip, passaChip, passaPiso, type ChipRapido } from "@/lib/oportunidadeFiltros";
 
 /* MVP inspirado no Forebet (recon em replica/forebet/recon.md).
    O Forebet é conhecido por uma TABELA densa de palpites: por jogo, a
@@ -52,13 +54,30 @@ function Celula({ valor, on, cor }: { valor: string; on: boolean; cor: string })
   );
 }
 
+const CHIPS_VALIDOS: ChipRapido[] = ["elite", "altoEv", "favoritos", "bombas"];
+
+/** O "probModelo" de uma linha da tabela é a probabilidade do palpite mostrado. */
+function probDaLinha(j: AnaliseJogo): number {
+  return Math.max(j.probs.home, j.probs.draw, j.probs.away);
+}
+
+/** Melhor oportunidade da linha (a que tem EV e TRUST para os chips). */
+function melhorOportunidade(j: AnaliseJogo) {
+  if (!j.oportunidades?.length) return null;
+  return j.oportunidades.reduce((a, b) => (b.valor > a.valor ? b : a));
+}
+
 export default async function ForebetPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ data?: string }>;
+  searchParams?: Promise<{ data?: string; min?: string; chip?: string }>;
 }) {
   const sp = (await searchParams) ?? {};
   const data = sp.data && /^\d{4}-\d{2}-\d{2}$/.test(sp.data) ? sp.data : hojeSP();
+  const mostrarAbaixoDe70 = sp.min === "1";
+  const chipsAtivos = (sp.chip ? sp.chip.split(",") : []).filter((c): c is ChipRapido =>
+    (CHIPS_VALIDOS as string[]).includes(c),
+  );
 
   let jogos: AnaliseJogo[] = [];
   let erro = "";
@@ -77,6 +96,33 @@ export default async function ForebetPage({
   } catch {
     stats = null;
   }
+
+  /* Piso de 70% + chips (a tabela é renderizada no servidor, então vem da URL).
+     As linhas filtradas são o que a tabela mostra; os contadores usam `jogos`. */
+  const linhas = jogos.filter((j) => {
+    const prob = probDaLinha(j);
+    if (!passaPiso({ probModelo: prob, evPct: 0, trust: 0, odd: 0 }, mostrarAbaixoDe70)) return false;
+    if (!chipsAtivos.length) return true;
+    const best = melhorOportunidade(j);
+    if (!best) return false;
+    return chipsAtivos.some((c) =>
+      passaChip({ probModelo: best.probModelo, evPct: best.evPct, trust: best.trust, odd: best.odd }, c),
+    );
+  });
+  const ocultasPeloPiso = jogos.filter(
+    (j) => !passaPiso({ probModelo: probDaLinha(j), evPct: 0, trust: 0, odd: 0 }, false),
+  ).length;
+  const contagemChips = contarPorChip(
+    jogos.map((j) => {
+      const b = melhorOportunidade(j);
+      return {
+        probModelo: b?.probModelo ?? probDaLinha(j),
+        evPct: b?.evPct ?? 0,
+        trust: b?.trust ?? null,
+        odd: b?.odd ?? 0,
+      };
+    }),
+  );
 
   const prev = shiftDia(data, -1);
   const next = shiftDia(data, 1);
@@ -114,13 +160,31 @@ export default async function ForebetPage({
         <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-[11px] text-danger">{erro}</div>
       )}
 
+      <FiltrosLinks
+        base="/forebet"
+        params={{ data }}
+        visiveis={linhas.length}
+        total={jogos.length}
+        ocultas={ocultasPeloPiso}
+        mostrarAbaixoDe70={mostrarAbaixoDe70}
+        chips={chipsAtivos}
+        contagem={contagemChips}
+      />
+
+      {jogos.length > 0 && linhas.length === 0 && !erro && (
+        <p className="text-[11px] text-mut text-center py-6 bg-panel border border-dashed border-line rounded-xl">
+          {jogos.length} jogo(s) nesta data ficaram abaixo de 70% ou fora dos chips. Use
+          &quot;Mostrar &lt; 70%&quot; para ver a tabela completa.
+        </p>
+      )}
+
       {jogos.length === 0 && !erro && (
         <p className="text-[11px] text-mut text-center py-8 bg-panel border border-dashed border-line rounded-xl">
           Sem jogos com histórico suficiente nesta data.
         </p>
       )}
 
-      {jogos.length > 0 && (
+      {linhas.length > 0 && (
         <div className="rounded-2xl border border-line bg-panel overflow-hidden">
           <div className="w-full max-w-full overflow-x-auto">
             <table className="w-full text-[11px] border-collapse min-w-[480px]">
@@ -139,7 +203,7 @@ export default async function ForebetPage({
                 </tr>
               </thead>
               <tbody>
-                {jogos.map((j) => {
+                {linhas.map((j) => {
                   const pred = previsto(j.probs);
                   const mediaGols = (j.lambdaHome + j.lambdaAway).toFixed(1);
                   const placar = j.topScores?.[0]?.score ?? "—";

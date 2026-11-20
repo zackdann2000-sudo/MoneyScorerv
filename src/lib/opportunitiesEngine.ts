@@ -131,7 +131,13 @@ async function analisarJogo(
     data: g.date,
   }));
   /* Veredito Estatístico: usa a base que já está na mão, sem chamada extra. */
-  const veredito = vereditar({ homeGames: hh.games, awayGames: ah.games, h2hGames: h2hPlacares });
+  const veredito = vereditar({
+    homeGames: hh.games,
+    awayGames: ah.games,
+    h2hGames: h2hPlacares,
+    // Fator Fadiga medido contra a data do jogo, não contra "agora".
+    dataJogo: m.date ? new Date(m.date).toISOString() : undefined,
+  });
   const model = runModel(m.home.name, m.away.name, hh.games, ah.games, 2.65, { games: h2h.games });
   if (model.status !== "ok" || !model.probs) return null;
 

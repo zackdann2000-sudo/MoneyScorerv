@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Star, RefreshCw, ChevronDown, Search } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Star, RefreshCw, ChevronDown, Search } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { toYmd } from "@/components/DateStrip";
+import DateStrip7 from "@/components/DateStrip7";
+import { hojeYmd } from "@/lib/semana";
 import { isMainLeague } from "@/lib/mainLeagues";
 import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
@@ -24,7 +26,21 @@ const CODE: Record<string, string> = {
 
 export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "favorites" }) {
   const { favorites, isFavorite, toggleFavorite } = useApp();
-  const [date, setDate] = useState(toYmd(new Date()));
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  /* ---------------------------------------------------------------------
+   * A URL é a fonte de verdade da navegação:  ?data=YYYY-MM-DD&liga=CODIGO
+   * Sem isso, escolher "amanhã", abrir uma liga e voltar resetava para hoje
+   * (o estado vivia só em useState e o voltar do browser remontava tudo).
+   * ------------------------------------------------------------------- */
+  const urlData = searchParams.get("data");
+  const urlLiga = searchParams.get("liga");
+  const dataValida = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+  const [date, setDate] = useState(() => (dataValida(urlData) ? urlData : hojeYmd()));
+  const [liga, setLiga] = useState<string | null>(urlLiga || null);
   const [sport, setSport] = useState("football");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState("");
@@ -91,12 +107,48 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
     fetch(`/api/live-box?q=${encodeURIComponent(ids)}`).then((r) => r.json()).then((j) => setBoxes(j.boxes || {})).catch(() => {});
   }, [rows]);
 
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() + i - 1);
-    const ymd = toYmd(d);
-    const label = i === 0 ? "ONTEM" : i === 1 ? "HOJE" : d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "").slice(0, 2).toUpperCase();
-    return { ymd, label, sub: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) };
-  }), []);
+  // URL mudou (voltar/avançar do browser, link colado) -> reflete no estado.
+  useEffect(() => {
+    if (dataValida(urlData) && urlData !== date) setDate(urlData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlData]);
+  useEffect(() => {
+    setLiga(urlLiga || null);
+  }, [urlLiga]);
+
+  /** Escreve data/liga na URL sem empilhar histórico (replace). */
+  const sincronizarUrl = useCallback(
+    (params: { data?: string; liga?: string | null }) => {
+      const q = new URLSearchParams();
+      q.set("data", params.data ?? date);
+      const l = params.liga === undefined ? liga : params.liga;
+      if (l) q.set("liga", l);
+      router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+    },
+    [router, pathname, date, liga],
+  );
+
+  const mudarDia = useCallback(
+    (ymd: string) => {
+      setDate(ymd);
+      sincronizarUrl({ data: ymd });
+    },
+    [sincronizarUrl],
+  );
+
+  const abrirLiga = useCallback(
+    (code: string) => {
+      setLiga(code);
+      sincronizarUrl({ liga: code });
+    },
+    [sincronizarUrl],
+  );
+
+  /** Volta para a lista de ligas MANTENDO o dia escolhido. */
+  const voltarParaLigas = useCallback(() => {
+    setLiga(null);
+    sincronizarUrl({ liga: null });
+  }, [sincronizarUrl]);
 
   const base = useMemo(() => {
     let list = rows || [];
@@ -114,6 +166,20 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
     return list;
   }, [rows, mode, favorites, q, soPrincipais]);
 
+  /** Liga aberta (drill-down): o nome vem do primeiro jogo dela. */
+  const ligaAberta = useMemo(() => {
+    if (!liga) return null;
+    const doDia = (rows || []).filter((m) => m.league === liga);
+    const head = doDia[0];
+    return {
+      code: liga,
+      nome: head?.leagueName || liga,
+      pais: head?.country || "",
+      jogos: base.filter((m) => m.league === liga),
+      totalNoDia: doDia.length,
+    };
+  }, [liga, rows, base]);
+
   const counts = useMemo(() => ({
     all: base.length,
     live: base.filter((m) => m.live).length,
@@ -123,11 +189,17 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
 
   const shown = base.filter((m) => filter === "all" || filter === "tip" ? (filter === "tip" ? false : true) : filter === "live" ? m.live : filter === "post" ? m.finished : m.state === "pre");
 
+  /** Com uma liga aberta, a lista mostra só ela (o dia continua o mesmo). */
+  const visiveis = useMemo(
+    () => (liga ? shown.filter((m) => m.league === liga) : shown),
+    [shown, liga],
+  );
+
   const groups = useMemo(() => {
     const map = new Map<string, Row[]>();
-    shown.forEach((m) => map.set(m.league, [...(map.get(m.league) || []), m]));
+    visiveis.forEach((m) => map.set(m.league, [...(map.get(m.league) || []), m]));
     return [...map.entries()].sort((a, b) => Number(favLeagues.includes(b[0])) - Number(favLeagues.includes(a[0])) || (a[1][0]?.leagueName || "").localeCompare(b[1][0]?.leagueName || ""));
-  }, [shown, favLeagues]);
+  }, [visiveis, favLeagues]);
 
   const toggleLeague = (code: string) => {
     const next = favLeagues.includes(code) ? favLeagues.filter((x) => x !== code) : [...favLeagues, code];
@@ -160,17 +232,7 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
         </div>
       )}
 
-      <div className="flex gap-3 overflow-x-auto no-scrollbar border-b border-line mb-2">
-        {days.map((d) => {
-          const on = d.ymd === date;
-          return (
-            <button key={d.ymd} onClick={() => setDate(d.ymd)} className={`shrink-0 pb-2 text-center min-w-12 ${on ? "text-live border-b-2 border-live" : "text-mut"}`}>
-              <span className="block text-[10px] font-bold">{d.label}</span>
-              <span className="block text-[12px] font-bold tabular-nums">{d.sub}</span>
-            </button>
-          );
-        })}
-      </div>
+      <DateStrip7 value={date} onChange={mudarDia} />
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <LeagueFilterPill principais={soPrincipais} onChange={setSoPrincipais} />
@@ -195,7 +257,7 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
           <button onClick={() => load()} className="mt-3 h-11 px-4 rounded-full bg-live text-white text-sm font-bold">Tentar de novo</button>
         </div>
       )}
-      {rows && shown.length === 0 && !err && (
+      {rows && visiveis.length === 0 && !err && (
         <div className="text-center py-12 px-4">
           {mode === "favorites" ? (
             <>
@@ -217,24 +279,47 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
         </div>
       )}
 
+      {ligaAberta && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl border border-acc/40 bg-acc/10 px-2 py-1.5">
+          <button
+            onClick={voltarParaLigas}
+            className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-acc/60 bg-panel px-2.5 text-[11px] font-extrabold text-acc"
+          >
+            <ArrowLeft size={13} /> Voltar às ligas
+          </button>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px] font-extrabold text-ink">{ligaAberta.nome}</span>
+            <span className="block text-[9px] text-mut">
+              {ligaAberta.pais ? `${ligaAberta.pais} · ` : ""}
+              {ligaAberta.jogos.length} de {ligaAberta.totalNoDia} no dia
+            </span>
+          </span>
+        </div>
+      )}
+
       {groups.map(([code, list]) => {
         const collapsed = open[code] === false;
         const head = list[0];
         const fav = favLeagues.includes(code);
         return (
           <section key={code} className="mb-2">
-            <button onClick={() => setOpen((p) => ({ ...p, [code]: collapsed }))} className="w-full flex items-center gap-2 px-1 py-2 text-left">
-              <span className="w-6 text-[10px] font-bold text-mut">{CODE[head.country] || "—"}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[10px] uppercase tracking-wide text-mut">{head.country}</span>
-                <span className="block text-[13px] font-bold truncate">{head.leagueName}</span>
-              </span>
-              <span className="text-[12px] font-bold tabular-nums text-mut">{list.length}</span>
+            <div className="flex w-full items-center gap-2 px-1 py-2">
+              {/* Nome da liga abre os jogos dela NAQUELE dia (vai para a URL). */}
+              <button onClick={() => abrirLiga(code)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span className="w-6 text-[10px] font-bold text-mut">{CODE[head.country] || "—"}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10px] uppercase tracking-wide text-mut">{head.country}</span>
+                  <span className="block text-[13px] font-bold truncate">{head.leagueName}</span>
+                </span>
+                <span className="text-[12px] font-bold tabular-nums text-mut">{list.length}</span>
+              </button>
               <span role="checkbox" aria-checked={fav} aria-label="Competição favorita" onClick={(e) => { e.stopPropagation(); toggleLeague(code); }} className="w-11 h-11 flex items-center justify-center">
                 <Star size={16} className={fav ? "text-warn fill-warn" : "text-mut"} />
               </span>
-              <ChevronDown size={14} className={`text-mut ${collapsed ? "-rotate-90" : ""}`} />
-            </button>
+              <button onClick={() => setOpen((p) => ({ ...p, [code]: collapsed }))} aria-label={collapsed ? "Expandir liga" : "Recolher liga"} className="flex h-11 w-8 items-center justify-center">
+                <ChevronDown size={14} className={`text-mut ${collapsed ? "-rotate-90" : ""}`} />
+              </button>
+            </div>
             {!collapsed && list.map((m) => <MatchRow key={m.id} m={m} sport={sport} box={boxes[m.id]} starred={isFavorite(m.home.id) || isFavorite(m.away.id)} onStar={() => {
               toggleFavorite({ id: m.home.id, name: m.home.name, league: m.league, logo: m.home.logo });
             }} />)}

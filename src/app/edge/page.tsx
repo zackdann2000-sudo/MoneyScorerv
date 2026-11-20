@@ -14,6 +14,13 @@ import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from "@/lib/opportunitiesEngine";
 import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
+import FiltrosLinks from "@/components/FiltrosLinks";
+import {
+  contarOcultasPeloPiso,
+  contarPorChip,
+  filtrarOportunidades,
+  type ChipRapido,
+} from "@/lib/oportunidadeFiltros";
 import { resumirH2H } from "@/lib/h2hEngine";
 import { alertasVeredito } from "@/lib/vereditoEngine";
 import { estatisticas, anotarAcertosRecentes } from "@/lib/trackRecord";
@@ -52,9 +59,20 @@ const corConfianca = (c: string) =>
     : c === "média" ? "text-warn border-warn/40 bg-warn/10"
     : "text-mut border-line bg-panel2";
 
-export default async function EdgePage({ searchParams }: { searchParams: Promise<{ aba?: string }> }) {
+const CHIPS_VALIDOS: ChipRapido[] = ["elite", "altoEv", "favoritos", "bombas"];
+
+export default async function EdgePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aba?: string; min?: string; chip?: string }>;
+}) {
   const sp = await searchParams;
   const aba: Aba = sp.aba === "radar" ? "radar" : sp.aba === "historico" ? "historico" : "picks";
+  /* Piso de 70% + chips vivem na URL (tela é server component). */
+  const mostrarAbaixoDe70 = sp.min === "1";
+  const chipsAtivos = (sp.chip || "")
+    .split(",")
+    .filter((c): c is ChipRapido => (CHIPS_VALIDOS as string[]).includes(c));
 
   const user = await getUser().catch(() => null);
   const isVip = !!user && (user.isAdmin || user.access.active);
@@ -69,11 +87,20 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
     }).catch(() => null),
   );
 
-  const oportunidades = [...(dados?.oportunidades ?? [])]
+  const todas = [...(dados?.oportunidades ?? [])]
     .map((o) => ({ ...o }))
     .sort((a, b) => b.evPct - a.evPct);
   // Copia própria antes de anotar (não sujar o objeto em cache).
-  await anotarAcertosRecentes(oportunidades).catch(() => {});
+  await anotarAcertosRecentes(todas).catch(() => {});
+
+  /* Piso de 70% + chips: a lista publicada é a filtrada, mas os contadores
+     usam `todas` para o usuário ver quanto ficou de fora e por quê. */
+  const oportunidades = filtrarOportunidades(todas, {
+    mostrarAbaixoDe70,
+    chips: chipsAtivos,
+  });
+  const ocultasPeloPiso = contarOcultasPeloPiso(todas);
+  const contagemChips = contarPorChip(todas);
   const analisados = dados?.analisados ?? [];
   const stats = await estatisticas().catch(() => null);
   const recentes = await db
@@ -145,10 +172,25 @@ export default async function EdgePage({ searchParams }: { searchParams: Promise
 
       {aba === "picks" && (
         <section className="space-y-2.5">
+          <FiltrosLinks
+            base="/edge"
+            params={{ aba: "picks" }}
+            visiveis={oportunidades.length}
+            total={todas.length}
+            ocultas={ocultasPeloPiso}
+            mostrarAbaixoDe70={mostrarAbaixoDe70}
+            chips={chipsAtivos}
+            contagem={contagemChips}
+          />
+
           {oportunidades.length === 0 && (
             <Vazio
-              titulo="Sem pick com valor agora"
-              texto="O modelo só publica quando a probabilidade dele passa da odd do mercado. Volte mais perto do horário dos jogos."
+              titulo={todas.length > 0 ? "Tudo filtrado" : "Sem pick com valor agora"}
+              texto={
+                todas.length > 0
+                  ? `${todas.length} pick(s) ficaram abaixo de 70% de probabilidade ou fora dos chips escolhidos. Use "Mostrar < 70%" para ver todos.`
+                  : "O modelo só publica quando a probabilidade dele passa da odd do mercado. Volte mais perto do horário dos jogos."
+              }
             />
           )}
           {oportunidades.map((o, i) => {

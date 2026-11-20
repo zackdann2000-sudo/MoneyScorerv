@@ -34,29 +34,32 @@ function ApitouInner() {
   const urlJogo = searchParams.get("jogo");
   const urlAba = searchParams.get("aba");
   const urlData = searchParams.get("data");
+  const urlLiga = searchParams.get("liga");
 
   const date = urlData && /^\d{4}-\d{2}-\d{2}$/.test(urlData) ? urlData : hojeLocal();
   const jogoId = urlJogo && /^\d+$/.test(urlJogo) ? Number(urlJogo) : null;
+  const liga = urlLiga || null;
   const aba: AbaKey = jogoId ? "analise" : urlAba === "desajustes" ? "desajustes" : "jogos";
 
   const sincronizar = useCallback(
-    (params: { aba?: AbaKey; jogo?: number | null; data?: string }) => {
+    (params: { aba?: AbaKey; jogo?: number | null; data?: string; liga?: string | null }) => {
       const q = new URLSearchParams();
-      if (params.jogo) {
-        q.set("jogo", String(params.jogo));
-        q.set("data", params.data ?? date);
-      } else if (params.aba && params.aba !== "jogos") {
-        q.set("aba", params.aba);
-        q.set("data", params.data ?? date);
-      }
-      const qs = q.toString();
-      router.replace(`/apitou${qs ? `?${qs}` : ""}`, { scroll: false });
+      q.set("data", params.data ?? date);
+      const l = params.liga === undefined ? liga : params.liga;
+      if (l) q.set("liga", l);
+      if (params.jogo) q.set("jogo", String(params.jogo));
+      else if (params.aba && params.aba !== "jogos") q.set("aba", params.aba);
+      router.replace(`/apitou?${q.toString()}`, { scroll: false });
     },
-    [router, date],
+    [router, date, liga],
   );
 
   const abrirJogo = useCallback((id: number) => sincronizar({ jogo: id }), [sincronizar]);
-  const irParaAba = useCallback((a: AbaKey) => sincronizar({ aba: a }), [sincronizar]);
+  const irParaAba = useCallback((a: AbaKey) => sincronizar({ aba: a, liga: null }), [sincronizar]);
+  /* Dia e liga vão para a URL: voltar do browser não reseta para hoje. */
+  const mudarDia = useCallback((ymd: string) => sincronizar({ data: ymd }), [sincronizar]);
+  const abrirLiga = useCallback((nome: string) => sincronizar({ liga: nome }), [sincronizar]);
+  const voltarLigas = useCallback(() => sincronizar({ liga: null }), [sincronizar]);
 
   return (
     <BetSlipProvider>
@@ -101,7 +104,16 @@ function ApitouInner() {
       </nav>
 
       {/* Conteúdo */}
-      {aba === "jogos" && <JogosTab date={date} onAbrirJogo={abrirJogo} />}
+      {aba === "jogos" && (
+        <JogosTab
+          date={date}
+          onAbrirJogo={abrirJogo}
+          onMudarDia={mudarDia}
+          liga={liga}
+          onAbrirLiga={abrirLiga}
+          onVoltarLigas={voltarLigas}
+        />
+      )}
 
       {aba === "analise" &&
         (jogoId ? (

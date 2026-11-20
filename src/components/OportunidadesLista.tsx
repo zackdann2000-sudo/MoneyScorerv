@@ -8,6 +8,7 @@
  * cliente — nenhuma requisição extra. Os rótulos vêm prontos do motor.
  */
 import { useMemo, useState } from "react";
+import FiltrosOportunidades, { useFiltroOportunidades } from "@/components/FiltrosOportunidades";
 import { PorqueValor } from "@/components/ValorEsperado";
 import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
 import type { OportunidadeValor } from "@/lib/opportunitiesEngine";
@@ -26,15 +27,18 @@ function categoria(mercado: string): Categoria {
 
 export default function OportunidadesLista({ oportunidades }: { oportunidades: OportunidadeValor[] }) {
   const [filtro, setFiltro] = useState<Filtro>("tudo");
+  // Piso de 70% + chips da nata antes do filtro de mercado.
+  const { filtradas, ocultasPeloPiso, contagem, mostrarAbaixoDe70, setMostrarAbaixoDe70, chips, toggleChip } =
+    useFiltroOportunidades(oportunidades);
 
-  const conta = (c: Categoria) => oportunidades.filter((o) => categoria(o.mercado) === c).length;
+  const conta = (c: Categoria) => filtradas.filter((o) => categoria(o.mercado) === c).length;
   const lista = useMemo(
-    () => (filtro === "tudo" ? oportunidades : oportunidades.filter((o) => categoria(o.mercado) === filtro)),
-    [filtro, oportunidades],
+    () => (filtro === "tudo" ? filtradas : filtradas.filter((o) => categoria(o.mercado) === filtro)),
+    [filtro, filtradas],
   );
 
-  const chips: [Filtro, string, number][] = [
-    ["tudo", "Tudo", oportunidades.length],
+  const chipsMercado: [Filtro, string, number][] = [
+    ["tudo", "Tudo", filtradas.length],
     ["gols", "Gols", conta("gols")],
     ["cartoes", "Cartões", conta("cartoes")],
     ["escanteios", "Escanteios", conta("escanteios")],
@@ -44,11 +48,22 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
     <section className="rounded-2xl border border-acc/40 bg-gradient-to-br from-acc/10 via-panel to-panel p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-acc">Oportunidades de valor</h2>
-        <span className="text-[9px] text-mut shrink-0">modelo ≥ 65% · odd 1.45–2.50</span>
+        <span className="text-[9px] text-mut shrink-0">modelo ≥ 70% · odd 1.45–2.50</span>
       </div>
 
+      <FiltrosOportunidades
+        visiveis={filtradas.length}
+        total={oportunidades.length}
+        ocultas={ocultasPeloPiso}
+        mostrarAbaixoDe70={mostrarAbaixoDe70}
+        onToggleAbaixo={setMostrarAbaixoDe70}
+        chips={chips}
+        onToggleChip={toggleChip}
+        contagem={contagem}
+      />
+
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-        {chips.map(([key, label, n]) => (
+        {chipsMercado.map(([key, label, n]) => (
           <button
             key={key}
             onClick={() => setFiltro(key)}
@@ -63,7 +78,11 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
       </div>
 
       {lista.length === 0 ? (
-        <p className="text-[10px] text-mut py-2">Nenhuma oportunidade nesta categoria hoje.</p>
+        <p className="text-[10px] text-mut py-2">
+          {oportunidades.length > 0 && filtradas.length === 0
+            ? `${oportunidades.length} oportunidade(s) ficaram abaixo de 70% ou fora dos chips. Use "Mostrar < 70%" para ver.`
+            : "Nenhuma oportunidade nesta categoria hoje."}
+        </p>
       ) : (
         <ul className="space-y-1.5">
           {lista.map((o) => (

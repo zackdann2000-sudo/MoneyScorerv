@@ -12,7 +12,7 @@ const {
 let seq = 0;
 const jogo = (opts) => ({
   id: `g${++seq}`,
-  date: "2026-05-01",
+  date: opts.date ?? "2026-05-01",
   league: "bra.1",
   home: opts.home ?? true,
   opp: { id: "x", name: "Adversário", short: "ADV", logo: "" },
@@ -145,6 +145,58 @@ assert.ok(alertas.every((a) => a.evPct >= EV_ALERTA_VEREDITO));
 
 // odds inválidas não geram alerta
 assert.deepStrictEqual(alertasVeredito(fake, { home: 1, draw: 0, away: null }), []);
+
+/* ---------- Fator Fadiga ---------- */
+const comData = (dias) =>
+  Array.from({ length: 6 }, (_, i) =>
+    jogo({ gf: 2, ga: 1, home: i % 2 === 0, date: new Date(Date.UTC(2026, 4, 20 - dias - i * 3)).toISOString() }),
+  );
+const ref = new Date(Date.UTC(2026, 4, 20)).toISOString();
+
+// mandante jogou há 3 dias, visitante há 7 -> alerta do mandante? (3 < 7 => visitante descansou)
+const fadigaAssimetrica = vereditar({
+  homeGames: comData(3),
+  awayGames: comData(7),
+  h2hGames: [],
+  dataJogo: ref,
+});
+assert.ok(fadigaAssimetrica, "veredito com fadiga deve existir");
+assert.strictEqual(fadigaAssimetrica.fadiga.casaDias, 3);
+assert.strictEqual(fadigaAssimetrica.fadiga.foraDias, 7);
+assert.strictEqual(fadigaAssimetrica.fadiga.maisDescansado, "fora", "7 dias de descanso é o lado mais descansado");
+assert.ok(/Fator Fadiga/.test(fadigaAssimetrica.fadiga.alerta));
+assert.ok(/visitante/.test(fadigaAssimetrica.fadiga.alerta));
+
+// diferença de 1 dia é calendário, não fadiga -> sem alerta
+const fadigaIgual = vereditar({
+  homeGames: comData(3),
+  awayGames: comData(4),
+  h2hGames: [],
+  dataJogo: ref,
+});
+assert.strictEqual(fadigaIgual.fadiga.diferenca, 1);
+assert.strictEqual(fadigaIgual.fadiga.maisDescansado, null);
+assert.strictEqual(fadigaIgual.fadiga.alerta, null);
+
+// lados trocados: mandante mais descansado
+const fadigaCasa = vereditar({
+  homeGames: comData(8),
+  awayGames: comData(2),
+  h2hGames: [],
+  dataJogo: ref,
+});
+assert.strictEqual(fadigaCasa.fadiga.maisDescansado, "casa");
+assert.ok(/mandante/.test(fadigaCasa.fadiga.alerta));
+
+// sem data no histórico -> fadiga nula, veredito continua funcionando
+const semData = vereditar({
+  homeGames: comData(3).map((g) => ({ ...g, date: "" })),
+  awayGames: comData(3).map((g) => ({ ...g, date: "" })),
+  h2hGames: [],
+  dataJogo: ref,
+});
+assert.strictEqual(semData.fadiga.alerta, null);
+assert.strictEqual(semData.fadiga.maisDescansado, null);
 
 console.log(
   `✅ vereditoEngine ok — casa ${(comH2H.probs.home * 100).toFixed(1)}% / empate ${(comH2H.probs.draw * 100).toFixed(1)}% / fora ${(comH2H.probs.away * 100).toFixed(1)}% · over2.5 ${(comH2H.probs.over25 * 100).toFixed(1)}% · btts ${(comH2H.probs.btts * 100).toFixed(1)}% · confiança ${comH2H.confianca} · alertas ${alertas.length}`,
