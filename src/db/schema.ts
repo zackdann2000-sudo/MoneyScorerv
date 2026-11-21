@@ -567,3 +567,6 @@ export const syncLock = pgTable("sync_lock", {
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("sync_lock_expira_idx").on(t.expiraEm)]);
+
+/* Módulo Hub (clone funcional DumbleScore) — esquema próprio, reexportado para o drizzle-kit. */
+export * from "./hub-schema";

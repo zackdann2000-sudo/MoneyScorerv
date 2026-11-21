@@ -1,0 +1,52 @@
+feature,area,priority,original,clone,notes
+Ciclo preview/final/live/review,Predictions,must,yes,no,final ~60min antes com escalação confirmada
+Probabilidades 1X2 por partida,Predictions,must,yes,no,home/draw/away como %
+Over/Under 1.5 2.5 3.5,Predictions,must,yes,no,mercado total de gols
+BTTS sim/não,Predictions,must,yes,no,ambas marcam
+Dupla chance,Predictions,should,yes,no,HomeOrDraw / AwayOrDraw / HomeOrAway
+Placares mais prováveis,Predictions,should,yes,no,top 5 com probabilidade
+Confiança do modelo,Analysis,must,yes,no,score inteiro por análise
+xG previsto por time,Analysis,must,yes,no,predictedHomeGoals/AwayGoals
+Fatores de xG com impacto e peso,Analysis,must,yes,no,~20 tipos de fator
+Fatores-chave e fatores de risco,Analysis,must,yes,no,keyFactors/riskFactors
+The Lab (padrões recentes),Analysis,should,yes,no,solidityScore por insight
+Escalação confirmada + banco + desfalques,Analysis,must,yes,no,formation/XI/bench/sidelined
+Odds multi-casa com timestamp,Odds,must,yes,no,Pinnacle Bet365 1xBet Sporttip Kalshi
+Odd mínima jogável (break-even),Odds,should,yes,no,maxPlayableOdds
+Selo de oportunidade + valor esperado,Opportunity,must,yes,no,value = p*odd-1
+Hot pick e substituição de seleção,Opportunity,should,yes,no,flag na análise final
+Sinais: discrepâncias,Signals,should,yes,no,fornecedor acima do mercado
+Sinais: cenários 3-5 jogos,Signals,should,yes,no,odds multiplicadas + EV
+Sinais: arbitragem cruzada,Signals,should,yes,no,margem de lucro por combinação
+Outliers de odds por casa,Signals,should,yes,no,desvio vs referência
+Desempenho público (acerto/ROI/lucro),Trust,must,yes,no,por período liga e mercado
+Contagem de no-value,Trust,should,yes,no,1399 de 3492 analisados no original
+Review pós-jogo + xG evaluation,Trust,should,yes,no,grade hit/near/miss
+Arquivo de resultados,Discovery,should,yes,no,/matchcenter/past
+Lista de ligas com país e tipo,Data,should,yes,no,23 ligas no original
+Detalhe de liga com temporadas,Data,should,yes,no,tabela + jogos
+Busca de times,Data,should,yes,no,nome país liga
+Ranking de jogadores,Data,should,yes,no,nota gols assistências minutos
+Placar ao vivo + estado do jogo,Live,must,yes,no,polling de live-scores
+Freemium 3 jogos por semana,Paywall,must,yes,no,contador semanal
+Trial de 3 dias,Paywall,must,yes,no,trialDays do config público
+Créditos avulsos para análise,Paywall,should,yes,no,comprar item individual
+Planos Scout/Oracle/Alchemist,Paywall,should,yes,no,3,90 / 29 / 49 EUR
+Cupons de desconto,Paywall,could,yes,no,percent ou dias
+Stripe checkout upgrade downgrade cancel,Paywall,must,yes,no,proporcional
+Watchlist de oportunidades,Engagement,should,yes,no,por usuário
+Times favoritos + notificação,Engagement,must,yes,no,alertas por time
+Notificações in-app e-mail push Telegram,Engagement,must,yes,no,por tipo e canal
+Suporte por ticket,Support,could,yes,no,chat com admin
+Onboarding com região e aviso legal,Onboarding,should,yes,no,4-5 passos
+Login Google Telegram link mágico,Auth,must,yes,no,vinculo entre métodos
+Multi-idioma 7 locales,Platform,should,yes,no,path-based
+PWA instalavel,Platform,could,yes,no,manifest + install prompt
+Servidor MCP para Claude/ChatGPT,Platform,could,yes,no,OAuth + leitura de análises
+Blog/Updates com changelog,Growth,must,yes,no,conteúdo próprio
+Ajuda com artigos e tooltips,Trust,should,yes,no,busca por categoria
+Páginas legais,Trust,must,yes,no,disclaimer privacidade termos imprint
+Compartilhar análise por token,Growth,should,yes,no,/share/<token>
+Admin com jobs e prompts,Ops,should,yes,no,monitor de sync e versões de prompt
+Analytics de trial e UTM,Ops,could,yes,no,conversão do trial
+Região do usuário muda casas de odds,Platform,should,yes,no,CH EU ROW NA LATAM ASIA
