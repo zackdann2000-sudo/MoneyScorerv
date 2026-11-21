@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSummaryRaw, getTeamHistory, matchFromSummary, type HistGame } from "@/lib/espn";
+import { getSummaryRaw, getTeamHistory, matchFromSummary, normH2H, type HistGame } from "@/lib/espn";
 import { cached } from "@/lib/cache";
 import { gerarVeredito } from "@/lib/veredito";
 
@@ -28,7 +28,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         getTeamHistory(league, match.away.id, 10).catch(() => vazio),
       ]);
 
-      const veredito = gerarVeredito(match.home.name, match.away.name, raioxCasa.games, raioxFora.games);
+      const veredito = gerarVeredito(
+        match.home.name,
+        match.away.name,
+        raioxCasa.games,
+        raioxFora.games,
+        /* H2H vem do MESMO summary que já foi buscado acima — não custa
+           chamada extra. `normH2H` entrega os confrontos diretos; a rota só
+           reetiqueta para o contrato do veredito (`gf`/`ga`), porque a média
+           que o cruzamento usa é o total de gols por confronto. */
+        (normH2H(sm).games || []).map((g: any) => ({
+          gf: Number(g.homeScore),
+          ga: Number(g.awayScore),
+          date: String(g.date ?? ""),
+        })),
+      );
 
       return {
         ...veredito,

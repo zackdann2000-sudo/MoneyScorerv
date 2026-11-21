@@ -17,6 +17,7 @@
     "db:push": "drizzle-kit push",
     "db:baseline": "node scripts/db-baseline-migrations.mjs",
     "db:dryrun-m4": "node scripts/m4-dryrun.cjs",
+    "props:precompute": "tsx scripts/props-precompute.ts",
     "push:value": "tsx scripts/push-value-alerts.ts"
   },
   "dependencies": {

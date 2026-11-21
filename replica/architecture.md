@@ -320,6 +320,67 @@ conta criada como `user`, não recusada) e ensaio da `0015` em transação com
 intacto). `tsc` exit 0, 25 suítes verdes, e o único erro de eslint em
 `AppContext.tsx` é o pré-existente da linha 48 (não é deste trabalho).
 
+## Veredito 2.0 — H2H × forma recente + props pré-calculados ✅ **feito (2026-11-21) — props bloqueados por conta suspensa**
+
+### O que mudou no motor (`veredito.ts`)
+
+O veredito já cruzava **modelo Poisson** e **taxa observada**. Agora ele usa a
+terceira leitura que faltava — o **confronto direto**: `ajusteH2H()` (que já
+existia em `formaRecente.ts`, com fator limitado a 0,85–1,10) passou a
+multiplicar os gols esperados, e a saída ganhou dois campos:
+
+| campo | conteúdo |
+| --- | --- |
+| `ajusteH2H` | `{ fator, aplicado, mediaH2H, mediaModelo, jogos, texto }` ou `null` |
+| `melhorPalpite` | `{ mercado, porcentagem, nivelConfianca, porque[3], forma, h2h }` |
+
+**O `melhorPalpite` não é um segundo número.** É o topo de `taxas[]` com as três
+razões separadas (forma → H2H → concordância modelo × observado). Duas
+porcentagens diferentes para o mesmo jogo na mesma tela foi o erro que a
+arquitetura evita desde o M0.
+
+A janela de 10 jogos **já era estrita** e agora está testada: `normalizarJogos()`
+ordena por data (quando existe) e corta em `JANELA_FORMA`; o teste novo joga 16
+jogos embaralhados, com um 9x9 de janeiro no meio, e prova que `amostra === 10`
+e que o jogo velho não distorce a média.
+
+**Ligação com a rota:** `/api/matches/[id]/veredito` já buscava o summary do ESPN
+para montar o jogo, então o H2H sai do mesmo payload (`normH2H(sm).games`) —
+zero chamada extra. Medido com Palmeiras × Flamengo: 5 confrontos, fator 0,969
+aplicado, `melhorPalpite` 80% em Over 1.5 com o texto do H2H na 2ª razão.
+
+### Props pré-calculados (`scripts/props-precompute.ts` + workflow)
+
+Regra de custo: `/fixtures/players` da API-Football consome cota (100 req/dia no
+Free) e cada time custa `1 + PROPS_MAX_JOGOS` (1 busca + 4 jogos). Por isso:
+
+1. **Só principais ligas** (`isMainLeague`) — hoje: 59 jogos, 1 de liga principal.
+2. **Cache-first:** `getPropsDoTime(nome, { permitirApi: false })` responde do
+   banco; só time sem cache fresco gasta cota. Rodar 2× no dia custa ~0.
+3. **Teto explícito:** `PROPS_MAX_TIMES` (16) e `--dry-run` que lista sem gastar.
+4. **Falha de um time não derruba o job:** props é enriquecimento.
+5. GitHub Actions `props-precompute.yml` às 07:00 UTC (depois do sync das 06:00),
+   com issue automática em falha.
+
+**O que o ensaio achou, e é o motivo de a seção de props estar vazia hoje:**
+
+```
+GET /status → 200 {"errors":{"access":"Your account is suspended, check on
+https://dashboard.api-football.com."}}
+```
+
+A conta da API-Football está **suspensa**. Não é cota, não é código, não é
+chave inválida. O script agora sonda `/status` **antes** de qualquer coisa e
+falha alto com essa mensagem; antes, o `catch` do `playerProps.ts` transformava
+suspensão em `null` e a UI mostrava “sem amostra” — um problema de assinatura
+com cara de problema de dados.
+
+**Nada de props é inventado:** sem fonte, a seção não aparece e o veredito de
+gols (ESPN) continua saindo normalmente.
+
+**Pendente:** reativar a conta (ou trocar de fornecedor de props) para o cache
+encher; e a UI da seção de props (consome `player_props_cache`, custo zero).
+
 ## API
 
 Rotas dos dois módulos auditados (as demais 58 seguem o mesmo desenho). Regra que

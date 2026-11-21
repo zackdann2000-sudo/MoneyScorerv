@@ -1,0 +1,135 @@
+# Pré-cálculo diário de Player Props (API-Football) para as principais ligas.
+#
+# Por que um job separado do sync do apitou: custa COTA (100 req/dia no plano
+# Free) e é enriquecimento — se falhar, o app continua funcionando com o que já
+# está em `player_props_cache`. Por isso tem horário próprio (07:00 UTC, depois
+# do sync das 06:00) e teto de times por execução.
+#
+# Ordem de grandeza: 1 busca de time + `PROPS_MAX_JOGOS` (4) jogos por time.
+# Com PROPS_MAX_TIMES=16 no pior caso são ~80 requests; times com cache fresco
+# (24h) não gastam nada, então rodar 2× no dia custa ~0.
+#
+# Secrets necessários (Settings > Secrets and variables > Actions):
+#   DATABASE_URL     (obrigatório) Neon
+#   API_FOOTBALL_KEY (obrigatório) a chave do provedor
+#
+# Em FALHA abre uma issue. Motivo real que justifica isso: em 21/11/2026 a conta
+# do provedor estava SUSPENSA e o código antigo transformava isso em "sem
+# amostra" (16 times sem dado, sem nenhum aviso de assinatura).
+name: props precompute
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Só listar o que seria buscado (não gasta cota)"
+        type: boolean
+        default: false
+      max_times:
+        description: "Teto de times nesta execução"
+        type: string
+        default: "16"
+
+concurrency:
+  group: props-precompute
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  precomputar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Pré-calcular props
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          PROPS_MAX_TIMES: ${{ inputs.max_times || '16' }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npx tsx scripts/props-precompute.ts --dry-run --max-times="${PROPS_MAX_TIMES}"
+          else
+            npx tsx scripts/props-precompute.ts --max-times="${PROPS_MAX_TIMES}"
+          fi
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "### props precompute" >> "$GITHUB_STEP_SUMMARY"
+          echo "- status: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- quando: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "- modo: ${{ inputs.dry_run == 'true' && 'dry-run' || 'gravação' }}" >> "$GITHUB_STEP_SUMMARY"
+
+      # Falha aqui normalmente é assinatura/cota do provedor, não código. A issue
+      # existe para isso não virar "props vazias" silenciosas na UI.
+      - name: Abrir issue de falha
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const titulo = "props precompute falhou";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const agora = new Date().toISOString();
+            const corpo = [
+              `O workflow **${context.workflow}** falhou em ${agora}.`,
+              "",
+              `- logs: ${runUrl}`,
+              "",
+              "Cheque nesta ordem:",
+              "1. `API_FOOTBALL_KEY` ainda é válida e a conta **não está suspensa**",
+              "   (`/status` responde `access: Your account is suspended`).",
+              "2. Cota do dia (`requests.current` vs `limit_day`).",
+              "3. Se o plano mudou, os endpoints `/teams`, `/fixtures`, `/fixtures/players`",
+              "   continuam respondendo com `results > 0`.",
+              "",
+              "Enquanto não voltar, `/veredito` mostra o palpite de gols (ESPN) e a",
+              "seção de props fica vazia — nenhum dado é inventado.",
+            ].join("\n");
+            const abertas = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", per_page: 100,
+            });
+            const existente = abertas.data.find((i) => i.title.startsWith(titulo));
+            if (existente) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: existente.number,
+                body: `Falhou de novo em ${agora}.\n\n${corpo}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                ...context.repo, title: `${titulo} (${agora.slice(0, 10)})`, body: corpo,
+              });
+            }
+
+      - name: Fechar issues de alerta
+        if: success() && inputs.dry_run != true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const titulo = "props precompute falhou";
+            const abertas = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", per_page: 100,
+            });
+            for (const i of abertas.data.filter((x) => x.title.startsWith(titulo))) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: i.number,
+                body: "Props voltaram a ser pré-calculadas — fechando automaticamente.",
+              });
+              await github.rest.issues.update({ ...context.repo, issue_number: i.number, state: "closed" });
+            }

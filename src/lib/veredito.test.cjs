@@ -114,5 +114,54 @@ const meio = gerarVeredito("X", "Y", A_ALTA, []);
 check("um lado só gera veredito", meio.dadosInsuficientes, false);
 entre("um lado só ainda dá número", meio.porcentagemAcerto, 1, 99);
 
+/* ================================================================== */
+console.log("\n=== 5. Veredito 2.0 · janela estrita de 10 e H2H × forma ===");
+
+/* 15 jogos embaralhados, com data: só os 10 mais recentes contam, e a ordem
+   tem de ser a de data (não a do array) — a média ponderada depende disso. */
+const bagunçado = [
+  ...serie([1, 1, 1, 1, 1], [1, 1, 1, 1, 1]),
+  { gf: 9, ga: 9, date: "2025-01-01" }, // o mais antigo: fica de fora
+  ...serie([9, 9, 9, 9, 9], [0, 0, 0, 0, 0]),
+];
+const janela = gerarVeredito("X", "Y", bagunçado, []);
+check("janela exata de 10 (de 16 jogos)", janela.amostra, 10);
+entre("o jogo mais antigo (9x9) não distorce a média", janela.mediaGols.timeA, 1.0, 5.5);
+check("melhorPalpite sempre acompanha o veredito", janela.melhorPalpite.mercado, janela.mercadoRecomendado);
+check("sem H2H o ajuste é neutro", janela.ajusteH2H.aplicado, false);
+check("sem H2H o melhorPalpite diz isso", janela.melhorPalpite.h2h, null);
+
+/* H2H travado: 3 confrontos 0x0 contra médias de ~2.5 gols/jogo. O total
+   esperado tem de CAIR, e o melhor palpite tem de citar o confronto. */
+const h2hTravado = [
+  { gf: 0, ga: 0, date: "2025-06-01" },
+  { gf: 1, ga: 0, date: "2025-03-01" },
+  { gf: 0, ga: 0, date: "2024-12-01" },
+];
+const comH2H = gerarVeredito("São Paulo", "Bahia", A_ALTA, B_ALTA, h2hTravado);
+const semH2H = gerarVeredito("São Paulo", "Bahia", A_ALTA, B_ALTA);
+check("H2H travado reduz o total esperado", comH2H.golsEsperados.total < semH2H.golsEsperados.total, true);
+check("ajuste marcado como aplicado", comH2H.ajusteH2H.aplicado, true);
+entre("fator dentro do limite (0,85–1,10)", comH2H.ajusteH2H.fator, 0.85, 1.1);
+check("melhorPalpite carrega os 3 confrontos", comH2H.melhorPalpite.h2h.jogos, 3);
+contem("melhorPalpite cita o H2H", comH2H.melhorPalpite.porque.join(" "), "H2H");
+contem("explicação cita o H2H", comH2H.explicacao, "H2H");
+check("a porcentagem não vira número paralelo", comH2H.melhorPalpite.porcentagem, comH2H.porcentagemAcerto);
+check("3 razões no melhor palpite", comH2H.melhorPalpite.porque.length, 3);
+check("forma do mandante é a média do raio-X", comH2H.melhorPalpite.forma.timeA, comH2H.mediaGols.timeA);
+
+/* Amostra de H2H curta (2 jogos): não ajusta — regra do MIN_H2H. */
+const h2hCurto = gerarVeredito("São Paulo", "Bahia", A_ALTA, B_ALTA, h2hTravado.slice(0, 2));
+check("H2H com 2 jogos não ajusta", h2hCurto.ajusteH2H.aplicado, false);
+check("mas continua registrado no melhorPalpite", h2hCurto.melhorPalpite.h2h.jogos, 2);
+
+/* Formato de resumo do h2hEngine também é aceito (contagem + média pronta). */
+const doResumo = gerarVeredito("São Paulo", "Bahia", A_ALTA, B_ALTA, { jogos: 4, mediaGols: 1.25 });
+check("aceita { jogos, mediaGols } do h2hEngine", doResumo.melhorPalpite.h2h.jogos, 4);
+check("e aplica o fator", doResumo.ajusteH2H.aplicado, true);
+
+/* Base vazia não inventa palpite. */
+check("sem base → sem melhor palpite", gerarVeredito("X", "Y", [], [], h2hTravado).melhorPalpite, null);
+
 console.log(`\n${falhas.length === 0 ? "✅ TODOS OS TESTES PASSARAM" : "❌ HOUVE FALHAS"} — ${ok} ok, ${falhas.length} falha(s)`);
 if (falhas.length) { console.log("falhas:", falhas.join(" | ")); process.exit(1); }

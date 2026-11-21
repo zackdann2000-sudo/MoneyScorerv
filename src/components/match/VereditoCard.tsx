@@ -28,7 +28,7 @@ const COR_PCT: Record<NivelConfianca, string> = {
 
 /** "Over 1.5" → "Over 1.5 Gols"? Não: o rótulo já vem curto e legível da lib. */
 export default function VereditoCard({ veredito }: { veredito: Veredito }) {
-  const { mercadoRecomendado, porcentagemAcerto, nivelConfianca, explicacao, dadosInsuficientes, amostra } = veredito;
+  const { mercadoRecomendado, porcentagemAcerto, nivelConfianca, explicacao, dadosInsuficientes, amostra, melhorPalpite } = veredito;
   const selo = SELO[nivelConfianca] ?? SELO.Baixa;
   const semBase = porcentagemAcerto === 0;
 
@@ -78,6 +78,34 @@ export default function VereditoCard({ veredito }: { veredito: Veredito }) {
         )}
 
         <p className="mt-3 text-[11px] leading-relaxed text-ink/85">{explicacao}</p>
+
+        {/* Melhor palpite (Veredito 2.0): o MESMO número do card, com as três
+            leituras que o produziram. É aqui que o H2H aparece sem virar um
+            segundo veredito paralelo. */}
+        {melhorPalpite && !semBase && (
+          <div className="mt-3 rounded-xl border border-line bg-panel2/60 p-2.5">
+            <p className="text-[9px] font-extrabold uppercase tracking-wide text-mut">
+              Melhor palpite do confronto
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {melhorPalpite.porque.map((razao, i) => (
+                <li key={i} className="flex gap-1.5 text-[10px] leading-snug text-ink/80">
+                  <span className="mt-[3px] h-1 w-1 shrink-0 rounded-full bg-acc" />
+                  <span>{razao}</span>
+                </li>
+              ))}
+            </ul>
+            {melhorPalpite.h2h && (
+              <p className="mt-1.5 text-[9px] text-mut">
+                H2H: {melhorPalpite.h2h.jogos} confronto{melhorPalpite.h2h.jogos === 1 ? "" : "s"}
+                {melhorPalpite.h2h.mediaGols != null
+                  ? ` · ${melhorPalpite.h2h.mediaGols.toFixed(2).replace(".", ",")} gols por jogo`
+                  : ""}
+                {" "}· peso {Math.round(melhorPalpite.h2h.fator * 100)}% no total esperado
+              </p>
+            )}
+          </div>
+        )}
 
         <p className="mt-2 text-[9px] text-mut">
           Base: {amostra} jogo{amostra === 1 ? "" : "s"} · últimos 10 de cada time (peso 1.5 / 1.0 / 0.5) · Poisson + taxa observada

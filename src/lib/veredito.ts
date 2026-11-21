@@ -23,7 +23,7 @@
  * sempre o mesmo veredito — dá para testar com placares escritos à mão.
  */
 
-import { JANELA_FORMA, mediaPonderada } from "./formaRecente";
+import { JANELA_FORMA, mediaPonderada, mediaSimples, ajusteH2H, type AjusteH2H } from "./formaRecente";
 
 /** O mínimo que a função precisa de cada jogo. O `HistGame` do ESPN serve. */
 export type JogoRaiox = {
@@ -88,7 +88,42 @@ export type Veredito = {
   golsEsperados: { timeA: number; timeB: number; total: number };
   /** Todos os mercados avaliados, do mais provável para o menos. */
   taxas: TaxaMercado[];
+  /**
+   * Veredito 2.0 — cruzamento do H2H com a forma recente. `null` quando a rota
+   * não mandou H2H (quem só tem o raio-X continua funcionando igual).
+   */
+  ajusteH2H: AjusteH2H | null;
+  /**
+   * Veredito 2.0 — o palpite único do confronto, montado das mesmas três
+   * leituras (forma recente, H2H, modelo × observado), com as razões em
+   * separado para a UI mostrar *por que*, não só o número.
+   */
+  melhorPalpite: MelhorPalpite | null;
 };
+
+export type MelhorPalpite = {
+  mercado: string;
+  mercadoId: MercadoId;
+  /** 0..100 — a MESMA nota de `taxas[]`; não existe número novo para o card. */
+  porcentagem: number;
+  nivelConfianca: NivelConfianca;
+  /** Razões em ordem de peso: forma → H2H → concordância modelo × observado. */
+  porque: string[];
+  /** Média de gols por jogo na janela de 10 de cada lado (a base do cruzamento). */
+  forma: { timeA: number | null; timeB: number | null; jogosA: number; jogosB: number };
+  h2h: { jogos: number; mediaGols: number | null; fator: number } | null;
+};
+
+/**
+ * H2H aceito pelo veredito: os confrontos diretos no mesmo formato do raio-X
+ * (`gf`/`ga` do ponto de vista do mandante), ou o resumo que `h2hEngine` monta
+ * (`{ jogos, mediaGols }`), ou só a contagem quando a média já foi calculada.
+ */
+export type H2HInput =
+  | readonly JogoRaiox[]
+  | { jogos?: readonly JogoRaiox[] | number | null; mediaGols?: number | null }
+  | null
+  | undefined;
 
 /* ------------------------------------------------------------------ */
 /* Aritmética                                                          */
@@ -159,6 +194,27 @@ function normalizarJogos(input: RaioxInput): JogoRaiox[] {
     : validos;
 
   return ordenados.slice(0, JANELA_FORMA);
+}
+
+/**
+ * Normaliza o H2H nos formatos que a rota pode entregar: lista de jogos (com
+ * data e placar), resumo do `h2hEngine` (`{ jogos, mediaGols }`) ou só a
+ * contagem. Nunca inventa média: sem placar, `media` é `null` e o ajuste
+ * devolve fator 1 — o veredito não pode fingir confronto.
+ */
+function normalizarH2H(input: H2HInput): { media: number | null; contagem: number } {
+  if (!input) return { media: null, contagem: 0 };
+  if (Array.isArray(input)) {
+    const jogos = normalizarJogos(input as readonly JogoRaiox[]);
+    return { media: mediaSimples(jogos.map(totalDeGols)), contagem: jogos.length };
+  }
+  const env = input as { jogos?: readonly JogoRaiox[] | number | null; mediaGols?: number | null };
+  if (Array.isArray(env.jogos)) {
+    const jogos = normalizarJogos(env.jogos);
+    return { media: mediaSimples(jogos.map(totalDeGols)), contagem: jogos.length };
+  }
+  const contagem = typeof env.jogos === "number" && Number.isFinite(env.jogos) ? Math.max(0, Math.floor(env.jogos)) : 0;
+  return { media: contagem > 0 ? num(env.mediaGols) : null, contagem };
 }
 
 function nomeDoTime(t: TimeVeredito, padrao: string): string {
@@ -332,6 +388,8 @@ export function gerarVeredito(
   timeB: TimeVeredito,
   raioxA: RaioxInput,
   raioxB: RaioxInput,
+  /** Veredito 2.0: confronto direto. Opcional — sem ele o resultado é o de antes. */
+  h2h?: H2HInput,
 ): Veredito {
   const jogosA = normalizarJogos(raioxA);
   const jogosB = normalizarJogos(raioxB);
@@ -357,6 +415,8 @@ export function gerarVeredito(
       mediaGols: { timeA: null, timeB: null, confronto: null },
       golsEsperados: { timeA: 0, timeB: 0, total: 0 },
       taxas: [],
+      ajusteH2H: null,
+      melhorPalpite: null,
     };
   }
 
@@ -372,8 +432,18 @@ export function gerarVeredito(
   const baseA = combinar(pA.golsPro, pB.golsContra, mediaPool != null ? mediaPool / 2 : 1.3);
   const baseB = combinar(pB.golsPro, pA.golsContra, mediaPool != null ? mediaPool / 2 : 1.1);
 
-  const lA = clamp(baseA * 1.08, 0.25, 3.6);
-  const lB = clamp(baseB * 0.92, 0.25, 3.6);
+  const lA0 = baseA * 1.08;
+  const lB0 = baseB * 0.92;
+
+  /* ── Veredito 2.0: H2H × forma recente ────────────────────────────────
+     O fator do H2H é limitado (0,85–1,10) e só entra com amostra mínima —
+     confronto direto de 2 jogos não derruba a expectativa dos últimos 10. */
+  const h2hDados = normalizarH2H(h2h);
+  const ajuste = ajusteH2H(h2hDados.media, mediaPool, h2hDados.contagem);
+  const fatorH2H = ajuste.aplicado ? ajuste.fator : 1;
+
+  const lA = clamp(lA0 * fatorH2H, 0.25, 3.6);
+  const lB = clamp(lB0 * fatorH2H, 0.25, 3.6);
   const lt = lA + lB;
 
   const pesoObs = pesoDoObservado(amostra);
@@ -437,6 +507,8 @@ export function gerarVeredito(
     partes.push(`O modelo Poisson estima ${melhor.modelo}% para o ${mercado.nome}.`);
   }
 
+  if (ajuste.aplicado) partes.push(ajuste.texto);
+
   if (desacordo > 0.15) {
     partes.push("As duas leituras divergem bastante, então o número final ficou no meio do caminho.");
   } else if (melhor.observado != null) {
@@ -453,6 +525,28 @@ export function gerarVeredito(
 
   partes.push(`Veredito: ${mercado.curto} a ${porcentagemAcerto}% (confiança ${nivelConfianca.toLowerCase()}).`);
 
+  /* ── Melhor palpite do confronto (Veredito 2.0) ───────────────────────
+     Não é um número novo: é o topo de `taxas[]` com as três leituras que o
+     produziram, separadas — a UI mostra a razão, não só a porcentagem. */
+  const melhorPalpite: MelhorPalpite = {
+    mercado: mercado.curto,
+    mercadoId: mercado.id,
+    porcentagem: porcentagemAcerto,
+    nivelConfianca,
+    porque: [
+      `Forma (últimos ${pA.jogos}/${pB.jogos} jogos): ${pA.nome} marca ${fmt(pA.golsPro)} e sofre ${fmt(pA.golsContra)}; ` +
+        `${pB.nome} marca ${fmt(pB.golsPro)} e sofre ${fmt(pB.golsContra)} por jogo.`,
+      ajuste.aplicado
+        ? ajuste.texto
+        : `H2H com ${h2hDados.contagem} confronto(s) não mexeu no número: ${ajuste.texto}`,
+      melhor.observado != null
+        ? `O ${mercado.nome} bateu em ${melhor.observado}% dos ${amostra} jogos reais e o Poisson estima ${melhor.modelo}%.`
+        : `Sem taxa observada para esta linha: o número vem só do Poisson (${melhor.modelo}%).`,
+    ],
+    forma: { timeA: pA.golsPro, timeB: pB.golsPro, jogosA: pA.jogos, jogosB: pB.jogos },
+    h2h: h2hDados.contagem > 0 ? { jogos: h2hDados.contagem, mediaGols: h2hDados.media, fator: fatorH2H } : null,
+  };
+
   return {
     mercadoRecomendado: mercado.curto,
     mercadoId: mercado.id,
@@ -468,5 +562,7 @@ export function gerarVeredito(
     },
     golsEsperados: { timeA: duasCasas(lA), timeB: duasCasas(lB), total: duasCasas(lt) },
     taxas,
+    ajusteH2H: ajuste,
+    melhorPalpite,
   };
 }
