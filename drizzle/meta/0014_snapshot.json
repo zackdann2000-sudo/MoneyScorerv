@@ -1,6 +1,6 @@
 {
-  "id": "c4d17246-c69a-4c7c-ad11-ed708063403f",
-  "prevId": "b7c5698a-ec73-4db0-b37d-f63b66b532a3",
+  "id": "5897a0fc-a0bb-457b-bfcf-7677a603201f",
+  "prevId": "c4d17246-c69a-4c7c-ad11-ed708063403f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -40,6 +40,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -319,6 +326,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -441,6 +455,13 @@
           "primaryKey": true,
           "notNull": true
         },
+        "public_id": {
+          "name": "public_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "email": {
           "name": "email",
           "type": "text",
@@ -466,9 +487,32 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "deletion_requests_public_id_idx": {
+          "name": "deletion_requests_public_id_idx",
+          "columns": [
+            {
+              "expression": "public_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "deletion_requests_user_id_users_id_fk": {
           "name": "deletion_requests_user_id_users_id_fk",
@@ -487,7 +531,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "dr_status_chk": {
+          "name": "dr_status_chk",
+          "value": "\"deletion_requests\".\"status\" in ('pendente', 'concluido', 'recusado')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.favorites": {
@@ -499,6 +548,13 @@
           "type": "serial",
           "primaryKey": true,
           "notNull": true
+        },
+        "public_id": {
+          "name": "public_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
         "user_id": {
           "name": "user_id",
@@ -539,6 +595,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -553,6 +616,21 @@
             },
             {
               "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "favorites_public_id_idx": {
+          "name": "favorites_public_id_idx",
+          "columns": [
+            {
+              "expression": "public_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -610,6 +688,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -847,6 +932,13 @@
         },
         "created_at": {
           "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -1176,6 +1268,13 @@
           "notNull": true,
           "default": "now()"
         },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "settled_at": {
           "name": "settled_at",
           "type": "timestamp with time zone",
@@ -1210,7 +1309,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "ledger_status_chk": {
+          "name": "ledger_status_chk",
+          "value": "\"pick_ledger\".\"status\" in ('pendente', 'ao_vivo', 'green', 'red', 'anulada')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.picks": {
@@ -2020,6 +2124,13 @@
           "primaryKey": true,
           "notNull": true
         },
+        "public_id": {
+          "name": "public_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "user_id": {
           "name": "user_id",
           "type": "integer",
@@ -2045,9 +2156,32 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "tickets_public_id_idx": {
+          "name": "tickets_public_id_idx",
+          "columns": [
+            {
+              "expression": "public_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "tickets_user_id_users_id_fk": {
           "name": "tickets_user_id_users_id_fk",
@@ -2270,6 +2404,13 @@
           "primaryKey": true,
           "notNull": true
         },
+        "public_id": {
+          "name": "public_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -2327,6 +2468,13 @@
           "notNull": true,
           "default": "now()"
         },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "last_seen_at": {
           "name": "last_seen_at",
           "type": "timestamp with time zone",
@@ -2335,6 +2483,21 @@
         }
       },
       "indexes": {
+        "users_public_id_idx": {
+          "name": "users_public_id_idx",
+          "columns": [
+            {
+              "expression": "public_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "users_device_idx": {
           "name": "users_device_idx",
           "columns": [
@@ -2378,7 +2541,16 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "users_plan_chk": {
+          "name": "users_plan_chk",
+          "value": "\"users\".\"plan\" in ('free', 'trial', 'vip')"
+        },
+        "users_role_chk": {
+          "name": "users_role_chk",
+          "value": "\"users\".\"role\" in ('user', 'admin', 'owner')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.value_alert_log": {
@@ -2550,6 +2722,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {
@@ -2609,7 +2788,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "vbh_status_chk": {
+          "name": "vbh_status_chk",
+          "value": "\"value_bet_history\".\"status\" in ('pendente', 'green', 'red')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.visits": {

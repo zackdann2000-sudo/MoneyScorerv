@@ -118,42 +118,77 @@ table_schema='public' and data_type='timestamp without time zone'` devolve 0;
 no meio**. Rodar em janela de baixo tráfego e com o app em modo leitura
 (`APITOU_ENABLED=0` não basta; o certo é não ter deploy concorrente).
 
-#### D3 — `check` em campos de status (aditivo, sem downtime)
+#### D3 — `check` em campos de status (aditivo, sem downtime) ✅ **feito no M4 (`0014`) — com 2 correções ao plano**
 
-Status hoje são `text` livre. Os 5 que importam:
+Status hoje são `text` livre. O plano listava 5; **o código que escreve provou
+que 2 estavam errados** (ver abaixo). O que foi aplicado:
 
 ```sql
-alter table users        add constraint users_plan_chk
-  check (plan in ('free','trial','vip')) not valid;           -- users.plan, schema.ts:9
-alter table pick_ledger  add constraint ledger_status_chk
-  check (status in ('pendente','green','red','void')) not valid;
+-- valores lidos do código que ESCREVE, não do nome da coluna
+alter table users            add constraint users_plan_chk
+  check (plan in ('free','trial','vip')) not valid;             -- trialPolicy.ts
+alter table users            add constraint users_role_chk
+  check (role in ('user','admin','owner')) not valid;           -- admin/users + auth
+alter table pick_ledger      add constraint ledger_status_chk
+  check (status in ('pendente','ao_vivo','green','red','anulada')) not valid;
 alter table value_bet_history add constraint vbh_status_chk
-  check (status in ('pendente','green','red')) not valid;      -- schema.ts:440
+  check (status in ('pendente','green','red')) not valid;       -- resultadoDoMercado()
 alter table deletion_requests add constraint dr_status_chk
   check (status in ('pendente','concluido','recusado')) not valid;
-alter table tickets      add constraint tickets_status_chk
-  check (status in ('pendente','pago','cancelado')) not valid;
 
 -- só depois de validar os dados existentes:
 -- alter table users validate constraint users_plan_chk;
 ```
 
-`not valid` é o detalhe que permite criar a constraint sem varrer a tabela e
-sem falhar por causa de lixo antigo. **Antes do `validate`**, rodar a query que
-lista valores fora do enum e corrigir caso a caso — se `validate` falhar com 500
-mil linhas, o deploy trava.
+**Correção 1 — `pick_ledger` não é só `pendente/green/red/void`.**
+`credibility.ts:96` grava `ao_vivo` a cada liquidação e `:104` grava `anulada`
+quando o mercado não tem valor. Com a lista do plano, o cron de liquidação
+apanhava 500 na primeira linha ao vivo. A lista final tem 5 valores.
 
-#### D4 — `updated_at` nas 25 tabelas que não têm
+**Correção 2 — `tickets.status` não existe.** A tabela tem `id`, `public_id`,
+`user_id`, `title`, `legs`, `created_at`, `updated_at` — nenhuma coluna de
+status (o bilhete nasce pronto, não transita). No lugar dela entrou
+`users.role`, que essa sim tem 3 valores fechados e verificados.
+
+**Correção 3 (código):** `conta/route.ts:40` gravava `status: "concluida"`
+(feminino) enquanto o resto pensava em `concluido`. O código foi alinhado ao
+enum no mesmo commit e a migration normaliza a linha antiga com um `update`
+antes do `check` (hoje: 0 linhas no banco).
+
+`not valid` é o detalhe que permite criar a constraint sem varrer a tabela e
+sem falhar por causa de lixo antigo. Constraint `NOT VALID` **já barra linha
+nova** (testado: `insert` com `status='invalido'` é rejeitado), só não valida o
+passado. **Antes do `validate`**, rodar a query que lista valores fora do enum e
+corrigir caso a caso — se `validate` falhar com 500 mil linhas, o deploy trava.
+
+#### D4 — `updated_at` nas tabelas que não têm ✅ **feito no M4 (`0014`)**
+
+O plano dizia "25 tabelas"; o inventário real deu **24 sem relógio de update** e
+dele só **10** ganharam a coluna — as que têm update de verdade na mão do
+usuário/sistema. As outras 14 são cache/log/append-only e ficaram de fora de
+propósito (linha imutável não tem update): `picks`, `predictions`, `visits`,
+`rate_limits`, `sessions`, `consents`, `push_subs`, `tip_*`, `stripe_eventos`,
+`value_alert_log`, `player_props_cache`, `team_xg_cache`, `player_props`/`team`.
+
+Aplicadas: `users`, `favorites`, `alert_prefs`, `tickets`, `pick_ledger`,
+`value_bet_history`, `deletion_requests`, `gameread_pinned_props`,
+`apitou_pinned_desajustes`, `fcm_tokens`.
 
 ```sql
 alter table favorites add column updated_at timestamptz not null default now();
--- e um trigger único, em vez de 25 triggers escritos à mão:
+-- e um trigger único, em vez de 10 triggers escritos à mão:
 create or replace function touch_updated_at() returns trigger as $$
 begin new.updated_at = now(); return new; end $$ language plpgsql;
 
 create trigger t_favorites_touch before update on favorites
   for each row execute function touch_updated_at();
 ```
+
+Medido no ensaio: com as 10 tabelas + 1 função, um `update` que não toca a
+coluna avança `updated_at` (2026-11-19 → 2026-11-21 no teste). **Efeito
+colateral conhecido:** `users.updated_at` também avança quando o app grava
+`last_seen_at`; é o preço de um trigger só, e o dado continua correto ("houve
+escrita").
 
 Só nas tabelas onde "quando mudou" tem significado: `favorites`, `alert_prefs`,
 `users`, `tickets`, `pick_ledger`, `value_bet_history`, `deletion_requests`,
@@ -204,7 +239,7 @@ nada; 35 tabelas e 12 registros de bookkeeping depois; `tsc` e 24 suítes verdes
 `npx drizzle-kit migrate`. `db:push` fica proibido no banco de produção (push não
 gera histórico e recria o buraco).
 
-#### D1 — `uuid`: decisão consciente de divergir da letra da skill
+#### D1 — `uuid`: decisão consciente de divergir da letra da skill ✅ **coluna feita no M4 (`0014`); PK reescrita continua NÃO feita, por decisão**
 
 A skill pede `id uuid primary key default gen_random_uuid()` em toda tabela.
 Trocar a PK de 16 tabelas num app com sessão ativa, FKs e webhook em produção é
@@ -222,6 +257,19 @@ cirurgia de alto risco para um ganho que se obtém de forma barata. Proposta:
 Isto é uma divergência **declarada** da skill, com o motivo escrito aqui: a
 regra existe para id não adivinhável; `public_id` entrega isso sem o risco da
 reescrita de PK.
+
+**Feito no M4:** `public_id uuid not null default gen_random_uuid()` + índice
+único nas 4 tabelas de id exposto (`users`, `tickets`, `deletion_requests`,
+`favorites`), com as PKs `serial` intactas — nenhuma FK, sessão ou webhook
+mexido. Medido no ensaio: linha que já existia ganhou UUID na hora
+(`71231993-7fa1-451c-98e6-3582f42c4fce`) e o `insert` novo nem precisa passar o
+valor (default no banco).
+
+**Ainda não feito, de propósito:** a API continua expondo `id` numérico. Trocar
+o que sai em `/api/auth/me`, `/api/conta` e `/api/tickets` por `public_id` é
+mudança de contrato e pede auditoria de quem consome (PWA + push). Enquanto
+isso, a coluna existe e está preenchida — a troca vira um `select` diferente, sem
+migration nova. Item 3 (reescrever PK) segue sem data, como escrito acima.
 
 ### Tabelas (inventário)
 
@@ -629,9 +677,30 @@ depois de medir que advisory lock não exclui nada no pooler do Neon.
 *Arquivos:* `particoes.ts`, `lock.ts`, `store.ts`, as 4 rotas, `apitou-sync.mjs`.
 *Depende de:* M0/M1 (chave única, canário, frescor).
 
-**M4 — D3 enums, D4 `updated_at`, D1 `public_id` (2 dias).** (D5 já feito.)
-Tudo aditivo, em migrations separadas, uma por PR.
-*Tabelas:* todas *Rotas:* as que expõem id (`/api/auth/me`, `/api/conta`, `/api/tickets`).
+**M4 — D3 checks, D4 `updated_at`, D1 `public_id` (feito, 2026-11-21).**
+Uma só migration aditiva (`0014_m4_aditivo.sql`) em vez de três PRs: as três
+correções não compartilham risco e rodar junto reduz o número de janelas em que
+`src/db/schema.ts` e banco discordam.
+*Tabelas:* `users`, `favorites`, `tickets`, `deletion_requests` (+`public_id`);
+mais `alert_prefs`, `pick_ledger`, `value_bet_history`, `gameread_pinned_props`,
+`apitou_pinned_desajustes`, `fcm_tokens` (+`updated_at`); 5 `CHECK` em
+`users.plan`, `users.role`, `pick_ledger.status`, `value_bet_history.status`,
+`deletion_requests.status`.
+*Arquivos:* `schema.ts`, `drizzle/0014_m4_aditivo.sql` + snapshot/journal,
+`scripts/m4-dryrun.cjs`, `conta/route.ts` (status `concluida` → `concluido`).
+*Rotas:* nenhuma mudou de contrato — `/api/auth/me`, `/api/conta` e
+`/api/tickets` continuam expondo `id` numérico; `public_id` já está preenchido
+para quando a troca de contrato for feita.
+*Fora de escopo, como planejado:* reescrever PK para `uuid`, e o `validate` dos
+5 `CHECK` (roda depois de conferir os dados — nenhuma das 4 tabelas tem valor
+fora do enum hoje, mas o gate é barato).
+*Verificação:* ensaio em transação com `ROLLBACK` (`node scripts/m4-dryrun.cjs`):
+26 statements, roda 2× seguidas (re-executável), 4 `public_id` + 10 `updated_at`,
+4 índices únicos, 5 `CHECK` todos `NOT VALID`, 10/10 triggers (`update` sem tocar
+a coluna avançou o relógio de 19/11 para 21/11), `insert` com status inválido
+barrado, e o banco voltou ao estado anterior (0 `public_id`). `drizzle-kit check`
+ok, `drizzle-kit generate` responde *"No schema changes"*, `tsc` e 25 suítes
+verdes.
 
 **M5 — Inverter a dependência (2–4 semanas).**
 Cascata oficial como primária para o core; apitou/kingstats atrás de flag como
@@ -655,7 +724,7 @@ M5, porque "palpite do dia + cupom + track record" quer o core em fonte oficial.
 de terceiros em `*_cache` no Postgres, jobs em Vercel Cron (Actions como watchdog).
 
 **Contagem:** 36 tabelas, 66 rotas de API (8 nos dois módulos auditados), 4 jobs,
-0 microserviços, 0 RLS (checagem por query no data layer). 13 migrations, todas
+0 microserviços, 0 RLS (checagem por query no data layer). 14 migrations, todas
 no journal e aplicáveis por `drizzle-kit migrate` desde o D5.
 
 **Os três pontos mais arriscados:**

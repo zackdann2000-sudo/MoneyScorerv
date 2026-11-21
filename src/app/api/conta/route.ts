@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         // Limpeza completa (inclui tickets e consents, antes esquecidos)
         const deleted = await deleteUserCascade(target.id);
         await destroySession();
-        await db.insert(deletionRequests).values({ email, userId: null, status: "concluida" });
+        await db.insert(deletionRequests).values({ email, userId: null, status: "concluido" });
         return NextResponse.json({ ok: true, immediate: true, deleted, message: "Seus dados foram excluídos desta conta." });
       }
       await db.insert(deletionRequests).values({ email, userId: null, status: "pendente" });

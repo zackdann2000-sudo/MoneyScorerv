@@ -1,7 +1,15 @@
-import { pgTable, serial, text, integer, timestamp, boolean, jsonb, real, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, serial, text, integer, timestamp, boolean, jsonb, real, uuid, check, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  /**
+   * Id público (M4/D1). A PK continua `serial` — reescrever PK com sessão ativa,
+   * FKs e webhook em produção é cirurgia de alto risco para um ganho que o
+   * `public_id` entrega: id não enumerável para expor em URL/API.
+   * `gen_random_uuid()` no banco garante o valor mesmo em INSERT fora do app.
+   */
+  publicId: uuid("public_id").notNull().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passHash: text("pass_hash").notNull(),
@@ -13,8 +21,17 @@ export const users = pgTable("users", {
   /** IP de origem do cadastro — segunda barreira do anti-fraude. */
   registrationIp: text("registration_ip"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** M4/D4 — tocado pelo trigger `touch_updated_at()` (não pelo app). */
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-}, (t) => [index("users_device_idx").on(t.deviceId), index("users_ip_idx").on(t.registrationIp)]);
+}, (t) => [
+  uniqueIndex("users_public_id_idx").on(t.publicId),
+  index("users_device_idx").on(t.deviceId),
+  index("users_ip_idx").on(t.registrationIp),
+  // M4/D3 — os valores reais usados no código (trialPolicy.ts, admin/users, stripe).
+  check("users_plan_chk", sql`${t.plan} in ('free', 'trial', 'vip')`),
+  check("users_role_chk", sql`${t.role} in ('user', 'admin', 'owner')`),
+]);
 
 export const sessions = pgTable("sessions", {
   token: text("token").primaryKey(),
@@ -31,13 +48,18 @@ export const apiKeys = pgTable("api_keys", {
 
 export const favorites = pgTable("favorites", {
   id: serial("id").primaryKey(),
+  publicId: uuid("public_id").notNull().defaultRandom(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   teamId: text("team_id").notNull(),
   teamName: text("team_name").notNull().default(""),
   league: text("league").notNull().default(""),
   logo: text("logo").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [uniqueIndex("fav_user_team").on(t.userId, t.teamId)]);
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("fav_user_team").on(t.userId, t.teamId),
+  uniqueIndex("favorites_public_id_idx").on(t.publicId),
+]);
 
 export const alertPrefs = pgTable("alert_prefs", {
   id: serial("id").primaryKey(),
@@ -45,6 +67,7 @@ export const alertPrefs = pgTable("alert_prefs", {
   teamId: text("team_id").notNull().default("*"),
   matchId: text("match_id").notNull().default(""),
   alerts: jsonb("alerts").notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("pref_user_team_match").on(t.userId, t.teamId, t.matchId)]);
 
 export const pushSubs = pgTable("push_subs", {
@@ -122,11 +145,13 @@ export const tipLikes = pgTable("tip_likes", {
 
 export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),
+  publicId: uuid("public_id").notNull().defaultRandom(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull().default("Múltipla"),
   legs: jsonb("legs").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("tickets_public_id_idx").on(t.publicId)]);
 
 /** Histórico imutável das picks publicadas (não substitui a tabela picks). */
 export const pickLedger = pgTable("pick_ledger", {
@@ -143,8 +168,15 @@ export const pickLedger = pgTable("pick_ledger", {
   profit: real("profit"),
   isPick: boolean("is_pick").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   settledAt: timestamp("settled_at", { withTimezone: true }),
-}, (t) => [uniqueIndex("ledger_match_market").on(t.matchId, t.marketKey)]);
+}, (t) => [
+  uniqueIndex("ledger_match_market").on(t.matchId, t.marketKey),
+  // M4/D3 — valores reais: credibility.ts grava `ao_vivo` e `anulada`, além dos
+  // três de liquidação. O plano listava só ('pendente','green','red','void'),
+  // que teria quebrado o cron de liquidação com 500.
+  check("ledger_status_chk", sql`${t.status} in ('pendente', 'ao_vivo', 'green', 'red', 'anulada')`),
+]);
 
 export const consents = pgTable("consents", {
   id: serial("id").primaryKey(),
@@ -157,12 +189,17 @@ export const consents = pgTable("consents", {
 
 export const deletionRequests = pgTable("deletion_requests", {
   id: serial("id").primaryKey(),
+  publicId: uuid("public_id").notNull().defaultRandom(),
   email: text("email").notNull(),
   // Registro legal (LGPD): sobrevive à exclusão da conta, por isso SET NULL e não CASCADE.
   userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pendente"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("deletion_requests_public_id_idx").on(t.publicId),
+  check("dr_status_chk", sql`${t.status} in ('pendente', 'concluido', 'recusado')`),
+]);
 
 /**
  * Contador de rate limiting por janela fixa.
@@ -292,6 +329,7 @@ export const gamereadPinnedProps = pgTable("gameread_pinned_props", {
   hitRateL10: real("hit_rate_l10"),
   score: real("score"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("gr_pin_user_prop").on(t.userId, t.propKey)]);
 
 /**
@@ -364,6 +402,7 @@ export const apitouPinnedDesajustes = pgTable("apitou_pinned_desajustes", {
   fixtureId: text("fixture_id").notNull().default(""),
   kickoffUtc: text("kickoff_utc").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("apt_pin_user_prop").on(t.userId, t.propKey)]);
 
 /**
@@ -403,6 +442,7 @@ export const fcmTokens = pgTable("fcm_tokens", {
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   platform: text("platform").notNull().default("android"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("fcm_tokens_user_idx").on(t.userId)]);
 
@@ -442,10 +482,13 @@ export const valueBetHistory = pgTable("value_bet_history", {
   awayScore: integer("away_score"),
   settledAt: timestamp("settled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("vbh_match_mercado").on(t.matchId, t.mercado),
   index("vbh_status_idx").on(t.status),
   index("vbh_date_idx").on(t.matchDate),
+  // Só os 3 que `resultadoDoMercado()` devolve (trackRecord.ts) + o inicial.
+  check("vbh_status_chk", sql`${t.status} in ('pendente', 'green', 'red')`),
 ]);
 
 /**
