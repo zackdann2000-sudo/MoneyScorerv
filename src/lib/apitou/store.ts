@@ -11,9 +11,20 @@
  * vazia por causa de uma sincronização lenta.
  */
 import { sincronizar, type ResumoJogo } from "./fonte";
+import chaveCache from "./cache-key.json";
 
 export const CACHE_TTL_MS = 15 * 60 * 1000;
-const CHAVE = "semana-v2"; // v2: payload ganhou a série dos últimos 10 jogos
+/**
+ * A chave vive em `cache-key.json`, e não aqui, porque DOIS processos precisam
+ * concordar nela: este store (leitura/gravação pelo app) e
+ * `scripts/apitou-sync.mjs` (gravação pelo GitHub Actions).
+ *
+ * Histórico: a chave foi versionada para `semana-v2` aqui e o script continuou
+ * gravando em `semana`, então o cron diário atualizava uma linha que ninguém
+ * lia — o app só se atualizava pelo sync preguiçoso. Arquivo único evita a
+ * repetição desse erro.
+ */
+const CHAVE = chaveCache.key;
 
 export type ResumoGravado = {
   geradoEm: string;
@@ -92,7 +103,7 @@ export async function sincronizarEGravar(): Promise<ResumoGravado> {
       .insert(apitouCache)
       .values({
         cacheKey: CHAVE,
-        kind: "semana",
+        kind: chaveCache.kind,
         geradoEm: res.geradoEm,
         payload: gravado as unknown as Record<string, unknown>,
         updatedAt: new Date(),

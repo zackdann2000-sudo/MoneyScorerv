@@ -1,0 +1,5 @@
+{
+  "key": "semana-v2",
+  "kind": "semana",
+  "_why": "Fonte unica da chave do apitou_cache. Dois processos usam este arquivo: src/lib/apitou/store.ts (le e grava no app) e scripts/apitou-sync.mjs (grava no GitHub Actions). Se precisar versionar o payload de novo, mude o valor AQUI e nos dois lados acompanham — antes a chave vivia duplicada e o cron passou a gravar em 'semana' enquanto o app lia 'semana-v2'."
+}

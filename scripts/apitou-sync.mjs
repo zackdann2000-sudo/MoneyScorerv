@@ -27,6 +27,20 @@ import { execFileSync } from "node:child_process";
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const TMP_BUILD = join(RAIZ, ".apitou-build");
 
+/*
+ * Chave do cache — FONTE ÚNICA, compartilhada com src/lib/apitou/store.ts.
+ *
+ * Fica num JSON justamente para os dois lados lerem o mesmo valor: o app (via
+ * import TS) e este script. Quando a chave vivia duplicada, o app foi para
+ * `semana-v2` e o script ficou em `semana` — o job diário gravava numa linha
+ * que ninguém lia e a automação inteira ficou morta sem ninguém notar.
+ */
+const CACHE = JSON.parse(readFileSync(join(RAIZ, "src/lib/apitou/cache-key.json"), "utf8"));
+if (!CACHE?.key) {
+  erro("cache-key.json sem campo 'key' — não dá para gravar sem saber a chave.");
+  process.exit(1);
+}
+
 /* ------------------------------------------------------------------ */
 /* Argumentos                                                         */
 /* ------------------------------------------------------------------ */
@@ -210,9 +224,36 @@ async function gravarNoBanco(resumo) {
          set gerado_em = excluded.gerado_em,
              payload   = excluded.payload,
              updated_at = now()`,
-      ["semana", "semana", resumo.geradoEm, json],
+      [CACHE.key, CACHE.kind, resumo.geradoEm, json],
     );
-    const r = await pool.query("select pg_size_pretty(length(payload::text)::bigint) as tam from apitou_cache where cache_key='semana'");
+
+    /*
+     * Verificação pós-gravação: lê a linha de volta COM A MESMA CHAVE que o app
+     * usa. Se alguém voltar a divergir as chaves, o job falha em vez de
+     * reportar sucesso gravando em lugar nenhum.
+     */
+    const r = await pool.query(
+      `select pg_size_pretty(length(payload::text)::bigint) as tam,
+              (payload->>'geradoEm') as gerado_em,
+              (payload->>'salvadoEm') as salvado_em
+         from apitou_cache
+        where cache_key = $1`,
+      [CACHE.key],
+    );
+
+    if (!r.rows.length) {
+      throw new Error(
+        `gravação não confirmada na chave '${CACHE.key}'. ` +
+          `Se o app lê outra chave, o job não serve para nada — confira src/lib/apitou/cache-key.json`,
+      );
+    }
+    if (r.rows[0].gerado_em !== resumo.geradoEm) {
+      throw new Error(
+        `linha '${CACHE.key}' tem geradoEm=${r.rows[0].gerado_em}, esperado ${resumo.geradoEm}`,
+      );
+    }
+
+    log(`   ✓ verificado: cache_key='${CACHE.key}' geradoEm=${r.rows[0].gerado_em}`);
     return r.rows[0]?.tam ?? mb(json.length);
   } finally {
     await pool.end();
