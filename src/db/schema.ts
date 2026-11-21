@@ -521,6 +521,28 @@ export const rankingsCache = pgTable("rankings_cache", {
 });
 
 /**
+ * Log de tentativas de trial NEGADAS (modelo de negócio: 1 dia grátis por
+ * device/IP).
+ *
+ * Por que existe, se `users.registration_ip` já guarda o IP de quem entrou:
+ * aquela coluna só registra quem **ganhou** o trial. Aqui ficam as tentativas
+ * recusadas — é o que permite responder "quantas contas estão tentando burlar
+ * o trial, com qual IP e por qual motivo" sem inventar telemetria depois.
+ *
+ * Não é fonte de decisão: a decisão é lida de `users` (device_id + IP). Esta
+ * tabela é histórico, por isso `motivo` é texto e não enum — novas regras
+ * (ex.: e-mail descartável, ASN de datacenter) entram sem migration.
+ */
+export const trialIps = pgTable("trial_ips", {
+  id: serial("id").primaryKey(),
+  ip: text("ip").notNull(),
+  email: text("email").notNull().default(""),
+  /** `device` | `ip` — mesmo vocabulário de `motivoBloqueio()`. */
+  motivo: text("motivo").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("trial_ips_ip_idx").on(t.ip, t.createdAt)]);
+
+/**
  * Lock de trabalho entre processos (lease com expiração) — M3.
  *
  * Por que uma tabela e não `pg_try_advisory_lock`: o app roda no endpoint

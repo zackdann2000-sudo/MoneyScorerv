@@ -21,24 +21,28 @@ assert.strictEqual(reusado.plan, "free");
 assert.strictEqual(reusado.expiresAt, null);
 assert.strictEqual(motivoBloqueio({ isOwner: false, reusado: true }), "device");
 
-// IP tolerante: 1ª, 2ª e 3ª conta no mesmo IP (0, 1 e 2 anteriores).
+// IP binário: 1 trial por IP. A primeira conta do IP ganha, a segunda não.
 const agora = new Date("2025-01-01T00:00:00.000Z");
-for (const contasNoIp of [0, 1]) {
-  const novo = decidirAcesso({ isOwner: false, reusado: false, contasNoIp, agora });
-  assert.strictEqual(novo.plan, "vip", `conta ${contasNoIp + 1} no IP deve ser vip`);
-  assert.strictEqual(novo.expiresAt.toISOString(), "2025-01-02T00:00:00.000Z");
-  assert.strictEqual(motivoBloqueio({ isOwner: false, reusado: false, contasNoIp }), null);
+{
+  const novo = decidirAcesso({ isOwner: false, reusado: false, contasNoIp: 0, agora });
+  assert.strictEqual(novo.plan, "vip", "1ª conta no IP deve ser vip");
+  assert.strictEqual(novo.expiresAt.toISOString(), "2025-01-02T00:00:00.000Z", "trial de 1 dia exato");
+  assert.strictEqual(motivoBloqueio({ isOwner: false, reusado: false, contasNoIp: 0 }), null);
 }
 
-// 4ª conta no mesmo IP (3 anteriores) e 3ª conta (2 anteriores) → free.
-for (const contasNoIp of [2, 3]) {
+// Qualquer conta a partir da segunda no mesmo IP → free (sem bloquear o cadastro).
+for (const contasNoIp of [1, 2, 3]) {
   const bloq = decidirAcesso({ isOwner: false, reusado: false, contasNoIp, agora });
-  assert.strictEqual(bloq.plan, "free", `${contasNoIp} contas no IP → free`);
+  assert.strictEqual(bloq.plan, "free", `${contasNoIp} conta(s) no IP → free`);
   assert.strictEqual(bloq.expiresAt, null);
+  assert.strictEqual(bloq.role, "user", "conta é criada como user, não recusada");
   assert.strictEqual(motivoBloqueio({ isOwner: false, reusado: false, contasNoIp }), "ip");
 }
 
+// device vence o IP como motivo (o primário explica o bloqueio).
+assert.strictEqual(motivoBloqueio({ isOwner: false, reusado: true, contasNoIp: 5 }), "device");
+
 assert.strictEqual(TRIAL_HORAS, 24);
-assert.strictEqual(MAX_CONTAS_POR_IP, 2);
+assert.strictEqual(MAX_CONTAS_POR_IP, 1);
 
 console.log("trialPolicy ok");

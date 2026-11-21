@@ -54,7 +54,16 @@ export async function destroySession() {
 
 export type SessionUser = {
   id: number; name: string; email: string; role: string; plan: string;
-  expiresAt: string | null; isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string };
+  /** Fim do acesso (trial de 24h, assinatura ou vitalício). */
+  expiresAt: string | null;
+  /**
+   * Alias de `expiresAt` com o nome do modelo de negócio (trial de 1 dia).
+   * Existe só para a UI: "VIP enquanto `trialEndsAt > now()`" lê direto.
+   * NÃO é uma segunda coluna — duas fontes de verdade para a mesma data é
+   * como o acesso começa a divergir entre servidor e cliente.
+   */
+  trialEndsAt: string | null;
+  isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string };
 };
 
 export async function getUser(): Promise<SessionUser | null> {
@@ -72,7 +81,12 @@ export async function getUser(): Promise<SessionUser | null> {
     const active = isAdmin || lifetime || ((u.plan === "vip" || u.plan === "trial") && !!u.expiresAt && u.expiresAt > new Date());
     const daysLeft = u.expiresAt ? Math.max(0, Math.ceil((u.expiresAt.getTime() - Date.now()) / 864e5)) : 0;
     const label = isAdmin ? "Administrador vitalício" : active ? `Acesso · ${daysLeft} dia${daysLeft === 1 ? "" : "s"}` : "Acesso encerrado";
-    return { id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan, expiresAt: u.expiresAt ? u.expiresAt.toISOString() : null, isAdmin, access: { active, daysLeft, label } };
+    return {
+      id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan,
+      expiresAt: u.expiresAt ? u.expiresAt.toISOString() : null,
+      trialEndsAt: u.expiresAt ? u.expiresAt.toISOString() : null,
+      isAdmin, access: { active, daysLeft, label },
+    };
   } catch { return null; }
 }
 

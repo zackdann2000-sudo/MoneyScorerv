@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, trialIps } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPass, createSession, getUser } from "@/lib/auth";
 import { decidirAcesso, motivoBloqueio, TRIAL_HORAS } from "@/lib/trialPolicy";
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const exists = await db.select().from(users).where(eq(users.email, em)).limit(1);
     if (exists.length) return NextResponse.json({ error: "Este e-mail já tem conta. Faça login." }, { status: 409 });
 
-    // ---- Anti-fraude do trial: device é bloqueio primário; IP só a partir da 3ª conta ----
+    // ---- Anti-fraude do trial: device é bloqueio primário; IP é binário (1 trial/IP) ----
     const deviceId = typeof body.deviceId === "string" && DEVICE_RE.test(body.deviceId) ? body.deviceId : null;
     const ip = clientIp(req);
     const ipValido = /^[0-9a-fA-F.:]{3,64}$/.test(ip) && ip !== "unknown";
@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
       deviceId
         ? db.select({ id: users.id }).from(users).where(eq(users.deviceId, deviceId)).limit(1).then((r) => r.length > 0)
         : Promise.resolve(false),
-      // Família/CGNAT: 2 contas no mesmo IP ainda ganham o teste; a 3ª não.
+      // Família/CGNAT: o IP já premiado NÃO ganha segundo trial, mas a conta
+      // é criada normalmente (`free`). Negar a criação puniria rede compartilhada.
       ipValido
         ? db.select({ id: users.id }).from(users).where(eq(users.registrationIp, ip)).then((r) => r.length)
         : Promise.resolve(0),
@@ -76,6 +77,16 @@ export async function POST(req: NextRequest) {
       deviceId, registrationIp: ipValido ? ip : null,
     }).returning();
     await createSession(rows[0].id);
+    // Histórico do trial negado (não é decisão: `users` é a fonte). Best-effort:
+    // se este insert falhar, o cadastro acontece do mesmo jeito — perder log é
+    // melhor que perder usuário.
+    if (bloqueio) {
+      try {
+        await db.insert(trialIps).values({ ip: ipValido ? ip : "unknown", email: em, motivo: bloqueio });
+      } catch (e) {
+        console.error("[register] trial_ips falhou:", e instanceof Error ? e.message : String(e));
+      }
+    }
     const user = await getUser();
     const bonus = isOwner
       ? null

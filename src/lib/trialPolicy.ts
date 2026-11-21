@@ -4,16 +4,21 @@
  * Regra anti-fraude do teste VIP de 24h:
  *  1. `device_id` é o bloqueio PRIMÁRIO: se o aparelho já ganhou o teste
  *     alguma vez, a nova conta nasce `free`.
- *  2. `registration_ip` é secundário e tolerante a rede compartilhada
- *     (CGNAT/família): só bloqueia a partir da **3ª conta** no mesmo IP,
- *     ou seja, quando já existem 2+ contas criadas com aquele IP.
+ *  2. `registration_ip` é o bloqueio SECUNDÁRIO e agora **binário**: um IP já
+ *     premiado não dá um segundo trial. Continua sem punir CGNAT/família, porque
+ *     a conta é criada do mesmo jeito — ela só nasce `free`. Bloquear a criação
+ *     seria punir rede compartilhada; negar o bônus só tira o incentivo de
+ *     farmar contas.
  *
  * Dono (owner) é sempre vitalício e nunca cai na regra.
  */
 
 export const TRIAL_HORAS = 24;
-/** Contas já criadas no mesmo IP a partir das quais o bônus é negado (3ª em diante). */
-export const MAX_CONTAS_POR_IP = 2;
+/**
+ * Contas já criadas no mesmo IP a partir das quais o bônus é negado.
+ * 1 = "um trial por IP": a primeira conta do IP ganha, a segunda em diante não.
+ */
+export const MAX_CONTAS_POR_IP = 1;
 /** Vitalício (mesma convenção de `isLifetime`: ano >= 2090). */
 export const EXPIRA_VITALICIO = new Date("2099-12-31T00:00:00Z");
 

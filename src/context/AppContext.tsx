@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { lerOuCriarDeviceId } from "@/lib/deviceId";
 
 export type FavTeam = { id: string; name: string; league: string; logo: string };
-export type User = { id: number; name: string; email: string; role: string; plan: string; expiresAt: string | null; isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string } };
+export type User = {
+  id: number; name: string; email: string; role: string; plan: string;
+  /** Fim do acesso (trial de 24h, assinatura ou vitalício). */
+  expiresAt: string | null;
+  /** Alias de `expiresAt` com o nome do modelo de negócio — mesma data, zero coluna nova. */
+  trialEndsAt: string | null;
+  isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string };
+};
 export type Toast = { id: string; title: string; body: string; url?: string };
 export type AlertFlags = { goals: boolean; redCards: boolean; yellowCards: boolean; corners: boolean; fouls: boolean; offsides: boolean; matchStart: boolean; matchEnd: boolean; substitutions: boolean; lineups: boolean; MoneyTIPS: boolean };
 
@@ -148,7 +155,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { stop = true; clearTimeout(t0); };
   }, [addToast]);
 
-  const vip = !!user && (user.isAdmin || user.access.active);
+  // Regra do modelo de negócio: VIP enquanto o trial não expira.
+  // `Date.now()` é impuro no render (react-hooks/purity), então o relógio do
+  // cliente vem de estado, atualizado a cada minuto: além de não sujar o
+  // render, isso faz o trial expirar ao vivo (antes o `vip` só mudava quando o
+  // usuário recarregava a página ou o `refreshUser` rodava).
+  const [agora, setAgora] = useState(0);
+  useEffect(() => {
+    // Só o intervalo escreve (setState síncrono dentro do efeito dispara render
+    // em cascata); até o 1º tick o `vip` cai no `access.active` do servidor, que
+    // é a mesma verdade. Granularidade de 30s num trial de 24h é de sobra.
+    const t = setInterval(() => setAgora(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const trialVivo = !!user?.trialEndsAt && agora > 0 && new Date(user.trialEndsAt).getTime() > agora;
+  // `access.active` continua no OR porque cobre o que o trial não cobre (dono
+  // vitalício e VIP pago). Os dois vêm da MESMA data no servidor.
+  const vip = !!user && (user.isAdmin || trialVivo || user.access.active);
 
   return (
     <AppCtx.Provider value={{ user, refreshUser, vip, deviceId, theme, toggleTheme, favorites, isFavorite, toggleFavorite, flags, setFlags, toasts, addToast, dismissToast }}>

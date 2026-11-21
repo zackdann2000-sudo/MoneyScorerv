@@ -284,6 +284,42 @@ migration nova. Item 3 (reescrever PK) segue sem data, como escrito acima.
 | pins de usuário | `gameread_pinned_props`, `apitou_pinned_desajustes` | D4 |
 | infra | `rate_limits`, `stripe_eventos` | `rate_limits` precisa de job de expurgo |
 
+## Modelo de negócio: trial de 1 dia + trailer de IP ✅ **feito (2026-11-21)**
+
+Decisão de produto: **nada de cobrança por enquanto**. O acesso é grátis por 24h
+por pessoa, com trava por device e por IP para não virar farm de contas. O
+Stripe continua no código e volta a ser ligado quando o modelo mudar — não
+removemos nada dele.
+
+**O que quase virou dívida: `trial_ends_at` não foi criado.** A coluna pedida
+duplicaria `users.expires_at`, que já é `timestamptz` (M2) e já recebe
+`now() + 24h` no cadastro (`trialPolicy.ts: TRIAL_HORAS`). `auth.ts`, `/admin` e
+o Stripe **já escrevem e leem** `expires_at`; uma segunda coluna com a mesma
+data criaria duas verdades sobre acesso. O nome do modelo aparece como **alias**
+`trialEndsAt` em `SessionUser` — mesma string ISO de `expiresAt`, zero migration.
+
+| item | estado |
+| --- | --- |
+| trial de 1 dia | `decidirAcesso()` → `plan='vip'` + `expiresAt = agora + 24h` |
+| device | bloqueio **primário** (`users.device_id`): aparelho que já teve trial → conta nasce `free` |
+| IP | bloqueio **binário** (`MAX_CONTAS_POR_IP`: 2 → **1**): 2ª conta do mesmo IP nasce `free` |
+| criação de conta | **nunca bloqueada** — CGNAT/família/operadora compartilham IP; punir a criação puniria usuário legítimo. Nega-se o bônus, não o cadastro |
+| `trial_ips` | nova (migration `0015`): `id, ip, email, motivo, created_at` + índice `(ip, created_at)`. **Log de tentativas negadas**, não fonte de decisão — `users` continua sendo a fonte |
+| UI | `vip = isAdmin || (trialEndsAt > agora) || access.active`, com o relógio do cliente vindo de estado + tick de 30s (não `Date.now()` no render: `react-hooks/purity`) |
+
+**Por que `trial_ips` não é redundante com `users.registration_ip`:** aquela
+coluna só guarda quem **ganhou** o trial. Sem a tabela nova não há como responder
+"quantas contas tentaram burlar, com qual IP e por qual motivo" — e o `motivo` é
+texto de propósito, para regra nova (e-mail descartável, ASN de datacenter) não
+pedir migration.
+
+**Verificado:** suíte `trialPolicy` atualizada (1ª conta do IP = vip com 24h
+exatas; 2ª, 3ª e 4ª = `free` com `motivo: 'ip'`; device vence o IP como motivo;
+conta criada como `user`, não recusada) e ensaio da `0015` em transação com
+`ROLLBACK` (roda 2×, 5 colunas, PK + índice, `created_at` coerente, banco
+intacto). `tsc` exit 0, 25 suítes verdes, e o único erro de eslint em
+`AppContext.tsx` é o pré-existente da linha 48 (não é deste trabalho).
+
 ## API
 
 Rotas dos dois módulos auditados (as demais 58 seguem o mesmo desenho). Regra que
