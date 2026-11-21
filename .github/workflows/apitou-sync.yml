@@ -1,17 +1,25 @@
-# Sincronização diária do apitou — PLANO B (independente da Vercel).
+# Sincronização diária do apitou — WATCHDOG do sync (não é o único).
 #
-# Por que existe, se já há Vercel Cron:
-#  - Não depende do limite de duração da função (o plano Hobby permite 300s e o
-#    sync leva ~36s hoje, mas isso pode mudar com mais ligas).
-#  - Roda o script completo (scripts/apitou-sync.mjs) na máquina do runner,
-#    com memória folgada e sem timeout de plataforma.
-#  - Guarda log de cada execução.
+# Há três processos que podem sincronizar: este job (06:00 UTC), o Vercel Cron
+# (/api/cron/diario, 09:00 UTC) e o sync preguiçoso do primeiro request do dia.
+# Para eles não se sobrescreverem, todos respeitam uma JANELA DE FRESCOR
+# (`--se-velho`, padrão 360 min; no app, `APITOU_MIN_REFRESH_MIN`): quem chega
+# primeiro baixa e os outros saem com "nada a fazer". Ver M1 em
+# replica/architecture.md.
+#
+# Este job roda o script completo na máquina do runner: sem o teto de duração da
+# função serverless, com memória folgada e com LOG de cada execução. Na prática
+# ele é quem costuma fazer o trabalho das 06:00, e o Vercel Cron das 09:00 vira
+# rede de segurança.
 #
 # Configure em: Settings > Secrets and variables > Actions
 #   DATABASE_URL   (obrigatório) connection string do Neon
 #   APITOU_SYNC_KEY (opcional)  se quiser também bater na rota da Vercel
 #
 # O horário é UTC: 06:00 UTC = 03:00 em Brasília (UTC-3).
+#
+# Em FALHA, o job abre uma issue automaticamente (e a fecha quando voltar); em
+# dias nomais, `--se-velho` evita baixar 22 MB para reescrever o mesmo dado.
 name: apitou sync
 
 on:
@@ -60,9 +68,15 @@ jobs:
           APITOU_SYNC_KEY: ${{ secrets.APITOU_SYNC_KEY }}
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "→ modo dry-run (não grava)"
+            echo "→ modo dry-run (não grava no banco)"
             node --max-old-space-size=1024 scripts/apitou-sync.mjs --dry-run
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            # Agendado: watchdog. Se o resumo tem menos de 6h, sai sem baixar.
+            echo "→ agendado (watchdog de 360 min)"
+            node --max-old-space-size=1024 scripts/apitou-sync.mjs --se-velho=360
           else
+            # Disparo manual = alguém pediu sync de verdade, ignora a janela.
+            echo "→ disparo manual (sync forçado)"
             node --max-old-space-size=1024 scripts/apitou-sync.mjs
           fi
 

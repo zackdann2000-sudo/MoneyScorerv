@@ -55,6 +55,22 @@ const valor = (nome) => {
 const DRY_RUN = flag("--dry-run");
 const VERBOSE = flag("--verbose");
 const LIMITE_MB = Number(valor("limite-mb") ?? 60);
+/**
+ * Watchdog: só sincroniza se o cache tiver mais de N minutos. É o que evita
+ * dois agendadores (GitHub Actions 06:00 e Vercel Cron 09:00) baixando 22 MB
+ * para reescrever o mesmo dado. Sem valor = sempre sincroniza (comportamento
+ * de operador rodando na mão).
+ */
+const SE_VELHO_MIN = valor("se-velho") != null ? Number(valor("se-velho")) : null;
+
+/*
+ * CANÁRIO DE CONTEÚDO — o modo de falha real da origem não é 500, é 200 com
+ * payload vazio/truncado. Baixar e gravar isso apagaria a semana inteira da
+ * tela. Os pisos são generosos de propósito (dia normal: ~57 jogos, ~4800
+ * props, 49 com árbitro) e ajustáveis por env em semana atípica.
+ */
+const MIN_JOGOS = Number(process.env.APITOU_MIN_JOGOS ?? 20);
+const MIN_PROPS = Number(process.env.APITOU_MIN_PROPS ?? 250);
 const ARQUIVOS_LOCAIS = valor("arquivo")?.split(",").map((s) => s.trim());
 const SAIDA = valor("saida"); // grava o resumo em um .json local (debug)
 
@@ -196,13 +212,99 @@ async function baixar(nome) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Env, frescor e canário                                            */
+/* ------------------------------------------------------------------ */
+
+let envCarregado = false;
+
+/** Carrega o .env uma vez. Idempotente: chamado pelo gate e pela gravação. */
+async function carregarEnv() {
+  if (envCarregado) return;
+  const { default: dotenv } = await import("dotenv");
+  dotenv.config({ path: join(RAIZ, ".env"), quiet: true });
+  envCarregado = true;
+}
+
+/**
+ * Idade do resumo já gravado, em minutos — ou null se não der para saber
+ * (sem banco, sem linha, erro de rede). Quem chama trata null como "velho".
+ */
+async function idadeAtualMin() {
+  await carregarEnv();
+  if (!process.env.DATABASE_URL) return null;
+
+  const { default: pg } = await import("pg");
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  try {
+    const r = await pool.query(
+      `select (payload->>'salvadoEm') as salvado_em, extract(epoch from updated_at) as upd
+         from apitou_cache where cache_key = $1`,
+      [CACHE.key],
+    );
+    if (!r.rows.length) return null;
+
+    const salvadoEm = Number(r.rows[0].salvado_em);
+    if (Number.isFinite(salvadoEm) && salvadoEm > 0) return (Date.now() - salvadoEm) / 60000;
+
+    // Payload antigo sem `salvadoEm`: usa a coluna updated_at como aproximação.
+    const upd = Number(r.rows[0].upd) * 1000;
+    return Number.isFinite(upd) && upd > 0 ? (Date.now() - upd) / 60000 : null;
+  } catch (e) {
+    log(`   ! não deu para ler a idade do cache (${e.message}); seguindo com o sync`);
+    return null;
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Canário: recusa gravar um resumo que "parece quebrado".
+ *
+ * Não tenta ser esperto — só compara com pisos que um dia normal passa com
+ * folga. Lançar aqui é o que transforma "origem mudou o formato" em issue
+ * automática (o workflow abre issue em falha) em vez de tela vazia.
+ */
+function validarResumo(resumo, props) {
+  const pisoJogos = Number.isFinite(MIN_JOGOS) ? MIN_JOGOS : 20;
+  const pisoProps = Number.isFinite(MIN_PROPS) ? MIN_PROPS : 250;
+
+  if (!Array.isArray(resumo.jogos)) throw new Error("canário: resumo sem lista de jogos");
+
+  if (resumo.jogos.length < pisoJogos) {
+    throw new Error(
+      `canário: ${resumo.jogos.length} jogos, piso ${pisoJogos}. ` +
+        `A origem pode ter mudado de formato — nada foi gravado (APITOU_MIN_JOGOS para ajustar)`,
+    );
+  }
+  if (props < pisoProps) {
+    throw new Error(
+      `canário: ${props} props, piso ${pisoProps}. Props vazias = parser perdido (APITOU_MIN_PROPS para ajustar)`,
+    );
+  }
+  if (!resumo.jogos.some((j) => j.arbitro)) {
+    throw new Error("canário: nenhum jogo com árbitro — o parser perdeu um campo");
+  }
+  if (!resumo.jogos.every((j) => !Number.isNaN(Date.parse(j.kickoff)))) {
+    throw new Error("canário: há jogo com kickoff inválido — formato de data mudou");
+  }
+  const semFonte = Date.parse(resumo.geradoEm ?? "");
+  if (Number.isNaN(semFonte)) {
+    throw new Error("canário: geradoEm ausente/inválido na origem");
+  }
+
+  log(
+    `   ✓ canário ok: ${resumo.jogos.length} jogos, ${props} props, ` +
+      `${resumo.jogos.filter((j) => j.arbitro).length} com árbitro`,
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Banco                                                              */
 /* ------------------------------------------------------------------ */
 
 async function gravarNoBanco(resumo) {
   // dotenv é carregado só aqui: no --dry-run não precisamos de banco.
-  const { default: dotenv } = await import("dotenv");
-  dotenv.config({ path: join(RAIZ, ".env") });
+  carregarEnv();
 
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL ausente no .env — use --dry-run para validar sem gravar");
@@ -269,6 +371,27 @@ async function main() {
   log(`║  apitou sync ${DRY_RUN ? "(DRY-RUN — não grava no banco)" : "(gravação no Neon)"}      ║`);
   log("╚══════════════════════════════════════════════════════╝");
 
+  /*
+   * 0) Watchdog: se outro agendador já sincronizou dentro da janela, sair
+   *    AQUI (código 0) — antes de baixar 22 MB. É o que impede o Actions e o
+   *    Vercel Cron de se sobrescreverem: quem chega primeiro faz o trabalho,
+   *    o outro vira no-op e o job fica verde nos dois casos.
+   */
+  if (SE_VELHO_MIN != null && !DRY_RUN) {
+    log(`\n0) Watchdog (janela de ${SE_VELHO_MIN} min)`);
+    const idade = await idadeAtualMin();
+    if (idade != null && Number.isFinite(idade) && idade < SE_VELHO_MIN) {
+      log(`   ✓ cache com ${idade.toFixed(0)} min — fresco, nada a fazer.`);
+      log(`\n✅ Nada a sincronizar (janela de ${SE_VELHO_MIN} min).\n`);
+      return;
+    }
+    log(
+      idade == null
+        ? "   · sem resumo legível — sincronizando"
+        : `   · cache com ${idade.toFixed(0)} min — sincronizando`,
+    );
+  }
+
   log("\n1) Carregando parser");
   const F = await carregarParser();
   log("   ✓ parser compilado de src/lib/apitou/fonte.ts");
@@ -316,6 +439,10 @@ async function main() {
   log(`   avisos ............. ${resumo.avisos.length}`);
   log(`   geradoEm ........... ${resumo.geradoEm}`);
   log(`   tamanho do resumo .. ${mb(json.length)}`);
+
+  // Canário: valida ANTES de gravar (também no --dry-run, que é como o
+  // operador testa se a origem mudou sem mexer no banco).
+  validarResumo(resumo, props);
 
   if (resumo.avisos.length && VERBOSE) {
     log("\n   avisos:");

@@ -7,7 +7,8 @@
  * lista não precisa delas, e mandar 548 props por jogo seria desperdício.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { garantirResumo } from "@/lib/apitou/store";
+import { garantirResumo, metaResumo } from "@/lib/apitou/store";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "date inválido, use YYYY-MM-DD" }, { status: 400 });
   }
 
+  // Limite por IP: a rota é pública e serve um payload de ~14 jogos por chamada.
+  const limite = await rateLimit("apitou:ip", clientIp(req), { limit: 120, windowSec: 300 });
+  if (!limite.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições. Tente novamente em instantes." },
+      { status: 429, headers: { "Retry-After": String(limite.retryAfterSec) } },
+    );
+  }
+
   try {
-    const { dados, stale } = await garantirResumo();
+    const { dados, stale, revalidando } = await garantirResumo();
     if (!dados) {
       return NextResponse.json(
         { error: "sem dados sincronizados; rode POST /api/apitou/sync" },
@@ -38,9 +48,10 @@ export async function GET(req: NextRequest) {
     if (date) jogos = jogos.filter((j) => diaLocal(j.kickoff) === date);
 
     return NextResponse.json({
-      geradoEm: dados.geradoEm,
+      ...metaResumo(dados),
       fonte: dados.fonte,
       stale,
+      revalidando,
       total: jogos.length,
       // Contagem de dias disponíveis ajuda a UI a mostrar o seletor de data.
       dias: [...new Set(dados.jogos.map((j) => diaLocal(j.kickoff)))].sort(),

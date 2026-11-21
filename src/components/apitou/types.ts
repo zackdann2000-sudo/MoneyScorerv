@@ -25,9 +25,17 @@ export type JogoLista = {
 };
 
 export type JogosResp = {
+  /** Quando a FONTE gerou o dado (não quando nós gravamos). */
   geradoEm: string;
+  /** Quando nós gravamos o resumo no banco (ISO). */
+  atualizadoEm?: string;
+  /** Minutos desde a última gravação — frescor do nosso lado. */
+  idadeMin?: number;
   fonte: string;
+  /** Mais velho que o TTL de leitura (15 min). Não é erro. */
   stale: boolean;
+  /** Existe atualização a caminho agora — é o que a tela pode anunciar. */
+  revalidando?: boolean;
   total: number;
   dias: string[];
   jogos: JogoLista[];
@@ -139,7 +147,10 @@ export type JogoDetalhe = {
 
 export type JogoResp = {
   geradoEm: string;
+  atualizadoEm?: string;
+  idadeMin?: number;
   stale: boolean;
+  revalidando?: boolean;
   jogo: JogoDetalhe;
   mercadosDisponiveis: string[];
   props: PropAnalisada[];
@@ -170,7 +181,12 @@ export type DesajusteGlobal = {
 
 export type DesajustesResp = {
   geradoEm: string;
+  atualizadoEm?: string;
+  idadeMin?: number;
   stale: boolean;
+  revalidando?: boolean;
+  /** true = agregação servida do cache de cálculo. */
+  cached?: boolean;
   total: number;
   contagem: Record<string, number>;
   desajustes: DesajusteGlobal[];

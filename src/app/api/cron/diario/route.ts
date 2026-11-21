@@ -51,8 +51,14 @@ export async function GET(req: NextRequest) {
   if (acao === "tudo" || acao === "apitou") {
     const t0 = Date.now();
     try {
-      const resumo = await sincronizarEGravar();
-      out.apitou = { ok: true, duracaoMs: Date.now() - t0, ...resumo };
+      const r = await sincronizarEGravar({ origem: "cron" });
+      out.apitou = {
+        ok: true,
+        pulado: r.pulado,
+        duracaoMs: Date.now() - t0,
+        jogos: r.dados.jogos.length,
+        geradoEm: r.dados.geradoEm,
+      };
     } catch (e) {
       out.apitou = { ok: false, duracaoMs: Date.now() - t0, erro: erro(e) };
     }

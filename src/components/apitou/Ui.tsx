@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Loader2, RefreshCw, Flame, TrendingUp, Minus, Plus, Check } from "lucide-react";
 import { useBetSlip } from "@/context/BetSlipContext";
+import { idadeDoDado } from "@/lib/idadeDado";
 
 /** Cor por nível de desajuste — verde forte para o melhor, neutro para o resto. */
 export function corNivel(nivel: string): { texto: string; fundo: string; borda: string; rotulo: string } {
@@ -126,21 +127,60 @@ export function EmptyBox({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Rodapé com a idade do dado (o site gera a semana de uma vez). */
-export function FonteBadge({ geradoEm, stale }: { geradoEm?: string; stale?: boolean }) {
-  if (!geradoEm) return null;
-  const d = new Date(geradoEm);
-  const quando = Number.isNaN(d.getTime())
-    ? geradoEm
-    : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+/**
+ * Rodapé com a IDADE do dado — não só a data de geração.
+ *
+ * O módulo serve o último payload bom quando a fonte atrasa ou cai
+ * (stale-while-revalidate). Sem a idade, a tela mentiria: mostraria "gerado
+ * 20/11" num rodapé cinza como se fosse detalhe. Regra do M1: se o dado tem
+ * mais de 24h, a tela AVISA em banner — é o cenário "a API caiu e ninguém viu".
+ *
+ * `geradoEm` (fonte) manda; `atualizadoEm` (nosso) é fallback para quando a
+ * fonte não manda data.
+ */
+export function FonteBadge({
+  geradoEm,
+  atualizadoEm,
+  revalidando,
+}: {
+  geradoEm?: string;
+  atualizadoEm?: string;
+  /** Há atualização em curso — quem decide isso é a rota (`revalidando`). */
+  revalidando?: boolean;
+}) {
+  const idade = idadeDoDado(geradoEm ?? atualizadoEm ?? null);
+  if (!idade) return null;
+
+  const corPonto =
+    idade.faixa === "parado" ? "bg-danger" : idade.faixa === "velho" ? "bg-warn" : "bg-acc";
+
   return (
-    <div className="flex items-center justify-between gap-2 text-[10px] text-mut">
-      <span className="inline-flex items-center gap-1.5">
-        <span className={`w-1.5 h-1.5 rounded-full ${stale ? "bg-warn" : "bg-acc"}`} />
-        fonte SportMonks · gerado {quando}
-      </span>
+    <div className="space-y-2">
+      {idade.aviso && (
+        <div className="flex items-start gap-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-[11px] leading-snug text-warn">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span>{idade.aviso}</span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 text-[10px] text-mut">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full ${corPonto}`} />
+          fonte SportMonks · atualizado <span title={quandoExato(geradoEm ?? atualizadoEm)}>{idade.rotulo}</span>
+          {revalidando && <span className="text-warn">· revalidando</span>}
+        </span>
+        <span className="tabular-nums">{idade.dia}</span>
+      </div>
     </div>
   );
+}
+
+/** Data e hora completas, para o `title` (hover) não esconder o horário real. */
+function quandoExato(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
 /** Formata o horário do kickoff no fuso de Brasília. */

@@ -7,8 +7,9 @@
  * estatísticas de time. É a rota que a tela de detalhe usa.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { garantirResumo } from "@/lib/apitou/store";
+import { garantirResumo, metaResumo } from "@/lib/apitou/store";
 import { calcularJogo, extrairDesajustes, type PropCalculada } from "@/lib/apitou/analise";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,18 @@ export async function GET(
   const mercado = req.nextUrl.searchParams.get("mercado") ?? "";
   const minValor = Number(req.nextUrl.searchParams.get("minValor") ?? 0);
 
+  // Esta rota recalcula Poisson/QI/valor a cada chamada; o limite evita que
+  // uma aba aberta em loop consuma CPU de function.
+  const limite = await rateLimit("apitou:ip", clientIp(req), { limit: 120, windowSec: 300 });
+  if (!limite.ok) {
+    return NextResponse.json(
+      { error: "Muitas requisições. Tente novamente em instantes." },
+      { status: 429, headers: { "Retry-After": String(limite.retryAfterSec) } },
+    );
+  }
+
   try {
-    const { dados, stale } = await garantirResumo();
+    const { dados, stale, revalidando } = await garantirResumo();
     if (!dados) {
       return NextResponse.json(
         { error: "sem dados sincronizados; rode POST /api/apitou/sync" },
@@ -53,8 +64,9 @@ export async function GET(
     const mercadosDisponiveis = [...new Set(todas.map((p) => p.mercadoRotulo))].sort();
 
     return NextResponse.json({
-      geradoEm: dados.geradoEm,
+      ...metaResumo(dados),
       stale,
+      revalidando,
       jogo: {
         id: jogo.id,
         competicao: jogo.competicao,

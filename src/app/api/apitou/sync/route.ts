@@ -4,6 +4,13 @@
  * GET  /api/apitou/sync   -> dispara o sync (usado pelo Vercel Cron)
  * POST /api/apitou/sync   -> idem (para chamadas manuais/curl)
  * GET  /api/apitou/sync?estado=1 -> só informa o estado, não baixa nada
+ * GET  /api/apitou/sync?forcar=1 -> ignora a janela de frescor e baixa de novo
+ *
+ * DONO ÚNICO: existe uma janela mínima entre sincronizações reais
+ * (`MIN_REFRESH_MS`, padrão 6h). Quem chega dentro da janela recebe o resumo
+ * atual com `pulado: true` — sem baixar 22 MB para reescrever o mesmo dado.
+ * Os agendadores (Vercel Cron e GitHub Actions) respeitam a janela; a chave
+ * manual força, porque quem chama é gente pedindo explicitamente.
  *
  * Duas formas de autorizar:
  *  1. Vercel Cron: envia `Authorization: Bearer $CRON_SECRET` automaticamente
@@ -19,7 +26,7 @@
  * caso de o limite de duração mudar ou de o projeto migrar de plano.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { sincronizarEGravar, lerResumo } from "@/lib/apitou/store";
+import { sincronizarEGravar, lerResumo, MIN_REFRESH_MS } from "@/lib/apitou/store";
 
 export const dynamic = "force-dynamic";
 // 300s = teto do Hobby. O sync real leva ~36s; a margem é para o pior caso
@@ -71,11 +78,15 @@ async function executarSync(req: NextRequest) {
   // ?estado=1: só consulta, nunca baixa. Útil para o cron verificar saúde.
   if (req.nextUrl.searchParams.get("estado") === "1") {
     const r = await lerResumo();
+    const idadeMin = r ? Math.round((Date.now() - r.salvadoEm) / 60000) : null;
     return NextResponse.json({
       existe: Boolean(r),
       geradoEm: r?.geradoEm ?? null,
-      salvadoEm: r ? new Date(r.salvadoEm).toISOString() : null,
-      idadeMin: r ? Math.round((Date.now() - r.salvadoEm) / 60000) : null,
+      salvoEm: r ? new Date(r.salvadoEm).toISOString() : null,
+      idadeMin,
+      /** A janela de frescor ainda vale? (false = próximo sync vai baixar) */
+      dentroDaJanela: idadeMin != null && idadeMin < MIN_REFRESH_MS / 60000,
+      janelaMin: Math.round(MIN_REFRESH_MS / 60000),
       jogos: r?.jogos.length ?? 0,
       avisos: r?.avisos.length ?? 0,
     });
@@ -83,13 +94,21 @@ async function executarSync(req: NextRequest) {
 
   try {
     const t0 = Date.now();
-    const dados = await sincronizarEGravar();
-    console.log(`[apitou/sync] origem=${motivo} em ${Date.now() - t0}ms`);
+    // Agendador respeita a janela; operador com a chave manual força.
+    const forcar = motivo === "chave" || req.nextUrl.searchParams.get("forcar") === "1";
+    const r = await sincronizarEGravar({ forcar, origem: motivo });
+    const dados = r.dados;
+    console.log(`[apitou/sync] origem=${motivo} forcar=${forcar} em ${Date.now() - t0}ms`);
     return NextResponse.json({
       ok: true,
       origem: motivo,
+      forcar,
+      /** true = nada foi baixado, o dado já estava dentro da janela de frescor. */
+      pulado: r.pulado,
       duracaoMs: Date.now() - t0,
       geradoEm: dados.geradoEm,
+      atualizadoEm: new Date(dados.salvadoEm).toISOString(),
+      idadeMin: Math.round((Date.now() - dados.salvadoEm) / 60000),
       jogos: dados.jogos.length,
       props: dados.jogos.reduce(
         (a, j) => a + j.jogadores.reduce((b, p) => b + Object.keys(p.props).length, 0),

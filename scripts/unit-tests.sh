@@ -45,6 +45,7 @@ SUITES+=(
   "oportunidadeFiltros|src/lib/oportunidadeFiltros.ts|src/lib/oportunidadeFiltros.test.cjs"
   "rankingsEngine|src/lib/rankingsEngine.ts|src/lib/rankingsEngine.test.cjs"
   "cache|src/lib/cache.ts|src/lib/cache.test.cjs"
+  "idadeDado|src/lib/idadeDado.ts|src/lib/idadeDado.test.cjs"
 )
 
 for suite in "${SUITES[@]}"; do

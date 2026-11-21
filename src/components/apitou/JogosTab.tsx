@@ -155,7 +155,7 @@ export default function JogosTab({
         </ul>
       )}
 
-      <FonteBadge geradoEm={data.geradoEm} stale={data.stale} />
+      <FonteBadge geradoEm={data.geradoEm} atualizadoEm={data.atualizadoEm} revalidando={data.revalidando} />
     </div>
   );
 }
