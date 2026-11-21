@@ -15,6 +15,7 @@
     "db:migrate-tz": "node scripts/apply-tz-migration.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:baseline": "node scripts/db-baseline-migrations.mjs",
     "push:value": "tsx scripts/push-value-alerts.ts"
   },
   "dependencies": {

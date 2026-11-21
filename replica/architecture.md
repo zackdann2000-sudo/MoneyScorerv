@@ -62,7 +62,7 @@ Os 4 desvios que este documento resolve:
 
 E um quinto item, de disciplina de migration (não é schema, é processo):
 
-| D5 | SQL fora do journal do drizzle | `drizzle/0010_rankings_cache.sql`, `gameread_cache.sql`, `gameread_pinned_props.sql` | `drizzle-kit` acha que o banco não tem essas tabelas; a próxima `generate` pode tentar recriá-las |
+| D5 | SQL fora do journal do drizzle | `drizzle/0010_rankings_cache.sql`, `gameread_cache.sql`, `gameread_pinned_props.sql` | **corrigido no D5** (`0012_sync_journal` + `npm run db:baseline`, 2026-11-21) |
 
 ### Plano de correção do schema
 
@@ -162,7 +162,7 @@ log/append-only (`visits`, `tip_votes`, `stripe_eventos`, `value_alert_log`,
 `rate_limits`) **não ganham** `updated_at` — linha imutável não tem update, e
 adicionar a coluna só cria a obrigação falsa de mantê-la.
 
-#### D5 — fechar o buraco do journal
+#### D5 — fechar o buraco do journal ✅ **concluído em 2026-11-21**
 
 Os 3 arquivos `.sql` fora de `drizzle/meta/_journal.json` são o risco real: a
 próxima `drizzle-kit generate` compara schema × snapshot e pode emitir um
@@ -170,6 +170,39 @@ próxima `drizzle-kit generate` compara schema × snapshot e pode emitir um
 `drizzle-kit generate` numa branch limpa e commitar como `0011_sync_journal` (só
 o journal + snapshots; nenhum SQL novo), conferindo com
 `drizzle-kit check`. **Enquanto isso, não rodar `db:push`.**
+
+**O que foi encontrado ao executar (o buraco era maior que o documentado).**
+Havia dois problemas, não um:
+
+1. Os snapshots já conheciam as 3 tabelas (desde `0005`), mas o SQL que as cria
+   nunca entrou no journal — `gameread_cache` e `gameread_pinned_props` foram
+   coladas no SQL Editor, e `0010_rankings_cache.sql` nunca foi journalada.
+   Consequência real: um banco montado por `drizzle-kit migrate` nascia com 32
+   tabelas em vez de 35.
+2. **A tabela de bookkeeping `drizzle.__drizzle_migrations` não existia.** O
+   banco foi construído com `db:push` + SQL manual, então `drizzle-kit migrate`
+   nunca rodou. Sem bookkeeping, a primeira `migrate` tentaria aplicar
+   `0000_init` num banco cheio e falharia no meio, deixando histórico sujo.
+
+**O que ficou no lugar** (o nome `0011` do plano estava ocupado pelo
+`0011_timestamptz` do M2, então virou `0012`):
+
+| item | o que faz |
+| --- | --- |
+| `drizzle/0012_sync_journal.sql` | cria as 3 tabelas **idempotente** (`IF NOT EXISTS` + `ADD COLUMN IF NOT EXISTS` + índice/FK condicionais). No Neon é no-op; num banco novo completa o que faltava. Tipos `timestamptz` para não brigar com o D2 |
+| `drizzle/meta/0012_snapshot.json` | snapshot igual ao `0011` (nenhuma mudança de schema), só com `id`/`prevId` novos, para fechar a corrente do `drizzle-kit check` |
+| `drizzle/meta/_journal.json` | entrada `idx 11` → `0012_sync_journal` |
+| `scripts/db-baseline-migrations.mjs` (`npm run db:baseline`) | **gate anti-drift** (compara banco vivo × último snapshot: tabelas, colunas, tipos, `not null`, sequence dos `serial`) e só então grava `drizzle.__drizzle_migrations` com `hash = sha256(arquivo)` e `created_at = journal.when`, exatamente como o migrator do drizzle-orm calcula. Aborta se o banco divergir do fim do journal |
+
+**Verificado:** gate sem drift (35 = 35); `drizzle-kit check` ok;
+`drizzle-kit generate` responde *"No schema changes"*; `0012` rodada num schema
+`_d5_check` em transação com rollback cria as 3 tabelas, os 2 índices e a FK, e
+passa duas vezes seguidas (idempotente); `drizzle-kit migrate` roda e não aplica
+nada; 35 tabelas e 12 registros de bookkeeping depois; `tsc` e 24 suítes verdes.
+
+**Ciclo a partir de agora:** `npm run db:generate` → revisar o SQL →
+`npx drizzle-kit migrate`. `db:push` fica proibido no banco de produção (push não
+gera histórico e recria o buraco).
 
 #### D1 — `uuid`: decisão consciente de divergir da letra da skill
 
@@ -505,11 +538,13 @@ Duas lições do dia da aplicação, registradas porque custaram tempo:
    coluna de relógio (`created_at`, `updated_at`, `fetched_at`, …) com valor no
    futuro significa gravação em hora local. `expires_at` e `match_date` ficam de
    fora: estar no futuro é o correto para elas.
-2. `drizzle-kit migrate` **não é utilizável** neste projeto: não existe o schema
+2. `drizzle-kit migrate` **não era utilizável** neste projeto: não existia o schema
    de bookkeeping `drizzle.__drizzle_migrations`, então ele tentaria reaplicar
-   `0000_init`. A 0011 foi aplicada por script, em uma transação. Consequência: o
-   buraco do D5 continua aberto e cada migration futura também precisa de um
-   runner próprio — ou de um `baseline` único do journal numa janela combinada.
+   `0000_init`. A 0011 foi aplicada por script, em uma transação. **Resolvido no
+   D5:** `npm run db:baseline` criou o bookkeeping (12 registros) e
+   `drizzle/0012_sync_journal.sql` fechou as tabelas que viviam fora do journal.
+   A partir daí `migrate` é o runner normal e cada migration futura é só
+   `db:generate` + `migrate`.
 
 O dado de teste do banco (349 linhas: 159 `visits`, 43 `sessions`, caches,
 `predictions`, `picks`) foi expurgado antes da conversão, preservando `users`,
@@ -530,7 +565,7 @@ Releases A→B→C descritas acima.
 *Tabelas:* `apitou_cache` (chaves novas) *Rotas:* `/jogos`, `/jogo/:id`, `/desajustes`.
 *Depende de:* M1 (para medir o fallback antes de remover).
 
-**M4 — D3 enums, D4 `updated_at`, D5 journal, D1 `public_id` (2 dias).**
+**M4 — D3 enums, D4 `updated_at`, D1 `public_id` (2 dias).** (D5 já feito.)
 Tudo aditivo, em migrations separadas, uma por PR.
 *Tabelas:* todas *Rotas:* as que expõem id (`/api/auth/me`, `/api/conta`, `/api/tickets`).
 

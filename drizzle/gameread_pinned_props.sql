@@ -1,3 +1,6 @@
+-- ⚠️ SUPERADO (D5, 2026-11-21): esta tabela agora também é criada por
+-- drizzle/0012_sync_journal.sql, que está NO journal. Este arquivo fica
+-- como registro histórico do SQL original; não é executado pelo drizzle.
 -- ============================================================
 -- Props fixadas pelo usuário no módulo /gameread
 -- Cole no SQL Editor do Neon. Idempotente.

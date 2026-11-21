@@ -78,6 +78,13 @@
       "when": 1795277116080,
       "tag": "0011_timestamptz",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795288037294,
+      "tag": "0012_sync_journal",
+      "breakpoints": true
     }
   ]
 }
