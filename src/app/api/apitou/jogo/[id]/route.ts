@@ -5,10 +5,15 @@
  *
  * Jogo + props calculadas (Poisson/QI/valor) + desajustes + escalações + H2H +
  * estatísticas de time. É a rota que a tela de detalhe usa.
+ *
+ * M3: lê a partição `jogo:<id>` (~30 KB) com as props JÁ calculadas no sync.
+ * Antes, cada requisição carregava a semana inteira e rodava `calcularJogo` —
+ * o caminho mais caro do módulo. O filtro por `mercado`/`minValor` continua
+ * sendo aplicado aqui (é opinião do request, não dado a cachear).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { garantirResumo, metaResumo } from "@/lib/apitou/store";
-import { calcularJogo, extrairDesajustes, type PropCalculada } from "@/lib/apitou/analise";
+import { garantirJogo, metaResumo } from "@/lib/apitou/store";
+import type { DesajusteCalculado, PropCalculada } from "@/lib/apitou/analise";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +31,7 @@ export async function GET(
   const mercado = req.nextUrl.searchParams.get("mercado") ?? "";
   const minValor = Number(req.nextUrl.searchParams.get("minValor") ?? 0);
 
-  // Esta rota recalcula Poisson/QI/valor a cada chamada; o limite evita que
-  // uma aba aberta em loop consuma CPU de function.
+  // O limite evita que uma aba aberta em loop consuma CPU de function.
   const limite = await rateLimit("apitou:ip", clientIp(req), { limit: 120, windowSec: 300 });
   if (!limite.ok) {
     return NextResponse.json(
@@ -37,36 +41,35 @@ export async function GET(
   }
 
   try {
-    const { dados, stale, revalidando } = await garantirResumo();
-    if (!dados) {
+    const r = await garantirJogo(fixtureId);
+    if (!r.jogo) {
       return NextResponse.json(
-        { error: "sem dados sincronizados; rode POST /api/apitou/sync" },
-        { status: 503 },
+        r.meta
+          ? { error: "jogo não encontrado" }
+          : { error: "sem dados sincronizados; rode POST /api/apitou/sync" },
+        { status: r.meta ? 404 : 503 },
       );
     }
 
-    const jogo = dados.jogos.find((j) => j.id === fixtureId);
-    if (!jogo) {
-      return NextResponse.json({ error: "jogo não encontrado" }, { status: 404 });
-    }
-
-    const todas = calcularJogo(jogo);
-    let props = todas;
+    let props: PropCalculada[] = r.props;
     if (mercado) props = props.filter((p) => p.mercado === mercado);
     if (minValor > 0) props = props.filter((p) => p.valor >= minValor);
 
     // Ordena por valor, depois QI — o que o usuário quer ver primeiro.
-    props.sort((a, b) => b.valor - a.valor || b.qi - a.qi);
+    props = [...props].sort((a, b) => b.valor - a.valor || b.qi - a.qi);
 
-    const desajustes = extrairDesajustes(todas);
+    const desajustes = r.desajustes;
 
     // Agrupa por mercado para a UI montar as abas de filtro.
-    const mercadosDisponiveis = [...new Set(todas.map((p) => p.mercadoRotulo))].sort();
+    const mercadosDisponiveis = [...new Set(r.props.map((p) => p.mercadoRotulo))].sort();
 
+    const jogo = r.jogo;
     return NextResponse.json({
-      ...metaResumo(dados),
-      stale,
-      revalidando,
+      ...(r.meta ? metaResumo(r.meta) : { geradoEm: null, atualizadoEm: null, idadeMin: null }),
+      stale: r.stale,
+      revalidando: r.revalidando,
+      /** true = cálculo caiu no fallback da semana (partição ausente). */
+      legado: r.legado,
       jogo: {
         id: jogo.id,
         competicao: jogo.competicao,
@@ -90,7 +93,7 @@ export async function GET(
       props: resumoProps(props),
       desajustes: resumoDesajustes(desajustes),
       totais: {
-        props: todas.length,
+        props: r.props.length,
         desajustes: desajustes.length,
         quentes: desajustes.filter((d) => d.nivel === "quente").length,
       },
@@ -129,7 +132,7 @@ function resumoProps(props: PropCalculada[]) {
   }));
 }
 
-function resumoDesajustes(desajustes: ReturnType<typeof extrairDesajustes>) {
+function resumoDesajustes(desajustes: DesajusteCalculado[]) {
   return desajustes.slice(0, 100).map((d) => {
     const { chave, fixtureId, mercado, linha, odd, probModelo, probMercado, edge, qi, valor, nivel, jogador, home, away } = d;
     return {

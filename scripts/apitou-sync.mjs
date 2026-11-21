@@ -17,11 +17,22 @@
  *   - o buffer do fetch vira string e o buffer é liberado logo depois;
  *   - `--limite-mb` aborta antes de parsear se o arquivo for grande demais;
  *   - `--max-old-space-size` é sugerido no aviso de execução.
+ *
+ * M3 — LOCK GLOBAL E CACHE PARTICIONADO:
+ *   Este script é a maior fonte de corrida do módulo: o GitHub Actions (06:00) e
+ *   o Vercel Cron (09:00) podem coincidir com um sync preguiçoso de request. O
+ *   watchdog `--se-velho` reduz a janela, mas não elimina. Agora, antes de
+ *   baixar, o script pega o MESMO advisory lock do app
+ *   (`pg_try_advisory_lock(hashtext('apitou-sync'))`): quem chega depois sai
+ *   verde sem baixar nada.
+ *   A gravação usa `particionar()` de src/lib/apitou/particoes.ts — a mesma
+ *   função do app, compilada aqui. Uma implementação só, dois processos.
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -76,6 +87,12 @@ const SAIDA = valor("saida"); // grava o resumo em um .json local (debug)
 
 const URL_BASE = "https://apitou.com.br";
 
+/** Preenchidos por main(): parser/particionador compilados e a conexão do lock. */
+let PARSER = null;
+let cliente = null;
+/** Dono da lease atual (null = sem lock). */
+let dono = null;
+
 /* ------------------------------------------------------------------ */
 /* Utilidades                                                         */
 /* ------------------------------------------------------------------ */
@@ -103,38 +120,46 @@ const HEADERS = {
 };
 
 /**
- * Compila o fonte.ts (que já tem o parser) para JS e importa.
- * Reaproveitar o parser evita duas implementações divergindo com o tempo.
+ * Compila os módulos que já têm a lógica (parser e particionamento) para JS e
+ * importa. Reaproveitar os mesmos arquivos evita duas implementações do mesmo
+ * recorte divergindo com o tempo.
+ *
+ * CommonJS de propósito: o tsc emite `import "./analise"` sem extensão no modo
+ * ESM, e o Node ESM exige extensão. Em CJS o `require` resolve sozinho.
  */
 async function carregarParser() {
   if (!existsSync(TMP_BUILD)) mkdirSync(TMP_BUILD, { recursive: true });
-  // package.json mínimo: sem ele o Node avisa sobre "module" e reparseia o
-  // arquivo, gastando memória à toa bem no momento mais crítico.
-  writeFileSync(join(TMP_BUILD, "package.json"), JSON.stringify({ type: "module" }));
+  // Marca o diretório como CommonJS. Uma versão anterior deste script gravava
+  // `{"type":"module"}` aqui; deixar o arquivo antigo faria o require destes
+  // .js explodir com "exports is not defined in ES module scope".
+  writeFileSync(join(TMP_BUILD, "package.json"), JSON.stringify({ type: "commonjs" }));
   const tsc = join(RAIZ, "node_modules", ".bin", "tsc");
   try {
     execFileSync(
       tsc,
       [
-        join(RAIZ, "src/lib/apitou/fonte.ts"),
+        join(RAIZ, "src/lib/apitou/particoes.ts"),
         "--outDir",
         TMP_BUILD,
         "--module",
-        "esnext",
+        "commonjs",
         "--target",
-        "es2020",
-        "--moduleResolution",
-        "bundler",
+        "es2022",
         "--skipLibCheck",
       ],
       { stdio: VERBOSE ? "inherit" : "pipe" },
     );
   } catch (e) {
-    throw new Error(`falha ao compilar fonte.ts: ${e.stdout?.toString() || e.message}`);
+    throw new Error(`falha ao compilar particoes.ts: ${e.stdout?.toString() || e.message}`);
   }
-  // O tsc gera imports sem extensão; o Node ESM exige. O fonte.ts não tem
-  // imports, então basta carregar direto.
-  return await import(`${join(TMP_BUILD, "fonte.js")}?t=${Date.now()}`);
+
+  const require = createRequire(import.meta.url);
+  // particoes.ts importa analise.ts -> engine.ts -> formaRecente.ts; o tsc
+  // preserva a estrutura a partir do diretório comum (apitou/), então o
+  // caminho do build acompanha.
+  const particoes = require(join(TMP_BUILD, "apitou/particoes.js"));
+  const fonte = require(join(TMP_BUILD, "apitou/fonte.js"));
+  return { fonte, particoes };
 }
 
 /**
@@ -299,67 +324,187 @@ function validarResumo(resumo, props) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Banco                                                              */
+/* Banco, lock global e gravação                                      */
 /* ------------------------------------------------------------------ */
 
-async function gravarNoBanco(resumo) {
-  // dotenv é carregado só aqui: no --dry-run não precisamos de banco.
-  carregarEnv();
+/** Nome do lock — o MESMO do app (src/lib/apitou/lock.ts). */
+const LOCK_NOME = "apitou-sync";
+/** Prazo do lease em segundos. O sync tem teto de 300s; 10 min sobra. */
+const LOCK_TTL_S = 600;
 
+/**
+ * Abre a conexão usada para o lock E para a gravação.
+ *
+ * Com o lease, tecnicamente lock e gravação poderiam usar conexões diferentes
+ * (o lock vive numa linha, não numa sessão). Manter a mesma conexão é por
+ * economia: uma sessão aberta por ~1 min contra duas.
+ */
+async function abrirConexao() {
+  await carregarEnv();
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL ausente no .env — use --dry-run para validar sem gravar");
   }
   const { default: pg } = await import("pg");
   // Sem `ssl` explícito: o projeto todo segue o mesmo padrão (src/db/index.ts),
-  // e o Neon negocia o TLS pelas opções da própria connection string. Passar
-  // ssl aqui mudava a semântica e gerava o aviso do pg sobre sslmode.
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  // e o Neon negocia o TLS pelas opções da própria connection string.
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  return client;
+}
 
+/**
+ * Pega o lock global: LEASE em tabela (`sync_lock`), não advisory lock.
+ *
+ * Advisory lock foi medido e não funciona aqui: o endpoint pooled do Neon põe
+ * clientes diferentes na MESMA sessão do Postgres, e lock de sessão vira
+ * reentrante (dois `pg_try_advisory_lock` simultâneos devolvem `true`). Ver o
+ * comentário em src/lib/apitou/lock.ts e na migration 0013.
+ *
+ * `false` = outro processo (lambda, cron ou outra máquina) está sincronizando
+ * agora — o correto é sair verde sem baixar 22 MB.
+ */
+async function pegarLock(client) {
+  dono = `actions:${process.pid}:${Date.now()}`;
+  const r = await client.query(
+    `insert into sync_lock (nome, dono, expira_em)
+     values ($1, $2, now() + ($3 || ' seconds')::interval)
+     on conflict (nome) do update
+       set dono = excluded.dono,
+           expira_em = excluded.expira_em,
+           atualizado_em = now()
+       where sync_lock.expira_em < now()
+     returning dono, expira_em`,
+    [LOCK_NOME, dono, String(LOCK_TTL_S)],
+  );
+  if (r.rows[0]?.dono !== dono) {
+    const atual = await client.query("select dono, expira_em from sync_lock where nome = $1", [LOCK_NOME]);
+    if (atual.rows[0]) {
+      log(`   · lock com ${atual.rows[0].dono} até ${new Date(atual.rows[0].expira_em).toISOString()}`);
+    }
+    dono = null;
+    return false;
+  }
+  return true;
+}
+
+async function soltarLock(client) {
+  if (!dono) return;
+  try {
+    // Só apaga o MEU lock: se a lease venceu e outro processo pegou, este
+    // delete não casa nada (é o que impede um processo lento de roubar o lock
+    // de quem já está trabalhando).
+    await client.query("delete from sync_lock where nome = $1 and dono = $2", [LOCK_NOME, dono]);
+  } catch {
+    // Sem drama: lease viva expira sozinha.
+  }
+  dono = null;
+}
+
+/**
+ * Grava o resumo PARTICIONADO (meta/dia/jogo/desajustes) + `semana-v2`.
+ *
+ * As partições vêm de `particionar()` — a mesma função que o app usa — e a
+ * gravação é UMA transação: ou a semana inteira entra, ou nada entra. Sem isso,
+ * uma falha no meio deixaria `meta:` novo apontando para `dia:` velho.
+ */
+async function gravarNoBanco(client, resumo) {
+  const { particoes } = PARSER;
   const gravado = { ...resumo, salvadoEm: Date.now() };
   const json = JSON.stringify(gravado);
+  const { meta, linhas, tamanhos } = particoes.particionar(gravado);
 
+  const gravarLegado = process.env.APITOU_LEGADO_SEMANA !== "0";
+  const todas = gravarLegado
+    ? [...linhas, { cacheKey: CACHE.key, kind: CACHE.kind, geradoEm: resumo.geradoEm, payload: gravado }]
+    : linhas;
+
+  await client.query("begin");
   try {
-    await pool.query(
-      `insert into apitou_cache (cache_key, kind, gerado_em, payload, updated_at)
-       values ($1, $2, $3, $4::jsonb, now())
-       on conflict (cache_key) do update
-         set gerado_em = excluded.gerado_em,
-             payload   = excluded.payload,
-             updated_at = now()`,
-      [CACHE.key, CACHE.kind, resumo.geradoEm, json],
-    );
-
-    /*
-     * Verificação pós-gravação: lê a linha de volta COM A MESMA CHAVE que o app
-     * usa. Se alguém voltar a divergir as chaves, o job falha em vez de
-     * reportar sucesso gravando em lugar nenhum.
-     */
-    const r = await pool.query(
-      `select pg_size_pretty(length(payload::text)::bigint) as tam,
-              (payload->>'geradoEm') as gerado_em,
-              (payload->>'salvadoEm') as salvado_em
-         from apitou_cache
-        where cache_key = $1`,
-      [CACHE.key],
-    );
-
-    if (!r.rows.length) {
-      throw new Error(
-        `gravação não confirmada na chave '${CACHE.key}'. ` +
-          `Se o app lê outra chave, o job não serve para nada — confira src/lib/apitou/cache-key.json`,
+    for (const l of todas) {
+      await client.query(
+        `insert into apitou_cache (cache_key, kind, gerado_em, payload, updated_at)
+         values ($1, $2, $3, $4::jsonb, now())
+         on conflict (cache_key) do update
+           set kind = excluded.kind,
+               gerado_em = excluded.gerado_em,
+               payload = excluded.payload,
+               updated_at = now()`,
+        [l.cacheKey, l.kind, l.geradoEm, JSON.stringify(l.payload)],
       );
     }
-    if (r.rows[0].gerado_em !== resumo.geradoEm) {
-      throw new Error(
-        `linha '${CACHE.key}' tem geradoEm=${r.rows[0].gerado_em}, esperado ${resumo.geradoEm}`,
-      );
-    }
-
-    log(`   ✓ verificado: cache_key='${CACHE.key}' geradoEm=${r.rows[0].gerado_em}`);
-    return r.rows[0]?.tam ?? mb(json.length);
-  } finally {
-    await pool.end();
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback");
+    throw e;
   }
+
+  /*
+   * Verificação pós-gravação: lê de volta as linhas COM AS MESMAS CHAVES que o
+   * app usa. Se alguém voltar a divergir as chaves, o job falha em vez de
+   * reportar sucesso gravando em lugar nenhum.
+   */
+  const chaves = [particoes.chaveMeta(), particoes.chaveDesajustes("semana")];
+  if (meta.dias[0]) chaves.push(particoes.chaveDia(meta.dias[0]));
+  if (resumo.jogos[0]) chaves.push(particoes.chaveJogo(resumo.jogos[0].id));
+  if (gravarLegado) chaves.push(CACHE.key);
+
+  const r = await client.query(
+    `select cache_key, length(payload::text) as tam
+       from apitou_cache where cache_key = any($1::text[]) order by cache_key`,
+    [chaves],
+  );
+  const achadas = new Set(r.rows.map((x) => x.cache_key));
+  const faltando = chaves.filter((c) => !achadas.has(c));
+  if (faltando.length) {
+    throw new Error(
+      `gravação não confirmada nas chaves: ${faltando.join(", ")}. ` +
+        `Se o app lê outra chave, o job não serve para nada — confira src/lib/apitou/cache-key.json e particoes.ts`,
+    );
+  }
+
+  const gravadoMeta = await client.query(
+    `select payload->>'geradoEm' as gerado_em, payload->>'versao' as versao
+       from apitou_cache where cache_key = $1`,
+    [particoes.chaveMeta()],
+  );
+  if (gravadoMeta.rows[0]?.gerado_em !== resumo.geradoEm) {
+    throw new Error(
+      `meta:apitou tem geradoEm=${gravadoMeta.rows[0]?.gerado_em}, esperado ${resumo.geradoEm}`,
+    );
+  }
+
+  const maiorKb = tamanhos.reduce((m, t) => Math.max(m, t.kb), 0);
+  const grandes = tamanhos.filter((t) => t.kb > particoes.LIMITE_KB);
+  if (grandes.length) {
+    log(
+      `   ! partição acima do teto de ${particoes.LIMITE_KB} KB: ` +
+        grandes.map((t) => `${t.chave} (${t.kb} KB)`).join(", "),
+    );
+  }
+
+  /*
+   * Expurgo de órfãs: partições do sync ANTERIOR que não existem neste (jogo
+   * que saiu da semana, dia que ficou vazio). Não são lidas — a `versao` não
+   * bate — mas ocupam espaço, e num cache que cresce por jogo isso vira lixo
+   * permanente enquanto o M6 de retenção não existe.
+   */
+  const orfas = await client.query(
+    `delete from apitou_cache
+      where (cache_key like 'dia:%' or cache_key like 'jogo:%' or cache_key like 'desajustes:%')
+        and cache_key <> all($1::text[])`,
+    [linhas.map((l) => l.cacheKey)],
+  );
+
+  log(`   ✓ ${todas.length} linhas gravadas (maior ${maiorKb} KB, versão ${meta.versao})`);
+  log(`   ✓ verificado: ${chaves.length} chaves presentes, geradoEm confere`);
+  log(`   ✓ órfãs removidas: ${orfas.rowCount}`);
+  return {
+    linhas: todas.length,
+    maiorKb,
+    versao: meta.versao,
+    tamanhoLegado: json.length,
+    orfas: orfas.rowCount,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -392,9 +537,30 @@ async function main() {
     );
   }
 
-  log("\n1) Carregando parser");
-  const F = await carregarParser();
-  log("   ✓ parser compilado de src/lib/apitou/fonte.ts");
+  log("\n1) Carregando parser e particionador");
+  const { fonte: F, particoes } = await carregarParser();
+  PARSER = { fonte: F, particoes };
+  log("   ✓ compilados de src/lib/apitou/fonte.ts e particoes.ts");
+
+  /*
+   * 1.5) LOCK GLOBAL (lease em `sync_lock` — o mesmo lock do app).
+   *
+   * A partir daqui, dois processos NÃO baixam 22 MB ao mesmo tempo: o Actions,
+   * o Vercel Cron e o sync preguiçoso de request disputam o mesmo nome,
+   * `apitou-sync`. Quem perde sai com código 0 (nada a fazer) e deixa o cache
+   * atual de pé — o objetivo não é "rodar", é "não duplicar trabalho".
+   */
+  if (!DRY_RUN) {
+    log(`\n1.5) Lock global (${LOCK_NOME})`);
+    cliente = await abrirConexao();
+    const pegou = await pegarLock(cliente);
+    if (!pegou) {
+      log("   · outro processo está sincronizando agora — saindo sem baixar.");
+      log("\n✅ Nada a fazer (lock ocupado).\n");
+      return;
+    }
+    log(`   ✓ lease adquirida (${LOCK_TTL_S}s, dono ${dono})`);
+  }
 
   let dadosJs;
   let linhasJs;
@@ -476,13 +642,30 @@ async function main() {
   }
 
   log("\n6) Gravando no Neon");
-  const tam = await gravarNoBanco(resumo);
-  log(`   ✓ apitou_cache atualizado (payload ${tam})`);
+  const stats = await gravarNoBanco(cliente, resumo);
+  log(`   ✓ apitou_cache particionado: ${stats.linhas} linhas, maior ${stats.maiorKb} KB`);
+  log(`   ✓ legado semana-v2 ${process.env.APITOU_LEGADO_SEMANA === "0" ? "NÃO gravado (Release C)" : `gravado (${mb(stats.tamanhoLegado)})`}`);
   log("\n✅ Sincronização concluída.\n");
 }
 
-main().catch((e) => {
-  erro(e.message);
-  if (VERBOSE) console.error(e);
-  process.exit(1);
-});
+main()
+  .catch((e) => {
+    erro(e.message);
+    if (VERBOSE) console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    /*
+     * O lock e a conexão são liberados SEMPRE — inclusive quando o parse falha
+     * ou o processo é interrompido no meio do download. Se o processo morrer de
+     * vez (kill -9, timeout do runner), a lease expira sozinha em LOCK_TTL_S.
+     */
+    try {
+      if (cliente) {
+        await soltarLock(cliente);
+        await cliente.end();
+      }
+    } catch {
+      // nada a fazer no encerramento
+    }
+  });

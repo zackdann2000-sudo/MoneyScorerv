@@ -26,7 +26,7 @@
  * caso de o limite de duração mudar ou de o projeto migrar de plano.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { sincronizarEGravar, lerResumo, MIN_REFRESH_MS } from "@/lib/apitou/store";
+import { sincronizarEGravar, lerResumo, lerMeta, MIN_REFRESH_MS } from "@/lib/apitou/store";
 
 export const dynamic = "force-dynamic";
 // 300s = teto do Hobby. O sync real leva ~36s; a margem é para o pior caso
@@ -76,19 +76,27 @@ async function executarSync(req: NextRequest) {
   }
 
   // ?estado=1: só consulta, nunca baixa. Útil para o cron verificar saúde.
+  //
+  // M3: lê `meta:apitou` (~1 KB) e não a semana — o estado é frescor, dias e
+  // totais, tudo o que a meta já carrega.
   if (req.nextUrl.searchParams.get("estado") === "1") {
-    const r = await lerResumo();
-    const idadeMin = r ? Math.round((Date.now() - r.salvadoEm) / 60000) : null;
+    const meta = await lerMeta();
+    const idadeMin = meta ? Math.round((Date.now() - meta.salvadoEm) / 60000) : null;
     return NextResponse.json({
-      existe: Boolean(r),
-      geradoEm: r?.geradoEm ?? null,
-      salvoEm: r ? new Date(r.salvadoEm).toISOString() : null,
+      existe: Boolean(meta),
+      geradoEm: meta?.geradoEm ?? null,
+      salvoEm: meta ? new Date(meta.salvadoEm).toISOString() : null,
       idadeMin,
       /** A janela de frescor ainda vale? (false = próximo sync vai baixar) */
       dentroDaJanela: idadeMin != null && idadeMin < MIN_REFRESH_MS / 60000,
       janelaMin: Math.round(MIN_REFRESH_MS / 60000),
-      jogos: r?.jogos.length ?? 0,
-      avisos: r?.avisos.length ?? 0,
+      /** Versão do cache particionado: muda a cada sync. */
+      versao: meta?.versao ?? null,
+      jogos: meta?.jogosTotal ?? 0,
+      props: meta?.propsTotal ?? 0,
+      desajustes: meta?.desajustesTotal ?? 0,
+      dias: meta?.dias ?? [],
+      avisos: meta?.avisos.length ?? 0,
     });
   }
 

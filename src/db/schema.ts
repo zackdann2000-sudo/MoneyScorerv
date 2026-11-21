@@ -476,3 +476,29 @@ export const rankingsCache = pgTable("rankings_cache", {
   payload: jsonb("payload").notNull().default([]),
   atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Lock de trabalho entre processos (lease com expiração) — M3.
+ *
+ * Por que uma tabela e não `pg_try_advisory_lock`: o app roda no endpoint
+ * POOLED do Neon (PgBouncer em modo transação), e ali dois clientes Node
+ * distintos caem na MESMA sessão do Postgres (mesmo `pg_backend_pid`). Advisory
+ * lock é de sessão, então é reentrante nesse cenário: medido, dois clientes
+ * receberam `true` ao mesmo tempo e o lock não excluiu nada.
+ *
+ * O lease resolve com uma linha e um relógio:
+ *   - pegar  = insert ... on conflict do update ... where expira_em < now()
+ *              (atômico: só um vence; quem perde não espera)
+ *   - soltar = delete where nome and dono
+ *   - morrer = a lease expira sozinha (substitui o "unlock no finally")
+ *
+ * `dono` identifica a execução (uuid + origem), então um processo que perdeu a
+ * lease por expiração não apaga o lock de quem pegou depois.
+ */
+export const syncLock = pgTable("sync_lock", {
+  nome: text("nome").primaryKey(),
+  dono: text("dono").notNull(),
+  expiraEm: timestamp("expira_em", { withTimezone: true }).notNull(),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("sync_lock_expira_idx").on(t.expiraEm)]);

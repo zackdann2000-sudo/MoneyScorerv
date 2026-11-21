@@ -277,9 +277,9 @@ vale para todas: **rota não calcula negócio** — ela valida entrada, chama
 > *watchdog* (verifica e escreve só se o dado estiver velho) e o lazy sync fica
 > como rede de segurança. Correção no M1.
 
-## Cache: do monolito ao particionado (alvo do M3)
+## Cache: do monolito ao particionado ✅ **concluído (M3, 2026-11-21)**
 
-### O que está errado hoje
+### O que estava errado antes
 
 `apitou_cache` tem **uma linha** (`semana-v2`) com a semana inteira em jsonb.
 Consequências medidas:
@@ -297,63 +297,113 @@ O `/kingstats` já faz o certo: **uma chave por dia e por tipo de trabalho**
 (`jogos:YYYYMMDD` barato, `oport:YYYYMMDD` caro), com TTL por chave. É esse o
 padrão a propagar.
 
-### Desenho alvo
+### Desenho alvo — e o que foi implementado
 
-| chave | conteúdo | quem grava | TTL | tamanho esperado |
-| --- | --- | --- | --- | --- |
-| `meta:apitou` | `{geradoEm, fonte, dias[], jogosTotal, versao}` | job | 6h | ~1 KB |
-| `dia:<YYYY-MM-DD>` | jogos enxutos daquele dia (sem props) | job | 6h | 30–80 KB |
-| `jogo:<fixtureId>` | props calculadas + desajustes de 1 jogo | lazy, na 1ª leitura | 15 min | 5–20 KB |
-| `desajustes:<YYYY-MM-DD>:<nivel>` | resultado já agregado e ordenado | lazy | 15 min | 20–50 KB |
+O que existe agora em `apitou_cache` (código em `src/lib/apitou/particoes.ts`):
 
-Ganhos diretos: abrir um jogo deixa de custar o parse da semana; atualizar um dia
-não reescreve os outros; o desajuste sai pronto do cache em vez de ser recalculado
-por request; e cada linha tem tamanho previsível (importa para o `jsonb` e para
-o payload de rede).
+| chave | conteúdo | quem grava | tamanho MEDIDO (sync real, 41 jogos) |
+| --- | --- | --- | --- |
+| `meta:apitou` | `{versao, geradoEm, salvadoEm, fonte, dias[], totais, avisos[]}` | sync | **1,6 KB** |
+| `dia:<YYYY-MM-DD>` | jogos enxutos daquele dia (sem props) | sync | **1,8–6,1 KB** |
+| `jogo:<fixtureId>` | jogo bruto + props calculadas + desajustes do jogo | sync | **4,3–96,7 KB** |
+| `desajustes:<YYYY-MM-DD>` | agregação do dia (todos os níveis) | sync | **0,1–16,2 KB** |
+| `desajustes:semana` | agregação da semana (`?date` ausente) | sync | **23,1 KB** |
+| `semana-v2` | resumo inteiro (**legado**, sai na Release C) | sync (dual write) | 955–968 KB |
 
-### Migration em 3 releases (sem big bang)
+Três desvios do desenho original, com motivo medido:
 
-**Release A — dual write, read antigo.** O job grava `meta:apitou` + `dia:*`
-**e** continua gravando `semana-v2`. Nenhuma leitura muda. Se algo der errado,
-basta parar de gravar as chaves novas. (`store.ts` ganha `gravarParticionado()`
-ao lado do caminho atual.)
+1. **`jogo:<id>` é gravado no sync, não lazy.** O plano previa gravar na 1ª
+   leitura. Mas `calcularJogo` é aritmética pura sobre dados que já estão em
+   memória no fim de um sync que custou 22 MB de download — calcular os 41 jogos
+   custa milissegundos. Com isso `/jogo/:id` é **uma leitura**, sem CPU no
+   request.
+2. **`jogo:<id>` guarda o jogo bruto além das props**, e por isso chega a 96,7
+   KB (o plano estimou 5–20 KB). O jogador/props/odds por jogo é o que a UI
+   desenha; guardar só o cálculo obrigaria a reabrir a semana num cache-hit
+   parcial. Fica abaixo do teto de 120 KB e é o preço de uma leitura única.
+3. **`desajustes:<dia>` não tem o nível na chave.** O plano previa
+   `desajustes:<dia>:<nivel>`, mas cada nível a mais multiplica linhas (3 níveis
+   × dias × `principais`). O filtro de nível é aplicado em memória sobre uma
+   linha já agregada — o que era caro (agregar a semana) continua cacheado.
 
-**Release B — read novo com fallback.** `garantirResumo()` vira um wrapper:
-`garantirDia(dia)` lê `dia:<dia>`; se não existir, cai no `semana-v2` e
-particiona em memória. Rotas não mudam de assinatura — `/api/apitou/jogos` passa a
-pedir só o dia, `/jogo/:id` passa a ler `jogo:<id>`. `desajustes` grava
-`desajustes:<dia>:<nivel>`.
+**Versão em vez de TTL:** toda partição carrega `versao` (= `salvadoEm` do sync)
+igual à `meta:apitou`. Um sync novo muda a versão e as partições antigas deixam
+de ser lidas sem job de invalidação. `frescor()` continua marcando
+`stale`/`revalidando` pela idade.
 
-**Release C — remover `semana-v2`.** Só quando os logs mostrarem zero fallback por
-7 dias seguidos. Apagar `semana` (a linha órfã do cron antigo, 1,2 MB de dado
-morto) e `semana-v2`.
+**Expurgo de órfãs:** depois de gravar, o sync apaga partições `dia:`/`jogo:`/
+`desajustes:` que **não** estão no sync atual (jogo que saiu da semana, dia que
+ficou vazio). Sem isso a tabela só cresceria — o M6 de retenção ainda não existe.
+Medido: o primeiro sync real removeu 48 linhas de uma rodada anterior.
 
-### Corrida e lock (junto com o M3)
+### Migration em 3 releases — onde estamos
 
-O lock atual (`store.ts:72`) é um `Promise` em memória — vale por instância. Com
-N instâncias serverless existem N syncs de 22 MB em paralelo. Troca por advisory
-lock do Postgres, que é global:
+**Release A — dual write, read antigo.** Feito: `gravarParticionado()` grava as
+partições **e** mantém `semana-v2`. Interruptor: `APITOU_LEGADO_SEMANA=0` desliga
+sem deploy.
 
-```sql
--- no início do job/sync: se não pegar o lock, outro processo está trabalhando
-select pg_try_advisory_lock(hashtext('apitou-sync'));
--- no fim, sempre (mesmo em erro):
-select pg_advisory_unlock(hashtext('apitou-sync'));
+**Release B — read novo com fallback.** Feito: `/jogos` lê `dia:<dia>`,
+`/jogo/:id` lê `jogo:<id>`, `/desajustes` lê `desajustes:<escopo>`. Se a partição
+não existir ou a versão não bater, a semana legada é lida, recortada em memória e
+**as partições são refeitas em background** (backfill oportunista, testado:
+apagar as 5 partições fez a chamada seguinte voltar `legado: true` e a
+seguinte já voltar `legado: false` com tudo recriado). Toda resposta expõe
+`legado: true|false`, então o log mostra se o fallback ainda é usado.
+
+**Release C — remover `semana-v2`.** Pendente, como planejado: só quando
+`legado: true` não aparecer nos logs por 7 dias. Então `APITOU_LEGADO_SEMANA=0`
++ apagar as linhas `semana*`.
+
+### Corrida e lock — o plano estava errado, medido
+
+O plano dizia advisory lock (`pg_try_advisory_lock`). **Não funciona neste
+deploy.** O app usa o endpoint *pooled* do Neon (PgBouncer em modo transação), e
+ali dois clientes Node distintos caem na MESMA sessão do Postgres. Medido:
+
+```
+c1: select pg_backend_pid()          -> 735
+c2: select pg_backend_pid()          -> 735     (clientes diferentes, mesma sessão)
+c1: pg_try_advisory_lock('diag')     -> true
+c2: pg_try_advisory_lock('diag')     -> true    (reentrante: não exclui nada)
 ```
 
-`pg_try_advisory_lock` devolve `false` na hora em vez de enfileirar: quem chega
-depois serve o cache velho e sai. Para o sync preguiçoso isso é o comportamento
-correto — ninguém deve esperar 36 s por um download que outro já está fazendo.
+Advisory lock de sessão com sessão compartilhada é pior que não ter lock: dá a
+impressão de proteção. O que ficou no lugar é um **lease em tabela**
+(`sync_lock`, migration `0013`, `src/lib/apitou/lock.ts`):
 
-### Critério de pronto do M3
+```sql
+insert into sync_lock (nome, dono, expira_em)
+values ($1, $2, now() + ($3 || ' seconds')::interval)
+on conflict (nome) do update
+  set dono = excluded.dono, expira_em = excluded.expira_em, atualizado_em = now()
+  where sync_lock.expira_em < now()      -- só remove quem já morreu
+returning dono;                          -- sem linha = lock ocupado
+```
 
-- `select cache_key, length(payload::text) from apitou_cache` sem nenhuma linha
-  acima de 120 kB.
-- `/api/apitou/jogo/:id` responde em < 150 ms com cache quente (hoje: parse da
-  semana).
-- Dois requests simultâneos em instâncias diferentes produzem **um** download
-  (verificável pelo log do job: uma linha por execução).
-- `/api/apitou/desajustes` responde `cached: true` em 2 chamadas seguidas.
+Uma instrução, atômica, sem enfileirar: quem chega depois recebe `ocupado` na
+hora. `dono` (uuid + origem) impede que um processo com lease vencida solte o
+lock de outro. E o prazo de 10 min substitui o "unlock no finally" quando o
+processo é morto no meio do download.
+
+Medido: com a lease presa por outro processo, o script saiu com código **0**
+dizendo `lock com teste:... até 19:40:11Z` sem baixar nada; e `/api/apitou/sync`
+respondeu `pulado: true`.
+
+### Critério de pronto do M3 — verificado
+
+- **Maior partição nova: 96,7 KB** (teto 120 KB). A única linha acima de 120 KB é
+  `semana-v2` (955 KB), que existe de propósito até a Release C. *Não atendido
+  ainda, por desenho.*
+- **`/jogo/:id` não parseia mais a semana:** lê 1 linha (medido: 4,3–96,7 KB) em
+  vez de 955 KB, e não roda Poisson no request. Tempo de ponta a ponta medido
+  aqui (Termux → Neon us-east-2, 1 round-trip ≈ 150 ms): **~400 ms**, dos quais
+  ~150 ms é o rate limit (2 queries) e ~150 ms a partição; um request sem banco
+  custa 150 ms. Em produção (Vercel na mesma região do Neon) o piso de rede
+  desaparece — *não medido a partir daqui*.
+- **Um download por vez:** verificado com lease presa (exit 0, sem download) e
+  com a reentrância do advisory lock documentada acima.
+- **`/desajustes` com `cached: true` em 2 chamadas seguidas:** verificado (as
+  duas com `cached: true, legado: false`).
 
 ## The parts that bite
 
@@ -363,11 +413,14 @@ correto — ninguém deve esperar 36 s por um download que outro já está fazen
 - **idempotência:** webhook do Stripe já é idempotente por PK do evento. O sync
   do apitou **é** idempotente (upsert por chave) — o que falta é *serialização*,
   não idempotência.
-- **races:** advisory lock (M3). Enquanto não existir, o `concurrency` do GitHub
-  Actions cobre só o Actions.
-- **rate limits:** `/api/apitou/*` não tem `rateLimit` e `/desajustes` recalcula
-  por request — hoje é o endpoint mais caro do app sem teto. Enquanto o M3 não
-  chega, cache do resultado (uma linha, TTL 15 min) resolve 90%.
+- **races:** lease em tabela `sync_lock` (M3). Advisory lock **não** funciona
+  aqui: no pooler do Neon a sessão é compartilhada e o lock vira reentrante
+  (medido — ver "Corrida e lock"). O `concurrency` do GitHub Actions continua
+  cobrindo só o Actions.
+- **rate limits:** `/api/apitou/*` tem `rateLimit` desde o M1, mas cada request
+  paga **duas** queries no Neon (delete oportunista + upsert do contador) — é o
+  que domina o tempo de resposta fora da região do banco. `/desajustes` deixou de
+  recalcular por request no M3 (lê a partição `desajustes:<dia>`).
 - **retenção:** nenhuma tabela de cache tem expurgo. `kingstats_cache` cresce 2
   linhas/dia, `gameread_cache` e `player_stats_cache` crescem por jogo. Job diário
   `delete from <cache> where updated_at < now() - interval '30 days'` (M6).
@@ -560,10 +613,14 @@ com desvio 0.00 min. Rollback, enquanto ninguém gravar no meio:
 `alter table <t> alter column <c> set data type timestamp using <c> at time zone 'UTC';`
 *Tabelas:* as 46 colunas *Rotas:* todas (efeito indireto em sessão/trial).
 
-**M3 — Cache particionado + advisory lock (2–3 dias).**
-Releases A→B→C descritas acima.
-*Tabelas:* `apitou_cache` (chaves novas) *Rotas:* `/jogos`, `/jogo/:id`, `/desajustes`.
-*Depende de:* M1 (para medir o fallback antes de remover).
+**M3 — Cache particionado + lock global (feito, 2026-11-21).**
+Releases A e B aplicadas; C (remover `semana-v2`) depende de 7 dias de log sem
+`legado: true`. O "advisory lock" do plano foi substituído por lease em tabela
+depois de medir que advisory lock não exclui nada no pooler do Neon.
+*Tabelas:* `apitou_cache` (5 tipos de chave), `sync_lock` (nova, migration `0013`)
+*Rotas:* `/jogos`, `/jogo/:id`, `/desajustes`, `/sync`.
+*Arquivos:* `particoes.ts`, `lock.ts`, `store.ts`, as 4 rotas, `apitou-sync.mjs`.
+*Depende de:* M0/M1 (chave única, canário, frescor).
 
 **M4 — D3 enums, D4 `updated_at`, D1 `public_id` (2 dias).** (D5 já feito.)
 Tudo aditivo, em migrations separadas, uma por PR.
@@ -590,18 +647,19 @@ M5, porque "palpite do dia + cupom + track record" quer o core em fonte oficial.
 **Stack em uma linha:** Next.js 16 + Drizzle + Neon + Stripe na Vercel, conteúdo
 de terceiros em `*_cache` no Postgres, jobs em Vercel Cron (Actions como watchdog).
 
-**Contagem:** 35 tabelas, 66 rotas de API (8 nos dois módulos auditados), 4 jobs,
-0 microserviços, 0 RLS (checagem por query no data layer).
+**Contagem:** 36 tabelas, 66 rotas de API (8 nos dois módulos auditados), 4 jobs,
+0 microserviços, 0 RLS (checagem por query no data layer). 13 migrations, todas
+no journal e aplicáveis por `drizzle-kit migrate` desde o D5.
 
 **Os três pontos mais arriscados:**
 
 1. **Fonte não-oficial** com UA falsificado (`fonte.ts:20`) — pode sumir sem
    aviso e é o único item que não se resolve com código. Mitigação: M1 + M5.
-2. **Cache monolítico do apitou** (1,29 MB numa linha, parse integral por
-   request) + lock só de processo — primeira coisa a estourar sob carga.
-   Mitigação: M3.
+2. **Cache do apitou** — resolvido no M3: 5 partições (maior 96,7 KB contra
+  955 KB do legado), `/jogo/:id` lê uma linha, e o lock global impede download
+  duplicado. Falta a Release C para apagar o `semana-v2`.
 3. **Três escritores no mesmo cache** sem dono (cron 09:00, Actions 06:00, lazy)
-   — já causou o bug do `cache_key`. Mitigação: M1.
+   — já causou o bug do `cache_key` (M0) e agora é serializado pelo lease (M3).
 
 **Próximo passo:** `/replica-design` para fixar tokens e componentes do shell
 antes do M1 (a faixa de "dados de <data>" e a tela de módulo degradado precisam

@@ -9,18 +9,20 @@
  * `principais=1` filtra só as 16 ligas principais. Isso é feito ANTES do
  * `slice(limit)`: filtrar depois devolveria menos itens que o pedido e a
  * paginação "carregar mais" ficaria furada.
+ *
+ * M3: a agregação deixou de rodar por request. O sync grava
+ * `desajustes:<dia>` e `desajustes:semana` já calculados e ordenados; esta rota
+ * lê UMA linha e só aplica os filtros do request (`nivel`, `principais`,
+ * `limit`), que são baratos em memória. A chave muda com a versão do sync, então
+ * não existe cache velho — e `cached: true` na segunda chamada.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { garantirResumo, metaResumo, lerAux, gravarAux, expirarAux } from "@/lib/apitou/store";
-import { calcularTodas, extrairDesajustes, type DesajusteCalculado } from "@/lib/apitou/analise";
+import { garantirDesajustes, metaResumo } from "@/lib/apitou/store";
+import { ESCOPO_SEMANA, contarPorNivel, diaSaoPaulo, filtrarDesajustes } from "@/lib/apitou/particoes";
 import { isMainLeague } from "@/lib/mainLeagues";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
-
-function diaLocal(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-}
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "date inválido, use YYYY-MM-DD" }, { status: 400 });
   }
 
-  // Limite por IP: a agregação roda sobre a semana inteira (centenas de props).
+  // Limite por IP: a agregação devolve centenas de props.
   const limite = await rateLimit("apitou:ip", clientIp(req), { limit: 120, windowSec: 300 });
   if (!limite.ok) {
     return NextResponse.json(
@@ -43,55 +45,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { dados, stale, revalidando } = await garantirResumo();
-    if (!dados) {
+    const escopo = date ?? ESCOPO_SEMANA;
+    const r = await garantirDesajustes(escopo);
+    if (!r.meta) {
       return NextResponse.json(
         { error: "sem dados sincronizados; rode POST /api/apitou/sync" },
         { status: 503 },
       );
     }
 
-    let jogos = dados.jogos;
-    if (date) jogos = jogos.filter((j) => diaLocal(j.kickoff) === date);
+    let itens = filtrarDesajustes(r.itens, { nivel });
+    // Antes do slice: ver docblock do arquivo.
+    if (principais) itens = itens.filter((d) => isMainLeague(d.competicao));
 
-    /*
-     * A agregação é o passo CARO desta rota (calcularTodas sobre a semana toda)
-     * e antes rodava em TODO request. O resultado depende só do dia, do filtro e
-     * da versão do resumo — então a chave inclui `salvadoEm`: quando chega sync
-     * novo, a chave muda e o cálculo é refeito sozinho, sem TTL para errar.
-     */
-    const chaveCache = `desaj:${dados.salvadoEm}:${date ?? "semana"}:${nivel ?? "todos"}:${principais ? 1 : 0}`;
-    let desajustes = await lerAux<DesajusteCalculado[]>(chaveCache);
-    const doCache = desajustes !== null;
-
-    if (!desajustes) {
-      // Só submete ao filtro de edge o que já passou do mínimo; evita ordenar
-      // centenas de props que seriam descartadas de qualquer forma.
-      const props = calcularTodas(jogos);
-      desajustes = extrairDesajustes(props, 0.03);
-      if (nivel) desajustes = desajustes.filter((d) => d.nivel === nivel);
-      // Antes do slice: ver docblock do arquivo.
-      if (principais) desajustes = desajustes.filter((d) => isMainLeague(d.competicao));
-
-      await gravarAux(chaveCache, "desajustes", desajustes);
-      // Chaves de resumos antigos não servem mais: expurgo barato por prefixo.
-      void expirarAux("desaj:", 1);
-    }
-
-    const contagem = desajustes.reduce<Record<string, number>>((acc, d) => {
-      acc[d.nivel] = (acc[d.nivel] ?? 0) + 1;
-      return acc;
-    }, {});
+    const contagem = contarPorNivel(itens);
 
     return NextResponse.json({
-      ...metaResumo(dados),
-      stale,
-      revalidando,
-      /** true = veio do cache de cálculo (nada foi recalculado neste request). */
-      cached: doCache,
-      total: desajustes.length,
+      ...metaResumo(r.meta),
+      stale: r.stale,
+      revalidando: r.revalidando,
+      /** true = veio do `semana-v2` porque a partição do escopo não existia. */
+      legado: r.legado,
+      /**
+       * true = a lista veio pronta do cache de agregação (nada foi recalculado
+       * neste request). Falso só no caminho de fallback.
+       */
+      cached: !r.legado,
+      escopo,
+      total: itens.length,
       contagem,
-      desajustes: desajustes.slice(0, limit).map((d) => ({
+      desajustes: itens.slice(0, limit).map((d) => ({
         chave: d.chave,
         fixtureId: d.fixtureId,
         competicao: d.competicao,
@@ -108,7 +91,7 @@ export async function GET(req: NextRequest) {
         home: d.home,
         away: d.away,
         kickoff: d.kickoff,
-        dia: diaLocal(d.kickoff),
+        dia: diaSaoPaulo(d.kickoff),
       })),
     });
   } catch (e) {
