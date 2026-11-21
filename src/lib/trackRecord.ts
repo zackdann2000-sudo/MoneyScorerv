@@ -59,15 +59,23 @@ export async function registrarOportunidadesDoDia(opts: {
     status: "pendente" as Status,
   }));
   let novos = 0;
+  /** Motivos visíveis para o `registrados: 0` — antes todos viravam silêncio. */
+  const avisos: string[] = [];
   if (rows.length) {
     try {
       const ins = await db.insert(valueBetHistory).values(rows).onConflictDoNothing();
       novos = ins?.rowCount ?? 0;
-    } catch {
-      /* tabela ausente → só conta */
+    } catch (e) {
+      // Aqui havia um `catch {}`. Com ele, `registrados: 0` podia significar
+      // três problemas diferentes: schema faltando, DB fora do ar, ou a
+      // constraint nova do M4 recusando um status inesperado. Silêncio em
+      // pipeline de dinheiro é o pior diagnóstico possível.
+      const msg = e instanceof Error ? e.message : String(e);
+      avisos.push(`insert em value_bet_history falhou: ${msg}`);
+      console.error("[track-record] insert falhou:", msg);
     }
   }
-  return { geradoEm: new Date().toISOString(), oportunidades: r.oportunidades.length, registrados: novos };
+  return { geradoEm: new Date().toISOString(), oportunidades: r.oportunidades.length, registrados: novos, avisos };
 }
 
 /* ------------------------------------------------------------------ */
@@ -111,11 +119,21 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
 
   let liquidados = 0;
   const falhas: string[] = [];
+  const avisos: string[] = [];
   const resumo = { green: 0, red: 0 };
 
   for (const [data, rows] of porData) {
     let jogos: Match[] = [];
-    try { jogos = await getAllMatches(data); } catch { continue; }
+    try {
+      jogos = await getAllMatches(data);
+    } catch (e) {
+      // Antes: `continue` calado. Uma fonte fora do ar fazia o dia inteiro
+      // parecer "nada a liquidar", e os palpites ficavam pendentes para sempre.
+      const msg = e instanceof Error ? e.message : String(e);
+      avisos.push(`fonte falhou em ${data}: ${msg}`);
+      console.error(`[track-record] getAllMatches(${data}) falhou:`, msg);
+      continue;
+    }
     const porId = new Map(jogos.map((m) => [m.id, m]));
 
     // cache de estatísticas por matchId (cartões/escanteios exigem summary)
@@ -170,7 +188,7 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
     }
   }
 
-  return { liquidados, resumo, falhas };
+  return { liquidados, resumo, falhas, avisos };
 }
 
 /* ------------------------------------------------------------------ */
@@ -203,7 +221,10 @@ export async function seriesAcertosRecentes(
       .where(inArray(valueBetHistory.status, ["green", "red"]))
       .orderBy(desc(valueBetHistory.id))
       .limit(limite)) as Row[];
-  } catch {
+  } catch (e) {
+    // Falha de banco continua virando mapa vazio (nenhum selo é mostrado:
+    // nunca inventamos acerto), mas agora deixa rastro no log.
+    console.error("[track-record] seriesAcertosRecentes falhou:", e instanceof Error ? e.message : String(e));
     return new Map();
   }
   return montarSeries(rows, opts);
