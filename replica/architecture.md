@@ -404,6 +404,13 @@ respondeu `pulado: true`.
   com a reentrância do advisory lock documentada acima.
 - **`/desajustes` com `cached: true` em 2 chamadas seguidas:** verificado (as
   duas com `cached: true, legado: false`).
+- **Tipos e testes, revalidados no fecho do marco (2026-11-21):** `tsc --noEmit`
+  exit 0, `eslint` limpo em `src/lib/apitou`, `src/app/api/apitou` e
+  `scripts/apitou-sync.mjs`, e `./scripts/unit-tests.sh` com **25 suítes verdes**
+  (a suíte `particoes` cobre chaves, teto de 120 KB, props já calculadas,
+  ordenação de `desajustes`, filtro de nível e a borda de fuso do jogo de 21h).
+  O teste compila o módulo **sozinho**, então um import de runtime (`db`, `next`)
+  em `particoes.ts` quebra a suíte em vez de quebrar em produção.
 
 ## The parts that bite
 
