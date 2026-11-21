@@ -56,7 +56,7 @@ Os 4 desvios que este documento resolve:
 | # | desvio | medido | impacto |
 | --- | --- | --- | --- |
 | D1 | PK `serial` em vez de `uuid` | 16 `serial(`, 0 `uuid(` | id de usuário enumerável se vazar em URL/API |
-| D2 | `timestamp` sem fuso | 46 `timestamp(`, 0 `withTimezone` | funciona **por coincidência** (TZ do processo = UTC); dev/local já desloca 3h |
+| D2 | `timestamp` sem fuso | 46 `timestamp(`, 0 `withTimezone` | **corrigido no M2** (46 colunas `timestamptz`, aplicado em 2026-11-21) |
 | D3 | nenhum `check`/enum em status | 0 `check(` em 35 tabelas | status inválido entra e quebra filtro silenciosamente |
 | D4 | tabelas sem `updated_at` | 25 de 35 | impossível saber quando um dado de usuário mudou; sem base para sync incremental |
 
@@ -489,12 +489,40 @@ na UI, dono único do sync (Vercel Cron; Actions vira watchdog), `rateLimit` em
 `/api/apitou/*`, cache do resultado de `/desajustes` (uma linha, TTL 15 min).
 *Tabelas:* `apitou_cache`, `kingstats_cache` *Rotas:* as 4 do apitou.
 
-**M2 — D2 `timestamptz` (feito, migration `0011_timestamptz.sql`).**
-Pré-checagem de fuso (`npm run db:precheck-tz`), uma migration, schema Drizzle no
-mesmo commit. `USING ... AT TIME ZONE 'UTC'` em cada uma das 46 colunas para não
-depender do `TimeZone` da sessão; `npm run check:tz` compara schema × migration ×
-journal sem precisar de banco. **A migration ainda não foi aplicada** — depende
-da janela de baixo tráfego + pré-checagem verde.
+**M2 — D2 `timestamptz` (feito e APLICADO em 2026-11-21).**
+Migration `0011_timestamptz.sql`: 46 colunas, `USING ... AT TIME ZONE 'UTC'` em
+cada uma para não depender do `TimeZone` da sessão, default `now()`, schema Drizzle
+no mesmo commit. Ferramental: `npm run check:tz` (offline, schema × migration ×
+journal), `db:precheck-tz` (leitura, antes de aplicar), `db:clean-tz` (expurgo de
+dado de teste), `db:migrate-tz` (aplica em uma transação, com verificação antes e
+depois) e `db:audit-tz` (relatório de fuso por tabela).
+
+Duas lições do dia da aplicação, registradas porque custaram tempo:
+
+1. A primeira versão do pré-check comparava o `show timezone` da **sessão de
+   auditoria** com UTC e abortava no `GMT` do Neon. Era falso negativo: o fuso de
+   quem audita não diz nada sobre quem gravou. A checagem correta é de dado —
+   coluna de relógio (`created_at`, `updated_at`, `fetched_at`, …) com valor no
+   futuro significa gravação em hora local. `expires_at` e `match_date` ficam de
+   fora: estar no futuro é o correto para elas.
+2. `drizzle-kit migrate` **não é utilizável** neste projeto: não existe o schema
+   de bookkeeping `drizzle.__drizzle_migrations`, então ele tentaria reaplicar
+   `0000_init`. A 0011 foi aplicada por script, em uma transação. Consequência: o
+   buraco do D5 continua aberto e cada migration futura também precisa de um
+   runner próprio — ou de um `baseline` único do journal numa janela combinada.
+
+O dado de teste do banco (349 linhas: 159 `visits`, 43 `sessions`, caches,
+`predictions`, `picks`) foi expurgado antes da conversão, preservando `users`,
+`api_keys`, `player_photos` e `team_badges`. Motivo: `timestamp` sem fuso guarda
+relógio de parede e não há como provar linha por linha se quem gravou estava em
+UTC (Vercel) ou em `America/Sao_Paulo` (Termux local) — converter "tudo como UTC"
+deslocaria em 3h o que foi escrito em hora local.
+
+**Verificado depois:** `information_schema` devolve 46 `with time zone` e 0 `without`;
+um processo Node em `America/Sao_Paulo` grava `16:30:42Z` (antes da correção o mesmo
+código gravava `13:30:42`, 3h atrás) e o `Date` lido de volta bate com a hora real
+com desvio 0.00 min. Rollback, enquanto ninguém gravar no meio:
+`alter table <t> alter column <c> set data type timestamp using <c> at time zone 'UTC';`
 *Tabelas:* as 46 colunas *Rotas:* todas (efeito indireto em sessão/trial).
 
 **M3 — Cache particionado + advisory lock (2–3 dias).**
