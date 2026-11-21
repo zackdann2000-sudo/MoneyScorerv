@@ -489,8 +489,12 @@ na UI, dono único do sync (Vercel Cron; Actions vira watchdog), `rateLimit` em
 `/api/apitou/*`, cache do resultado de `/desajustes` (uma linha, TTL 15 min).
 *Tabelas:* `apitou_cache`, `kingstats_cache` *Rotas:* as 4 do apitou.
 
-**M2 — D2 `timestamptz` (1 dia, 1 migration).**
-Pré-checagem de fuso, uma migration, schema Drizzle no mesmo commit.
+**M2 — D2 `timestamptz` (feito, migration `0011_timestamptz.sql`).**
+Pré-checagem de fuso (`npm run db:precheck-tz`), uma migration, schema Drizzle no
+mesmo commit. `USING ... AT TIME ZONE 'UTC'` em cada uma das 46 colunas para não
+depender do `TimeZone` da sessão; `npm run check:tz` compara schema × migration ×
+journal sem precisar de banco. **A migration ainda não foi aplicada** — depende
+da janela de baixo tráfego + pré-checagem verde.
 *Tabelas:* as 46 colunas *Rotas:* todas (efeito indireto em sessão/trial).
 
 **M3 — Cache particionado + advisory lock (2–3 dias).**

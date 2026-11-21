@@ -7,26 +7,26 @@ export const users = pgTable("users", {
   passHash: text("pass_hash").notNull(),
   role: text("role").notNull().default("user"), // user | admin | owner
   plan: text("plan").notNull().default("trial"), // free | trial | vip
-  expiresAt: timestamp("expires_at"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   /** UUID do dispositivo (localStorage) — base do anti-fraude do trial. */
   deviceId: text("device_id"),
   /** IP de origem do cadastro — segunda barreira do anti-fraude. */
   registrationIp: text("registration_ip"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastSeenAt: timestamp("last_seen_at"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 }, (t) => [index("users_device_idx").on(t.deviceId), index("users_ip_idx").on(t.registrationIp)]);
 
 export const sessions = pgTable("sessions", {
   token: text("token").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const apiKeys = pgTable("api_keys", {
   provider: text("provider").primaryKey(), // espn | footballdata | sportmonks | bzzoiro | onesignal_rest
   token: text("token").notNull().default(""),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const favorites = pgTable("favorites", {
@@ -36,7 +36,7 @@ export const favorites = pgTable("favorites", {
   teamName: text("team_name").notNull().default(""),
   league: text("league").notNull().default(""),
   logo: text("logo").notNull().default(""),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("fav_user_team").on(t.userId, t.teamId)]);
 
 export const alertPrefs = pgTable("alert_prefs", {
@@ -51,14 +51,14 @@ export const pushSubs = pgTable("push_subs", {
   endpoint: text("endpoint").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   keys: jsonb("keys").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const predictions = pgTable("predictions", {
   id: serial("id").primaryKey(),
   matchId: text("match_id").notNull().unique(),
   league: text("league").notNull().default(""),
-  matchDate: timestamp("match_date"),
+  matchDate: timestamp("match_date", { withTimezone: true }),
   homeName: text("home_name").notNull().default(""),
   awayName: text("away_name").notNull().default(""),
   modelType: text("model_type").notNull().default(""),
@@ -67,7 +67,7 @@ export const predictions = pgTable("predictions", {
   pAway: real("p_away").notNull().default(0),
   pOver25: real("p_over25").notNull().default(0),
   fav: text("fav").notNull().default(""),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   settled: boolean("settled").notNull().default(false),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
@@ -78,7 +78,7 @@ export const picks = pgTable("picks", {
   id: serial("id").primaryKey(),
   date: text("date").notNull().unique(),
   payload: jsonb("payload").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   settled: boolean("settled").notNull().default(false),
   green: boolean("green"),
 });
@@ -86,14 +86,14 @@ export const picks = pgTable("picks", {
 export const alertState = pgTable("alert_state", {
   matchId: text("match_id").primaryKey(),
   state: jsonb("state").notNull().default({}),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   path: text("path").notNull().default("/"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const tipVotes = pgTable("tip_votes", {
@@ -101,7 +101,7 @@ export const tipVotes = pgTable("tip_votes", {
   matchId: text("match_id").notNull(),
   voterKey: text("voter_key").notNull(),
   choice: text("choice").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("vote_match_voter").on(t.matchId, t.voterKey)]);
 
 export const tipComments = pgTable("tip_comments", {
@@ -110,14 +110,14 @@ export const tipComments = pgTable("tip_comments", {
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   author: text("author").notNull().default("Torcedor"),
   body: text("body").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const tipLikes = pgTable("tip_likes", {
   id: serial("id").primaryKey(),
   voterKey: text("voter_key").notNull(),
   target: text("target").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("like_voter_target").on(t.voterKey, t.target)]);
 
 export const tickets = pgTable("tickets", {
@@ -125,7 +125,7 @@ export const tickets = pgTable("tickets", {
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull().default("Múltipla"),
   legs: jsonb("legs").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /** Histórico imutável das picks publicadas (não substitui a tabela picks). */
@@ -142,8 +142,8 @@ export const pickLedger = pgTable("pick_ledger", {
   ev: real("ev"),
   profit: real("profit"),
   isPick: boolean("is_pick").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("ledger_match_market").on(t.matchId, t.marketKey)]);
 
 export const consents = pgTable("consents", {
@@ -152,7 +152,7 @@ export const consents = pgTable("consents", {
   voterKey: text("voter_key"),
   push: boolean("push").notNull().default(false),
   terms: boolean("terms").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const deletionRequests = pgTable("deletion_requests", {
@@ -161,7 +161,7 @@ export const deletionRequests = pgTable("deletion_requests", {
   // Registro legal (LGPD): sobrevive à exclusão da conta, por isso SET NULL e não CASCADE.
   userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
   status: text("status").notNull().default("pendente"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -175,8 +175,8 @@ export const deletionRequests = pgTable("deletion_requests", {
 export const rateLimits = pgTable("rate_limits", {
   key: text("key").primaryKey(),
   hits: integer("hits").notNull().default(0),
-  windowStart: timestamp("window_start").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, (t) => [index("rate_limits_expires_at_idx").on(t.expiresAt)]);
 /**
  * Cache das estatísticas por jogador de UMA partida.
@@ -196,8 +196,8 @@ export const playerStatsCache = pgTable("player_stats_cache", {
   fixtureId: text("fixture_id").notNull().default(""),
   finalizada: boolean("finalizada").notNull().default(false),
   payload: jsonb("payload").notNull().default([]),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("player_stats_cache_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -210,8 +210,8 @@ export const playerPhotos = pgTable("player_photos", {
   playerName: text("player_name").notNull().default(""),
   photo: text("photo"),
   source: text("source").notNull().default("TheSportsDB"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /** Escudo de time (TheSportsDB) — apenas fallback quando a ESPN não trouxe. */
@@ -220,8 +220,8 @@ export const teamBadges = pgTable("team_badges", {
   teamName: text("team_name").notNull().default(""),
   badge: text("badge"),
   source: text("source").notNull().default("TheSportsDB"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -241,8 +241,8 @@ export const matchTeamStatsCache = pgTable("match_team_stats_cache", {
   finalizada: boolean("finalizada").notNull().default(false),
   /** Lista de TeamStatMetric: { key, label, home, away, percent }. */
   payload: jsonb("payload").notNull().default([]),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("match_team_stats_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -261,7 +261,7 @@ export const gamereadCache = pgTable("gameread_cache", {
   endpoint: text("endpoint").notNull().default(""),
   dateKey: text("date_key"),
   payload: jsonb("payload").notNull(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("gameread_cache_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -291,7 +291,7 @@ export const gamereadPinnedProps = pgTable("gameread_pinned_props", {
   kickoffUtc: text("kickoff_utc").notNull().default(""),
   hitRateL10: real("hit_rate_l10"),
   score: real("score"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("gr_pin_user_prop").on(t.userId, t.propKey)]);
 
 /**
@@ -306,7 +306,7 @@ export const apitouCache = pgTable("apitou_cache", {
   kind: text("kind").notNull().default(""), // "semana" | "linhas"
   geradoEm: text("gerado_em"),
   payload: jsonb("payload").notNull(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("apitou_cache_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -324,7 +324,7 @@ export const kingstatsCache = pgTable("kingstats_cache", {
   kind: text("kind").notNull().default(""),
   geradoEm: text("gerado_em"),
   payload: jsonb("payload").notNull(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("kingstats_cache_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -341,7 +341,7 @@ export const kingstatsCache = pgTable("kingstats_cache", {
 export const nerdytipsCache = pgTable("nerdytips_cache", {
   cacheKey: text("cache_key").primaryKey(),
   payload: jsonb("payload").notNull(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("nerdytips_cache_updated_idx").on(t.updatedAt)]);
 
 /**
@@ -363,7 +363,7 @@ export const apitouPinnedDesajustes = pgTable("apitou_pinned_desajustes", {
   awayName: text("away_name").notNull().default(""),
   fixtureId: text("fixture_id").notNull().default(""),
   kickoffUtc: text("kickoff_utc").notNull().default(""),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("apt_pin_user_prop").on(t.userId, t.propKey)]);
 
 /**
@@ -376,7 +376,7 @@ export const apitouPinnedDesajustes = pgTable("apitou_pinned_desajustes", {
 export const stripeEventos = pgTable("stripe_eventos", {
   id: text("id").primaryKey(),
   tipo: text("tipo").notNull().default(""),
-  criadoEm: timestamp("criado_em").notNull().defaultNow(),
+  criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -391,7 +391,7 @@ export const teamXgCache = pgTable("team_xg_cache", {
   xgAgainst: real("xg_against").notNull().default(0),
   sample: integer("sample").notNull().default(0),
   source: text("source").notNull().default("api-football"),
-  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -402,8 +402,8 @@ export const fcmTokens = pgTable("fcm_tokens", {
   token: text("token").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   platform: text("platform").notNull().default("android"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("fcm_tokens_user_idx").on(t.userId)]);
 
 /**
@@ -415,7 +415,7 @@ export const valueAlertLog = pgTable("value_alert_log", {
   matchId: text("match_id").notNull().default(""),
   mercado: text("mercado").notNull().default(""),
   evPct: real("ev_pct").notNull().default(0),
-  sentAt: timestamp("sent_at").notNull().defaultNow(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -440,8 +440,8 @@ export const valueBetHistory = pgTable("value_bet_history", {
   status: text("status").notNull().default("pendente"), // pendente | green | red
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
-  settledAt: timestamp("settled_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("vbh_match_mercado").on(t.matchId, t.mercado),
   index("vbh_status_idx").on(t.status),
@@ -459,7 +459,7 @@ export const playerPropsCache = pgTable("player_props_cache", {
   teamName: text("team_name").notNull().default(""),
   sample: integer("sample").notNull().default(0),
   payload: jsonb("payload").notNull().default({}),
-  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -474,5 +474,5 @@ export const rankingsCache = pgTable("rankings_cache", {
   times: integer("times").notNull().default(0),
   jogos: integer("jogos").notNull().default(0),
   payload: jsonb("payload").notNull().default([]),
-  atualizadoEm: timestamp("atualizado_em").notNull().defaultNow(),
+  atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
 });

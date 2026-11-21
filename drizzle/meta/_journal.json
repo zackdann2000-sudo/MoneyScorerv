@@ -71,6 +71,13 @@
       "when": 1795128602057,
       "tag": "0009_dapper_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795277116080,
+      "tag": "0011_timestamptz",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:unit": "./scripts/unit-tests.sh",
+    "check:tz": "node scripts/check-timestamptz.mjs",
+    "db:precheck-tz": "node scripts/precheck-tz.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "push:value": "tsx scripts/push-value-alerts.ts"
