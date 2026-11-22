@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users } from "lucide-react";
+import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users, Flame, TrendingUp } from "lucide-react";
 import { Crest, StatCompareRow } from "@/components/ui";
 import DestaquesConfronto from "@/components/hub/DestaquesConfronto";
+import FatoresXg from "@/components/hub/FatoresXg";
+import PadroesEstatisticos from "@/components/hub/PadroesEstatisticos";
 import { hubGameDetail, type HubDetail } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
@@ -261,6 +263,16 @@ export default async function HubGamePage({ params }: Props) {
             </p>
           )}
         </div>
+      </Secao>
+
+      {/* Fatores de xG — o que o motor empurrou para cima/baixo, em % */}
+      <Secao icon={<Flame size={13} />} title="Fatores de xG" right={d.xgSource === "real" ? "xG real" : d.xgSource === "estimado" ? "xG estimado" : undefined}>
+        <FatoresXg home={d.home} away={d.away} xg={d.xg} fatores={d.xgFactors} />
+      </Secao>
+
+      {/* Padrões estatísticos — cache do motor sobre os últimos jogos */}
+      <Secao icon={<TrendingUp size={13} />} title="Padrões estatísticos" right={d.labInsights.length ? `${d.labInsights.length} padrões` : undefined}>
+        <PadroesEstatisticos padroes={d.labInsights} />
       </Secao>
 
       {/* Top 5 placares exatos */}

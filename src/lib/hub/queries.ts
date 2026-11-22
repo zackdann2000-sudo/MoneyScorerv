@@ -11,8 +11,10 @@ import {
   hubTeam,
   hubTopScore,
   hubValueBet,
+  hubXgFactor,
   type HubAnalysisSummary,
   type HubH2H,
+  type HubLabInsight,
   type HubMatchStats,
 } from "@/db/hub-schema";
 import type { TopScore } from "./model";
@@ -89,6 +91,13 @@ export type HubDetail = HubGame & {
   forma: HubForma | null;
   /** xG do fornecedor ("real") ou do modelo Poisson ("estimado"). */
   xgSource: "real" | "estimado" | null;
+  /**
+   * Padrões estatísticos gravados na última análise ("The Lab"). Vazio quando o
+   * motor não gerou padrão para este jogo — a UI avisa, não inventa.
+   */
+  labInsights: HubLabInsight[];
+  /** Fatores que deslocam o xG de cada lado, como o motor gravou em `hub_xg_factor`. */
+  xgFactors: Array<{ side: string; factorType: string; impact: number; weight: number; context: Record<string, unknown> | null }>;
 };
 
 export type HubForma = {
@@ -156,6 +165,7 @@ type AnalysisPick = {
   analysisText: string;
   keyFactors: string[];
   riskFactors: string[];
+  labInsights: HubLabInsight[];
 };
 
 /**
@@ -176,6 +186,7 @@ async function latestAnalysesFor(fixtureIds: number[]): Promise<Map<number, Anal
       analysisText: hubAnalysis.analysisText,
       keyFactors: hubAnalysis.keyFactors,
       riskFactors: hubAnalysis.riskFactors,
+      labInsights: hubAnalysis.labInsights,
       createdAt: hubAnalysis.createdAt,
     })
     .from(hubAnalysis)
@@ -469,6 +480,9 @@ function demoDetail(id: number): HubDetail | null {
     // Jogo de demonstração: não há histórico real por trás, então não inventamos forma.
     forma: null,
     xgSource: "estimado",
+    // Sem análise gravada também não há fator nem padrão: a UI mostra "indisponível".
+    labInsights: [],
+    xgFactors: [],
   };
 }
 
@@ -493,6 +507,20 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       formasRecentes(row.homeId, row.awayId, row.kickoff),
     ]);
     const analise = analises.get(row.id) ?? null;
+
+    /** Fatores de xG da mesma análise que gerou as probabilidades. */
+    const fatores: HubDetail["xgFactors"] = analise
+      ? await db
+          .select({
+            side: hubXgFactor.side,
+            factorType: hubXgFactor.factorType,
+            impact: hubXgFactor.impact,
+            weight: hubXgFactor.weight,
+            context: hubXgFactor.context,
+          })
+          .from(hubXgFactor)
+          .where(eq(hubXgFactor.analysisId, analise.id))
+      : [];
 
     const [predicoes, placares, valor, odds] = await Promise.all([
       analise
@@ -561,6 +589,8 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       contextSource: ctx?.source ?? null,
       bestOdds: [...melhor.values()],
       forma,
+      labInsights: analise?.labInsights ?? [],
+      xgFactors: fatores.map((f) => ({ ...f, context: (f.context ?? null) as Record<string, unknown> | null })),
     };
   } catch {
     // Banco fora: se o id existe na massa de demonstração, ainda abrimos a tela.
