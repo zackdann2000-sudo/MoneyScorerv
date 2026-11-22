@@ -10,7 +10,7 @@ import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { hubFixture, hubLeague, hubPlayer, hubPlayerStat, hubSeason, hubTeam } from "@/db/hub-schema";
-import { lerClassificacao, resolverLigaId, type Classificacao } from "./standings";
+import { lerClassificacao, ligasDaCompeticao, type Classificacao, type LigaIrma } from "./standings";
 
 /** Estados em que o jogo tem placar final. Espelha `queries.ts`. */
 const FINALIZADOS = ["FT", "AET", "PEN"] as const;
@@ -78,10 +78,25 @@ export type DadosCompeticao = {
   medias: MediasLiga;
   /** Jogos distintos encerrados na temporada (base das médias). */
   totalJogosEncerrados: number;
+  /** Linhas de `hub_league` unidas para montar esta página (ponte de identidade). */
+  fontes: LigaIrma[];
 };
 
 const homeT = alias(hubTeam, "liga_home_team");
 const awayT = alias(hubTeam, "liga_away_team");
+
+const MEDIAS_VAZIAS: MediasLiga = {
+  amostra: 0,
+  golsPorJogo: null,
+  golsCasaPorJogo: null,
+  golsForaPorJogo: null,
+  over25Pct: null,
+  bttsPct: null,
+  amarelosPorJogo: null,
+  vermelhosPorJogo: null,
+  amostraCartoes: 0,
+  amostraVermelhos: 0,
+};
 
 const colunasJogo = {
   id: hubFixture.id,
@@ -117,26 +132,28 @@ const comPlacar = (l: LinhaJogo): JogoResumo => ({
 });
 
 /** Próximos jogos: do apito inicial para frente, mais perto primeiro. */
-async function proximosJogos(leagueId: number, limite = 5): Promise<JogoResumo[]> {
+async function proximosJogos(leagueIds: number[], limite = 5): Promise<JogoResumo[]> {
+  if (!leagueIds.length) return [];
   const rows = (await db
     .select(colunasJogo)
     .from(hubFixture)
     .innerJoin(homeT, eq(homeT.id, hubFixture.homeTeamId))
     .innerJoin(awayT, eq(awayT.id, hubFixture.awayTeamId))
-    .where(and(eq(hubFixture.leagueId, leagueId), gte(hubFixture.matchDate, new Date())))
+    .where(and(inArray(hubFixture.leagueId, leagueIds), gte(hubFixture.matchDate, new Date())))
     .orderBy(asc(hubFixture.matchDate))
     .limit(limite)) as LinhaJogo[];
   return rows.map(comPlacar);
 }
 
 /** Últimos resultados: encerrados, mais recente primeiro. */
-async function ultimosJogos(leagueId: number, limite = 5): Promise<JogoResumo[]> {
+async function ultimosJogos(leagueIds: number[], limite = 5): Promise<JogoResumo[]> {
+  if (!leagueIds.length) return [];
   const rows = (await db
     .select(colunasJogo)
     .from(hubFixture)
     .innerJoin(homeT, eq(homeT.id, hubFixture.homeTeamId))
     .innerJoin(awayT, eq(awayT.id, hubFixture.awayTeamId))
-    .where(and(eq(hubFixture.leagueId, leagueId), inArray(hubFixture.liveState, [...FINALIZADOS])))
+    .where(and(inArray(hubFixture.leagueId, leagueIds), inArray(hubFixture.liveState, [...FINALIZADOS])))
     .orderBy(desc(hubFixture.matchDate))
     .limit(limite)) as LinhaJogo[];
   return rows.map(comPlacar);
@@ -149,8 +166,8 @@ async function ultimosJogos(leagueId: number, limite = 5): Promise<JogoResumo[]>
  * tabela de artilharia usa. Se a tabela não foi coletada, volta vazio: a seção
  * não aparece, não vira "0 gols" para todo mundo.
  */
-async function artilhariaDa(leagueId: number, seasonId: number | null): Promise<Artilheiro[]> {
-  if (!seasonId) return [];
+async function artilhariaDa(leagueIds: number[], seasonIds: number[]): Promise<Artilheiro[]> {
+  if (!seasonIds.length) return [];
   const rows = await db
     .select({
       playerId: hubPlayer.id,
@@ -166,7 +183,13 @@ async function artilhariaDa(leagueId: number, seasonId: number | null): Promise<
     .innerJoin(hubPlayer, eq(hubPlayer.id, hubPlayerStat.playerId))
     .innerJoin(hubSeason, eq(hubSeason.id, hubPlayerStat.seasonId))
     .leftJoin(hubTeam, eq(hubTeam.id, hubPlayerStat.teamId))
-    .where(and(eq(hubSeason.leagueId, leagueId), eq(hubPlayerStat.seasonId, seasonId), gte(hubPlayerStat.goals, 1)))
+    .where(
+      and(
+        inArray(hubSeason.leagueId, leagueIds),
+        inArray(hubPlayerStat.seasonId, seasonIds),
+        gte(hubPlayerStat.goals, 1),
+      ),
+    )
     .orderBy(desc(hubPlayerStat.goals), desc(hubPlayerStat.assists))
     .limit(5);
   return rows;
@@ -181,10 +204,16 @@ async function artilhariaDa(leagueId: number, seasonId: number | null): Promise<
  * denominador dos cartões é só o número de jogos em que o dado existe — a base
  * honesta de cada média.
  */
-async function mediasDa(leagueId: number, seasonId: number | null): Promise<{ medias: MediasLiga; total: number }> {
-  const filtroTemporada = seasonId
-    ? and(eq(hubFixture.leagueId, leagueId), eq(hubFixture.seasonId, seasonId), inArray(hubFixture.liveState, [...FINALIZADOS]))
-    : and(eq(hubFixture.leagueId, leagueId), inArray(hubFixture.liveState, [...FINALIZADOS]));
+async function mediasDa(leagueIds: number[], seasonIds: number[]): Promise<{ medias: MediasLiga; total: number }> {
+  if (!leagueIds.length) return { total: 0, medias: MEDIAS_VAZIAS };
+
+  /* A temporada é filtrada pelo CONJUNTO de season ids (`seasonIds`), não por
+     um só: cada linha de `hub_league` tem a sua própria `hub_season`, e as
+     fixtures podem estar gravadas sob a temporada do outro fornecedor. */
+  const porLiga = inArray(hubFixture.leagueId, leagueIds);
+  const filtroTemporada = seasonIds.length
+    ? and(porLiga, inArray(hubFixture.seasonId, seasonIds), inArray(hubFixture.liveState, [...FINALIZADOS]))
+    : and(porLiga, inArray(hubFixture.liveState, [...FINALIZADOS]));
 
   const [agregado] = await db
     .select({
@@ -222,11 +251,21 @@ async function mediasDa(leagueId: number, seasonId: number | null): Promise<{ me
   };
 }
 
-/** Lê tudo que a página da liga precisa. `null` = competição não encontrada. */
+/**
+ * Lê tudo que a página da liga precisa. `null` = competição não encontrada.
+ *
+ * A entrada pode ser id interno, código Football-Data ("BSA"), código ESPN
+ * ("bra.1") ou slug. `ligasDaCompeticao` devolve TODAS as linhas de
+ * `hub_league` que representam a mesma competição, e todas as consultas usam o
+ * conjunto — é o que faz `/hub/liga/bra.1` e `/hub/liga/BSA` mostrar a mesma
+ * coisa: classificação de um lado, jogos do outro.
+ */
 export async function dadosDaCompeticao(entrada: string): Promise<DadosCompeticao | null> {
-  const leagueId = await resolverLigaId(entrada);
-  if (!leagueId) return null;
+  const fontes = await ligasDaCompeticao(entrada);
+  const leagueIds = fontes.map((f) => f.id);
+  if (!leagueIds.length) return null;
 
+  /* Cabeçalho: a linha da âncora (a que a URL pediu) define nome/país/escudo. */
   const [liga] = await db
     .select({
       id: hubLeague.id,
@@ -239,38 +278,40 @@ export async function dadosDaCompeticao(entrada: string): Promise<DadosCompetica
       isCup: hubLeague.hasKnockout,
     })
     .from(hubLeague)
-    .where(eq(hubLeague.id, leagueId))
+    .where(eq(hubLeague.id, leagueIds[0]))
     .limit(1);
   if (!liga) return null;
 
-  /* Temporada: a marcada como atual; sem marca, a mais recente por chave. */
+  /* Temporada: a marcada como atual entre as linhas irmãs; sem marca, a mais
+     recente por chave. `seasonIds` reúne as temporadas equivalentes de cada
+     fornecedor — placar de um lado, tabela do outro. */
   const temporadas = await db
     .select({ id: hubSeason.id, seasonKey: hubSeason.seasonKey, isCurrent: hubSeason.isCurrent })
     .from(hubSeason)
-    .where(eq(hubSeason.leagueId, leagueId))
+    .where(inArray(hubSeason.leagueId, leagueIds))
     .orderBy(desc(hubSeason.seasonKey));
   const temporada = temporadas.find((t) => t.isCurrent) ?? temporadas[0] ?? null;
+  const seasonKey = temporada?.seasonKey ?? null;
+  const seasonIds = seasonKey ? temporadas.filter((t) => t.seasonKey === seasonKey).map((t) => t.id) : [];
 
-  const [classificacao, artilharia, proximos, ultimos, { medias, total }] = await Promise.all([
-    lerClassificacao(leagueId, temporada ? { seasonKey: temporada.seasonKey } : {}).catch(() => null),
-    artilhariaDa(leagueId, temporada?.id ?? null).catch(() => [] as Artilheiro[]),
-    proximosJogos(leagueId).catch(() => [] as JogoResumo[]),
-    ultimosJogos(leagueId).catch(() => [] as JogoResumo[]),
-    mediasDa(leagueId, temporada?.id ?? null).catch(() => ({
-      total: 0,
-      medias: {
-        amostra: 0,
-        golsPorJogo: null,
-        golsCasaPorJogo: null,
-        golsForaPorJogo: null,
-        over25Pct: null,
-        bttsPct: null,
-        amarelosPorJogo: null,
-        vermelhosPorJogo: null,
-        amostraCartoes: 0,
-        amostraVermelhos: 0,
-      } satisfies MediasLiga,
-    })),
+  /* Classificação: tenta cada linha irmã até achar retrato com linhas. A ordem
+     põe a âncora primeiro, então entrar por "BSA" lê o retrato do FD direto. */
+  const lerClassificacaoDasIrmas = async (): Promise<Classificacao | null> => {
+    let primeiroSemLinhas: Classificacao | null = null;
+    for (const id of leagueIds) {
+      const c = await lerClassificacao(id, seasonKey ? { seasonKey } : {}).catch(() => null);
+      if (c && c.rows.length > 0) return c;
+      if (c && !primeiroSemLinhas) primeiroSemLinhas = c;
+    }
+    return primeiroSemLinhas;
+  };
+
+  const [classificacao, artilharia, proximos, ultimos, medias] = await Promise.all([
+    lerClassificacaoDasIrmas(),
+    artilhariaDa(leagueIds, seasonIds).catch(() => [] as Artilheiro[]),
+    proximosJogos(leagueIds).catch(() => [] as JogoResumo[]),
+    ultimosJogos(leagueIds).catch(() => [] as JogoResumo[]),
+    mediasDa(leagueIds, seasonIds).catch(() => ({ total: 0, medias: MEDIAS_VAZIAS })),
   ]);
 
   return {
@@ -279,7 +320,8 @@ export async function dadosDaCompeticao(entrada: string): Promise<DadosCompetica
     artilharia,
     proximos,
     ultimos,
-    medias,
-    totalJogosEncerrados: total,
+    medias: medias.medias,
+    totalJogosEncerrados: medias.total,
+    fontes,
   };
 }

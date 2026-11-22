@@ -2,7 +2,7 @@ import { and, asc, desc, eq, notInArray } from "drizzle-orm";
 import { db } from "@/db";
 import { hubLeague, hubSeason, hubStanding, hubTeam } from "@/db/hub-schema";
 import { ensureSeason, upsertLeague, upsertTeam } from "./identity";
-import { fdFetch, fdCompetitionCode } from "@/lib/providers";
+import { fdFetch, espnCodesForFd, fdCompetitionCode } from "@/lib/providers";
 import {
   DESEMPATE_PADRAO,
   ordenarTabela,
@@ -334,6 +334,113 @@ export async function resolverLigaId(entrada: string): Promise<number | null> {
   // 3. slug exato
   const [porSlug] = await db.select({ id: hubLeague.id }).from(hubLeague).where(eq(hubLeague.slug, bruto)).limit(1);
   return porSlug?.id ?? null;
+}
+
+/* ===== ponte de identidade entre fornecedores ===== */
+
+export type LigaIrma = {
+  id: number;
+  name: string;
+  slug: string;
+  source: string;
+  externalRef: string | null;
+};
+
+/**
+ * Todos os códigos que apontam para a MESMA competição, em minúsculas.
+ *
+ * Ponto de partida: `fdCompetitionCode` (ESPN -> Football-Data) e o seu
+ * inverso. O código cru entra no conjunto porque nem toda liga está no mapa.
+ */
+function codigosDaCompeticao(entrada: string): Set<string> {
+  const bruto = entrada.trim();
+  const out = new Set<string>();
+  if (!bruto) return out;
+
+  out.add(bruto.toLowerCase());
+  const fd = fdCompetitionCode(bruto) ?? bruto.toUpperCase();
+  out.add(fd.toLowerCase());
+  for (const espn of espnCodesForFd(fd)) out.add(espn.toLowerCase());
+  return out;
+}
+
+/** Slug sem o prefixo de origem ("footballdata-", "espn-"). */
+function slugBase(slug: string, source: string): string {
+  const prefixo = source.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return slug
+    .toLowerCase()
+    .replace(new RegExp(`^${prefixo}-`), "")
+    .trim();
+}
+
+/**
+ * Linhas de `hub_league` que representam a mesma competição, com a âncora 1º.
+ *
+ * Por que isto existe: a chave única de `hub_league` é `(source, external_ref)`,
+ * então a MESMA competição pode ter DUAS linhas — `espn/bra.1` e
+ * `footballdata/BSA` — com ids diferentes. Sem unir os ids, entrar na página
+ * por um dos caminhos mostra a classificação e esconde os jogos (ou o
+ * contrário), e o usuário lê isso como “a liga está vazia”.
+ *
+ * Regras, da mais forte para a mais fraca:
+ *   1. é a própria âncora;
+ *   2. `external_ref` bate com qualquer código equivalente (mapa FD <-> ESPN);
+ *   3. slug base idêntico (ex.: "premier-league" nos dois fornecedores).
+ *
+ * Regra de ouro: **sem certeza, não une**. Toda união exige país compatível
+ * quando os dois lados têm `country_iso2` — “Serie A” da Itália e
+ * “Campeonato Brasileiro Série A” compartilham a palavra "série" e NUNCA podem
+ * virar a mesma competição. Sem mapa e sem slug igual, volta só a âncora.
+ */
+export async function ligasDaCompeticao(entrada: string): Promise<LigaIrma[]> {
+  const ancoraId = await resolverLigaId(entrada);
+  if (!ancoraId) return [];
+
+  const todas = await db
+    .select({
+      id: hubLeague.id,
+      name: hubLeague.name,
+      slug: hubLeague.slug,
+      source: hubLeague.source,
+      externalRef: hubLeague.externalRef,
+      countryIso2: hubLeague.countryIso2,
+    })
+    .from(hubLeague);
+
+  const ancora = todas.find((l) => l.id === ancoraId);
+  if (!ancora) return [];
+
+  const codigos = codigosDaCompeticao(entrada);
+  for (const c of codigosDaCompeticao(ancora.externalRef ?? "")) codigos.add(c);
+  const baseAncora = slugBase(ancora.slug, ancora.source);
+
+  const paisConflita = (a: typeof ancora, b: typeof ancora) =>
+    Boolean(a.countryIso2 && b.countryIso2 && a.countryIso2 !== b.countryIso2);
+
+  const irmas: LigaIrma[] = [];
+  for (const l of todas) {
+    if (l.id === ancoraId) continue;
+    if (paisConflita(ancora, l)) continue;
+
+    const ref = (l.externalRef ?? "").toLowerCase();
+    const porCodigo = ref !== "" && codigos.has(ref);
+    // Slug base só vale com fonte diferente; igualdade de slug na mesma fonte
+    // seria a mesma linha com outro id, o que não existe.
+    const porSlug = l.source !== ancora.source && slugBase(l.slug, l.source) === baseAncora && baseAncora !== "";
+
+    if (porCodigo || porSlug) {
+      irmas.push({ id: l.id, name: l.name, slug: l.slug, source: l.source, externalRef: l.externalRef });
+    }
+  }
+
+  // Ordem: âncora primeiro (é a preferida para ler), depois as outras fontes.
+  irmas.sort((a, b) => a.source.localeCompare(b.source));
+  return [{ id: ancora.id, name: ancora.name, slug: ancora.slug, source: ancora.source, externalRef: ancora.externalRef }, ...irmas];
+}
+
+/** Só os ids da ponte — atalho para `inArray` nas consultas de fixture. */
+export async function idsDaCompeticao(entrada: string): Promise<number[]> {
+  return (await ligasDaCompeticao(entrada)).map((l) => l.id);
 }
 
 /** Lê o retrato de classificação do banco. Nenhuma chamada de rede. */

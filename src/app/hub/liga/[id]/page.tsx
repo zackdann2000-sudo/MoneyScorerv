@@ -34,6 +34,14 @@ const hora = (d: Date) => {
 
 const AO_VIVO = new Set(["INPLAY_1ST_HALF", "HT", "INPLAY_2ND_HALF", "ET", "PEN_LIVE"]);
 
+/** Nome de tela do fornecedor (o banco guarda a chave: espn, footballdata...). */
+const NOME_FONTE: Record<string, string> = {
+  espn: "ESPN",
+  footballdata: "Football-Data",
+  sportmonks: "Sportmonks",
+  bzzoiro: "Bzzoiro",
+};
+
 const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const num = (v: number | null, casas = 2) => (v == null ? "—" : v.toFixed(casas).replace(".", ","));
 
@@ -197,10 +205,21 @@ export default async function LigaPage({ params }: Props) {
     );
   }
 
-  const { liga, classificacao, artilharia, proximos, ultimos, medias, totalJogosEncerrados } = dados;
+  const { liga, classificacao, artilharia, proximos, ultimos, medias, totalJogosEncerrados, fontes } = dados;
   const top5 = classificacao?.rows.slice(0, 5) ?? [];
-  const zonas = top5.length ? zonasDaLiga({ codigo: liga.externalRef, nome: liga.name, slug: liga.slug, fase: classificacao?.stageName, totalTimes: top5.length, isCup: liga.isCup }) : [];
+  const zonas = top5.length
+    ? zonasDaLiga({
+        codigo: liga.externalRef,
+        nome: liga.name,
+        slug: liga.slug,
+        fase: classificacao?.stageName,
+        totalTimes: top5.length,
+        isCup: liga.isCup,
+      })
+    : [];
   const tabelaHref = `/hub/classificacao?league=${encodeURIComponent(liga.externalRef || liga.id)}`;
+  /* Mostra a ponte só quando ela realmente uniu fornecedores diferentes. */
+  const nomesFontes = [...new Set(fontes.map((f) => NOME_FONTE[f.source] ?? f.source))];
 
   return (
     <div>
@@ -218,6 +237,11 @@ export default async function LigaPage({ params }: Props) {
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {nomesFontes.length > 1 && (
+            <p className="text-[9px] text-mut mt-0.5">
+              Dados unidos de {nomesFontes.join(" + ")} — mesma competição, fontes diferentes.
+            </p>
+          )}
         </div>
         <Link href="/hub" className="ml-auto text-[11px] font-bold text-acc shrink-0 self-center inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Hub
@@ -282,6 +306,10 @@ export default async function LigaPage({ params }: Props) {
             <li>• Jogos: fixtures sincronizadas; placar só aparece depois do encerramento.</li>
             <li>• Artilharia: estatística de jogador na temporada, quando coletada.</li>
             <li>• Médias: calculadas apenas sobre jogos encerrados desta competição.</li>
+            <li>
+              • A classificação e os jogos podem vir de fornecedores diferentes (ESPN e Football-Data): a página une as
+              duas identidades da competição, então tanto faz entrar por “bra.1” ou por “BSA”.
+            </li>
           </ul>
         </div>
       </div>

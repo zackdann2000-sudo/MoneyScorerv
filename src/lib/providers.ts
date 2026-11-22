@@ -115,6 +115,17 @@ const FD_COMP: Record<string, string> = {
 
 export const fdCompetitionCode = (league: string) => FD_COMP[league] || null;
 
+/**
+ * Inverso do mapa: código Football-Data -> códigos ESPN que apontam para ele.
+ *
+ * Existe porque o Hub guarda uma linha de `hub_league` por fornecedor: a mesma
+ * competição pode estar em `espn/bra.1` e em `footballdata/BSA`. A ponte de
+ * identidade (`lib/hub/standings.ts`) precisa dos dois lados do mapa, e o mapa
+ * é UM só — duplicá-lo em outro módulo é como se cria divergência silenciosa.
+ */
+export const espnCodesForFd = (code: string): string[] =>
+  Object.keys(FD_COMP).filter((espn) => FD_COMP[espn].toUpperCase() === code.trim().toUpperCase());
+
 export type StandingRow = {
   teamId: string; name: string; short: string; logo: string;
   rank: number; teamRef?: string; teamShort?: string;
