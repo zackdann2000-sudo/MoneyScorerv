@@ -41,7 +41,12 @@ import { users } from "./schema";
 
 export const hubLeague = pgTable("hub_league", {
   id: serial("id").primaryKey(),
-  sportmonksId: integer("sportmonks_id").notNull().unique(),
+  /** Chave do fornecedor de origem (espn | footballdata | sportmonks | bzzoiro). */
+  source: text("source").notNull().default("sportmonks"),
+  /** Id da liga NO fornecedor de origem. Identidade canônica junto de `source`. */
+  externalRef: text("external_ref"),
+  /** Preenchido só quando a linha veio da Sportmonks (compatibilidade). */
+  sportmonksId: integer("sportmonks_id").unique(),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   logoUrl: text("logo_url"),
@@ -55,7 +60,11 @@ export const hubLeague = pgTable("hub_league", {
   isExperimental: boolean("is_experimental").notNull().default(false),
   oddsProviderId: integer("odds_provider_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("hub_league_country_idx").on(t.countryIso2), index("hub_league_tracked_idx").on(t.isTracked)]);
+}, (t) => [
+  index("hub_league_country_idx").on(t.countryIso2),
+  index("hub_league_tracked_idx").on(t.isTracked),
+  uniqueIndex("hub_league_source_ref_uq").on(t.source, t.externalRef),
+]);
 
 export const hubSeason = pgTable("hub_season", {
   id: serial("id").primaryKey(),
@@ -72,18 +81,26 @@ export const hubSeason = pgTable("hub_season", {
 
 export const hubTeam = pgTable("hub_team", {
   id: serial("id").primaryKey(),
-  sportmonksId: integer("sportmonks_id").notNull().unique(),
+  source: text("source").notNull().default("sportmonks"),
+  externalRef: text("external_ref"),
+  sportmonksId: integer("sportmonks_id").unique(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   logoUrl: text("logo_url"),
   countryIso2: text("country_iso2"),
   leagueId: integer("league_id").references(() => hubLeague.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("hub_team_slug_idx").on(t.slug), index("hub_team_league_idx").on(t.leagueId)]);
+}, (t) => [
+  index("hub_team_slug_idx").on(t.slug),
+  index("hub_team_league_idx").on(t.leagueId),
+  uniqueIndex("hub_team_source_ref_uq").on(t.source, t.externalRef),
+]);
 
 export const hubPlayer = pgTable("hub_player", {
   id: serial("id").primaryKey(),
-  sportmonksId: integer("sportmonks_id").notNull().unique(),
+  source: text("source").notNull().default("sportmonks"),
+  externalRef: text("external_ref"),
+  sportmonksId: integer("sportmonks_id").unique(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   imageUrl: text("image_url"),
@@ -96,11 +113,18 @@ export const hubPlayer = pgTable("hub_player", {
   weight: integer("weight"),
   teamId: integer("team_id").references(() => hubTeam.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("hub_player_team_idx").on(t.teamId), index("hub_player_slug_idx").on(t.slug)]);
+}, (t) => [
+  index("hub_player_team_idx").on(t.teamId),
+  index("hub_player_slug_idx").on(t.slug),
+  uniqueIndex("hub_player_source_ref_uq").on(t.source, t.externalRef),
+]);
 
 export const hubFixture = pgTable("hub_fixture", {
   id: serial("id").primaryKey(),
-  sportmonksId: integer("sportmonks_id").notNull().unique(),
+  /** Fornecedor que criou a linha e o id do jogo nele. */
+  source: text("source").notNull().default("sportmonks"),
+  externalRef: text("external_ref"),
+  sportmonksId: integer("sportmonks_id").unique(),
   leagueId: integer("league_id").notNull().references(() => hubLeague.id, { onDelete: "cascade" }),
   seasonId: integer("season_id").references(() => hubSeason.id, { onDelete: "set null" }),
   stageName: text("stage_name"),
@@ -128,7 +152,41 @@ export const hubFixture = pgTable("hub_fixture", {
   index("hub_fixture_date_idx").on(t.matchDate),
   index("hub_fixture_league_date_idx").on(t.leagueId, t.matchDate),
   index("hub_fixture_live_idx").on(t.liveState),
+  uniqueIndex("hub_fixture_source_ref_uq").on(t.source, t.externalRef),
 ]);
+
+/**
+ * Vínculo entre uma fixture interna e o id dela em cada fornecedor.
+ *
+ * O jogo nasce na ESPN, mas as odds podem vir da Sportmonks/Bzzoiro; sem esta
+ * tabela cada motor de sync teria de recasar times por nome em todo ciclo.
+ * A chave (provider, externalId) é única: um id de provedor aponta para um jogo.
+ */
+export const hubFixtureSource = pgTable("hub_fixture_source", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  fixtureId: integer("fixture_id").notNull().references(() => hubFixture.id, { onDelete: "cascade" }),
+  /** espn | footballdata | sportmonks | bzzoiro */
+  provider: text("provider").notNull(),
+  externalId: text("external_id").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("hub_fixture_source_uq").on(t.provider, t.externalId),
+  index("hub_fixture_source_fixture_idx").on(t.fixtureId),
+]);
+
+/**
+ * Contexto por partida que não cabe no motor Poisson mas o produto exibe:
+ * confronto direto (H2H) e estatísticas do jogo. Guardado como JSON do
+ * fornecedor, sem reinterpretação — nulo quando nenhum fornecedor respondeu.
+ */
+export const hubFixtureContext = pgTable("hub_fixture_context", {
+  fixtureId: integer("fixture_id").primaryKey().references(() => hubFixture.id, { onDelete: "cascade" }),
+  /** espn | bzzoiro | sportmonks */
+  source: text("source").notNull(),
+  h2h: jsonb("h2h").$type<HubH2H | null>(),
+  stats: jsonb("stats").$type<HubMatchStats | null>(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const hubAnalysis = pgTable("hub_analysis", {
   id: serial("id").primaryKey(),
@@ -412,7 +470,29 @@ export type HubAnalysisSummary = {
   expectedTotalGoals: number;
   over25Probability: number;
   bttsProbability: number;
+  /**
+   * Existiu odd real para este jogo?
+   *
+   * false = só probabilidade: a UI NÃO pode mostrar a tag de "Valor" nem
+   * "odd" (não houve mercado para comparar). O motor já garante que, sem odd,
+   * nenhuma oportunidade é criada — este campo existe para a tela saber disso
+   * sem ter de cruzar `hub_bookmaker_odd`.
+   */
+  hasOdds?: boolean;
 };
+
+/** Confronto direto resumido, como o fornecedor entregou. */
+export type HubH2H = {
+  matches: number;
+  homeWins: number;
+  draws: number;
+  awayWins: number;
+  avgTotalGoals: number | null;
+  recent: Array<{ date: string | null; home: string; away: string; homeScore: number | null; awayScore: number | null }>;
+};
+
+/** Estatística de partida (posse, finalizações, xG) por lado, sem inventar. */
+export type HubMatchStats = Record<string, { home: number | string | null; away: number | string | null }>;
 
 export type HubLabInsight = {
   patternType: string;

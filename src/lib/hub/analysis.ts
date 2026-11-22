@@ -253,6 +253,17 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
   const [{ home, away, isExperimental }, odds] = await Promise.all([buildModelInputs(fixtureId), oddsIndex(fixtureId)]);
   const output = runHubModel(home, away);
 
+  /**
+   * REGRA DE OURO: sem odd real, a análise existe (probabilidade é do modelo),
+   * mas a tag de "Valor" não aparece em lugar nenhum — não há oportunidade a
+   * criar e o resumo vai marcado com `hasOdds: false` para a UI esconder a tag.
+   */
+  const temOdds = Object.keys(odds).some((k) => (odds[k] ?? []).some((r) => r.odds > 1.01));
+  const resumo = { ...output.summary, hasOdds: temOdds };
+  const riscos = temOdds
+    ? output.riskFactors
+    : [...output.riskFactors, "Sem odds no mercado para este jogo — a análise traz só probabilidade, sem valor esperado."].slice(0, 5);
+
   const [latest] = await db
     .select({ version: hubAnalysis.version })
     .from(hubAnalysis)
@@ -268,12 +279,12 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
       version,
       analysisType: kind,
       lineupsIncluded: kind === "Final",
-      summary: output.summary,
+      summary: resumo,
       confidence: output.confidence,
       predictedHomeGoals: output.xgHome,
       predictedAwayGoals: output.xgAway,
       keyFactors: output.keyFactors,
-      riskFactors: output.riskFactors,
+      riskFactors: riscos,
       labInsights: output.labInsights,
       modelVersion: "v1",
     })
@@ -408,4 +419,19 @@ export async function opportunityForFixture(fixtureId: number) {
     .orderBy(desc(hubOpportunity.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * A fixture tem odd real no banco?
+ *
+ * É o que a UI consulta para decidir se mostra a tag de "Valor": sem odd > 1.01
+ * em nenhum mercado, a linha existe só como probabilidade.
+ */
+export async function fixtureHasOdds(fixtureId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ odds: hubBookmakerOdd.odds })
+    .from(hubBookmakerOdd)
+    .where(eq(hubBookmakerOdd.fixtureId, fixtureId))
+    .limit(1);
+  return Boolean(row && row.odds > 1.01);
 }

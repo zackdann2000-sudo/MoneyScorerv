@@ -1,0 +1,2447 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Events &amp; live scores — Docs | BSD</title>
+    
+    <meta name="description" content="Match lists, live scores and the 13 per-match sub-resources — stats with xG, lineups, incidents, head-to-head, odds, predictions and more.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://sports.bzzoiro.com/docs/football/events/">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%231a1a2e' stroke='%234f46e5' stroke-width='1.5'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%234f46e5' stroke-width='1'/%3E%3Cellipse cx='16' cy='16' rx='5' ry='10' fill='none' stroke='%23818cf8' stroke-width='0.8'/%3E%3Cellipse cx='16' cy='16' rx='10' ry='5' fill='none' stroke='%23818cf8' stroke-width='0.8'/%3E%3C/svg%3E">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Bzzoiro Sports Data - Free Football API">
+    <meta property="og:description" content="Free Football Data API with ML predictions, live scores, odds, and player stats across 30+ leagues.">
+    <meta property="og:url" content="https://sports.bzzoiro.com/docs/football/events/">
+    <meta property="og:site_name" content="Bzzoiro Sports Data">
+    <meta property="og:image" content="https://sports.bzzoiro.com/static/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Bzzoiro Sports Data - Free Football API">
+    <meta name="twitter:description" content="Free Football Data API with ML predictions, live scores, odds, and player stats across 30+ leagues.">
+    <meta name="twitter:image" content="https://sports.bzzoiro.com/static/og-image.png">
+
+    
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+.bsd-docs {
+    --bg:#ffffff; --bg-soft:#f7f8fa;
+    --ink:#07080b; --ink-2:#18181b;
+    --muted:#71717a; --muted-2:#a1a1aa;
+    --line:#e4e4e7; --line-soft:#f0f0f3;
+    --accent:#4f46e5; --accent-2:#6366f1; --accent-soft:#eef2ff;
+    --code-bg:#0b0d12; --code-fg:#e4e4e7;
+    background:var(--bg); color:var(--ink);
+    font-family:'Geist','Inter',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; letter-spacing:-0.005em;
+}
+.bsd-docs a { color:var(--accent); text-decoration:none; }
+.bsd-docs a:hover { color:var(--accent-2); }
+
+.bsd-docs-shell {
+    display:grid; grid-template-columns:250px minmax(0,1fr) 200px;
+    gap:44px; max-width:1240px; margin:0 auto; padding:36px 24px 90px;
+}
+
+/* ---------- left sidebar ---------- */
+.bsd-side { position:sticky; top:84px; align-self:start;
+    max-height:calc(100vh - 100px); overflow-y:auto; padding-right:6px;
+    scrollbar-width:thin; }
+.bsd-side__search { position:relative; margin-bottom:18px; }
+.bsd-side__search input {
+    width:100%; padding:8px 12px; font-size:13px; color:var(--ink);
+    border:1px solid var(--line); border-radius:8px; background:var(--bg-soft);
+    font-family:inherit; outline:none;
+}
+.bsd-side__search input:focus { border-color:var(--accent-2); background:var(--bg); }
+.bsd-search-results {
+    position:absolute; top:40px; left:0; right:-60px; z-index:60;
+    background:var(--bg); border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.10); max-height:340px; overflow-y:auto;
+    display:none;
+}
+.bsd-search-results.open { display:block; }
+.bsd-search-results a {
+    display:block; padding:9px 13px; border-bottom:1px solid var(--line-soft);
+    font-size:13px; color:var(--ink);
+}
+.bsd-search-results a:last-child { border-bottom:0; }
+.bsd-search-results a:hover, .bsd-search-results a.active { background:var(--accent-soft); }
+.bsd-search-results a small { display:block; color:var(--muted); font-size:11px; margin-top:1px; }
+.bsd-side__section { margin-bottom:20px; }
+.bsd-side__section-title {
+    font-family:'Geist Mono',monospace; font-size:10.5px; font-weight:600;
+    text-transform:uppercase; letter-spacing:0.07em; color:var(--muted);
+    margin:0 0 7px; padding-left:10px;
+}
+.bsd-side__link {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:5px 10px; border-radius:7px; font-size:13.5px; color:var(--ink-2) !important;
+    line-height:1.35;
+}
+.bsd-side__link:hover { background:var(--bg-soft); }
+.bsd-side__link.active { background:var(--accent-soft); color:var(--accent) !important; font-weight:600; }
+.bsd-mini-badge {
+    font-family:'Geist Mono',monospace; font-size:9px; font-weight:600;
+    padding:1px 6px; border-radius:999px; text-transform:uppercase; letter-spacing:0.03em;
+    flex:none;
+}
+.bsd-mini-badge--free { background:#dcfce7; color:#15803d; }
+.bsd-mini-badge--pro  { background:#fef3c7; color:#b45309; }
+.bsd-mini-badge--addon{ background:#f0f9ff; color:#0369a1; }
+
+/* ---------- right toc ---------- */
+.bsd-toc { position:sticky; top:84px; align-self:start; font-size:12.5px;
+    max-height:calc(100vh - 100px); overflow-y:auto; }
+.bsd-toc__title { font-family:'Geist Mono',monospace; font-size:10.5px;
+    font-weight:600; text-transform:uppercase; letter-spacing:0.07em;
+    color:var(--muted); margin:0 0 8px; }
+.bsd-toc a { display:block; padding:3px 0; color:var(--muted); line-height:1.4; }
+.bsd-toc a:hover { color:var(--ink); }
+.bsd-toc ul { list-style:none; margin:0; padding:0; }
+.bsd-toc ul ul { padding-left:14px; }
+
+/* ---------- article / markdown body ---------- */
+.bsd-article { min-width:0; max-width:780px; }
+.bsd-article__crumb { font-family:'Geist Mono',monospace; font-size:11px;
+    text-transform:uppercase; letter-spacing:0.06em; color:var(--accent);
+    margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+.bsd-md h1 { font-size:clamp(28px,4vw,38px); font-weight:650;
+    letter-spacing:-0.03em; line-height:1.1; margin:0 0 14px; }
+.bsd-md h2 { font-size:21px; font-weight:600; letter-spacing:-0.02em;
+    margin:44px 0 12px; padding-top:8px; border-top:1px solid var(--line-soft); }
+.bsd-md h3 { font-size:16px; font-weight:600; letter-spacing:-0.015em; margin:28px 0 8px; }
+.bsd-md h4 { font-size:14px; font-weight:600; margin:20px 0 6px; }
+.bsd-md h2 .headerlink, .bsd-md h3 .headerlink, .bsd-md h4 .headerlink {
+    opacity:0; margin-left:6px; font-weight:400; color:var(--muted-2); font-size:0.85em; }
+.bsd-md h2:hover .headerlink, .bsd-md h3:hover .headerlink, .bsd-md h4:hover .headerlink { opacity:1; }
+.bsd-md p { line-height:1.6; color:var(--ink-2); margin:0 0 12px; font-size:14.5px; }
+.bsd-md li { line-height:1.6; color:var(--ink-2); font-size:14.5px; margin-bottom:4px; }
+.bsd-md ul, .bsd-md ol { padding-left:22px; margin:0 0 14px; }
+.bsd-md code {
+    font-family:'Geist Mono',ui-monospace,monospace; font-size:0.88em;
+    background:var(--bg-soft); border:1px solid var(--line);
+    color:var(--accent); padding:1px 5px; border-radius:5px; word-break:break-word;
+}
+.bsd-md pre {
+    background:var(--code-bg); color:var(--code-fg); border-radius:10px;
+    padding:15px 17px; font-size:12.5px; line-height:1.6;
+    overflow-x:auto; margin:14px 0 18px; position:relative;
+}
+.bsd-md pre code { background:none; border:0; color:inherit; padding:0; font-size:inherit; }
+.bsd-copy {
+    position:absolute; top:8px; right:8px; font-family:'Geist Mono',monospace;
+    font-size:10px; padding:3px 9px; border-radius:6px; cursor:pointer;
+    background:rgba(255,255,255,0.08); color:#a1a1aa; border:1px solid rgba(255,255,255,0.12);
+}
+.bsd-copy:hover { color:#fff; }
+.bsd-md table { width:100%; border-collapse:collapse; font-size:13px; margin:14px 0 20px; display:block; overflow-x:auto; }
+.bsd-md th { text-align:left; padding:8px 12px; color:var(--muted); font-size:11px;
+    font-weight:600; text-transform:uppercase; letter-spacing:0.04em;
+    border-bottom:1px solid var(--line); white-space:nowrap; }
+.bsd-md td { padding:9px 12px; border-bottom:1px solid var(--line-soft);
+    vertical-align:top; line-height:1.5; }
+.bsd-md td code { font-size:11.5px; white-space:nowrap; }
+.bsd-md td:first-child code { color:var(--ink); }
+.bsd-md blockquote {
+    border:1px solid var(--line); border-left:3px solid var(--accent);
+    background:var(--bg-soft); border-radius:0 10px 10px 0;
+    padding:12px 16px; margin:16px 0; font-size:13.5px;
+}
+.bsd-md blockquote p { margin:0; font-size:13.5px; }
+.bsd-md hr { border:0; border-top:1px solid var(--line); margin:36px 0; }
+
+.bsd-pager { display:flex; justify-content:space-between; gap:12px; margin-top:52px; }
+.bsd-pager a { flex:1; border:1px solid var(--line); border-radius:12px;
+    padding:13px 16px; font-size:13px; color:var(--ink); max-width:48%; }
+.bsd-pager a:hover { border-color:var(--accent); }
+.bsd-pager a span { display:block; font-family:'Geist Mono',monospace; font-size:10px;
+    text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:3px; }
+.bsd-pager a.next { text-align:right; margin-left:auto; }
+.bsd-article__foot { margin-top:26px; font-size:12px; color:var(--muted-2); }
+
+/* ---------- responsive ---------- */
+@media (max-width:1100px) { .bsd-docs-shell { grid-template-columns:230px minmax(0,1fr); } .bsd-toc { display:none; } }
+@media (max-width:820px) {
+    .bsd-docs-shell { grid-template-columns:1fr; gap:20px; padding:20px 16px 70px; }
+    .bsd-side { position:static; max-height:none; }
+    .bsd-side__nav { display:none; }
+    .bsd-side__nav.open { display:block; }
+    .bsd-side__toggle { display:flex !important; }
+    .bsd-search-results { right:0; }
+}
+.bsd-side__toggle { display:none; align-items:center; justify-content:space-between;
+    width:100%; padding:9px 14px; border:1px solid var(--line); border-radius:9px;
+    background:var(--bg-soft); font-size:13px; font-weight:600; color:var(--ink);
+    cursor:pointer; margin-bottom:12px; font-family:inherit; }
+</style>
+
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+            --radius-xl: 1rem;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-900);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 0.75rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--gray-900) !important;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-brand .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+        }
+
+        /* Global search (typeahead) */
+        .bsd-search {
+            position: relative;
+            width: 100%;
+            max-width: 340px;
+            margin-left: 1.25rem;
+        }
+        .bsd-search__icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+        .bsd-search__input {
+            width: 100%;
+            padding: 0.5rem 0.75rem 0.5rem 2.1rem;
+            font-size: 0.85rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            background: var(--gray-50);
+            color: var(--gray-900);
+            transition: all 0.15s;
+        }
+        .bsd-search__input:focus {
+            outline: none;
+            border-color: var(--primary-light);
+            background: white;
+            box-shadow: 0 0 0 3px rgb(37 99 235 / 0.12);
+        }
+        .bsd-search__input::placeholder { color: var(--gray-400); }
+        .bsd-search__results {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            max-height: 70vh;
+            overflow-y: auto;
+            z-index: 1060;
+        }
+        .bsd-search__results a:last-child { border-bottom: none !important; }
+        .bsd-search__results a:hover { background: var(--gray-50); }
+        @media (max-width: 991px) {
+            /* On mobile the search lives in the bottom-bar overlay instead */
+            .bsd-search { display: none; }
+        }
+
+        /* ===== Mobile bottom tab bar (iOS-style) ===== */
+        .bsd-tabbar {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            z-index: 1055;
+            display: flex;
+            justify-content: space-around;
+            align-items: stretch;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-top: 1px solid var(--gray-200);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            box-shadow: 0 -1px 12px rgb(0 0 0 / 0.06);
+        }
+        .bsd-tab {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            padding: 7px 0 5px;
+            text-decoration: none;
+            color: var(--gray-500);
+            font-size: 0.62rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.15s;
+        }
+        .bsd-tab i { font-size: 1.4rem; line-height: 1; }
+        .bsd-tab span { line-height: 1; white-space: nowrap; }
+        .bsd-tab { min-width: 0; font-size: 0.57rem; }
+        .bsd-tab.active { color: var(--primary); }
+        .bsd-tab:active { opacity: 0.55; }
+        /* Reserve space so the fixed bar never covers page content — mobile only */
+        @media (max-width: 991px) {
+            body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+            body.has-discord-banner .bsd-tabbar { /* stays pinned to bottom */ }
+        }
+
+        /* ===== Mobile full-screen search overlay ===== */
+        .bsd-msearch {
+            position: fixed;
+            inset: 0;
+            z-index: 1090;
+            background: var(--gray-50);
+            display: flex;
+            flex-direction: column;
+            transform: translateY(-8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            padding-top: env(safe-area-inset-top, 0px);
+        }
+        .bsd-msearch.open { opacity: 1; transform: none; pointer-events: auto; }
+        .bsd-msearch__bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 14px;
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+        }
+        .bsd-msearch__bar > i { color: var(--gray-400); font-size: 1.05rem; }
+        .bsd-msearch__bar input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            background: transparent;
+            color: var(--gray-900);
+        }
+        .bsd-msearch__bar button {
+            border: none;
+            background: none;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 4px 6px;
+        }
+        .bsd-msearch__results { flex: 1; overflow-y: auto; background: white; }
+        .bsd-msearch__results a:last-child { border-bottom: none !important; }
+
+        .nav-link {
+            color: var(--gray-600) !important;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem !important;
+            border-radius: var(--radius-md);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--primary) !important;
+            background: var(--gray-100);
+        }
+
+        .nav-link.nav-link-featured {
+            color: #fff !important;
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            font-weight: 700;
+            box-shadow: 0 1px 4px rgba(22,163,74,.35);
+        }
+        .nav-link.nav-link-featured:hover {
+            background: linear-gradient(135deg, #15803d 0%, #14532d 100%);
+            color: #fff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(22,163,74,.45);
+        }
+        .nav-link.nav-link-featured .badge-new {
+            background: #fbbf24; color: #78350f;
+            font-size: 0.6rem; font-weight: 800;
+            padding: 0.1rem 0.35rem; border-radius: 4px;
+            margin-left: 0.3rem; vertical-align: middle;
+        }
+
+        /* ===== Sport pills (top row) ===== */
+        .nav-link.sport-pill {
+            position: relative;
+            padding: 0.5rem 0.85rem !important;
+        }
+        .nav-link.sport-pill.active {
+            color: var(--pill-accent) !important;
+            background: transparent;
+            font-weight: 600;
+        }
+        .nav-link.sport-pill.active::after {
+            content: '';
+            position: absolute;
+            left: 0.85rem; right: 0.85rem; bottom: 0.2rem;
+            height: 2px;
+            background: var(--pill-accent);
+            border-radius: 1px;
+        }
+        .nav-link.sport-pill.sport-football.active { --pill-accent: #16a34a; }
+        .nav-link.sport-pill.sport-tennis.active   { --pill-accent: #d97706; }
+        .nav-link.sport-pill.sport-padel.active    { --pill-accent: #7c3aed; }
+        .nav-link.sport-pill.sport-csgo.active     { --pill-accent: #1d4ed8; }
+        .nav-link.sport-pill.sport-darts.active    { --pill-accent: #dc2626; }
+        .nav-link.sport-pill.sport-hockey.active   { --pill-accent: #0891b2; }
+        .nav-link.sport-pill.sport-basketball.active { --pill-accent: #ea580c; }
+        .nav-link.sport-pill.sport-horseracing.active { --pill-accent: #b45309; }
+
+        .nav-divider {
+            width: 1px;
+            height: 22px;
+            background: var(--gray-200);
+            margin: 0 0.4rem;
+            list-style: none;
+        }
+
+        /* ===== Per-sport sub-nav (second row) ===== */
+        .bsd-subnav {
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 0.5rem 0;
+            font-size: 0.85rem;
+            position: sticky;
+            top: 64px;
+            z-index: 1029;
+        }
+        .bsd-subnav .container {
+            gap: 0.2rem;
+        }
+        .bsd-subnav a {
+            color: var(--gray-600);
+            text-decoration: none;
+            padding: 0.35rem 0.85rem;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .bsd-subnav a:hover {
+            color: var(--gray-900, #111);
+            background: white;
+        }
+        .bsd-subnav a.active {
+            color: var(--sub-accent);
+            background: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            font-weight: 600;
+        }
+        .bsd-subnav__cta {
+            color: #dc2626 !important;
+            font-weight: 600 !important;
+        }
+        .bsd-subnav__cta:hover {
+            background: #fef2f2 !important;
+            color: #b91c1c !important;
+        }
+
+        .bsd-subnav--football { --sub-accent: #16a34a; }
+        .bsd-subnav--tennis   { --sub-accent: #d97706; }
+        .bsd-subnav--padel    { --sub-accent: #7c3aed; }
+        .bsd-subnav--csgo     { --sub-accent: #1d4ed8; }
+        .bsd-subnav--darts    { --sub-accent: #dc2626; }
+        .bsd-subnav--hockey   { --sub-accent: #0891b2; }
+        .bsd-subnav--basketball { --sub-accent: #ea580c; }
+        .bsd-subnav--horseracing { --sub-accent: #b45309; }
+
+        /* Visual divider inside the sub-nav */
+        .bsd-subnav .bsd-subnav__sep {
+            display: inline-block;
+            width: 1px;
+            height: 18px;
+            background: var(--gray-300);
+            margin: 0 0.45rem;
+            vertical-align: middle;
+        }
+        /* Navbar must float above the sticky sub-nav so its dropdowns aren't clipped */
+        .navbar.sticky-top { z-index: 1040; }
+        .navbar .dropdown-menu { z-index: 1050; }
+        .bsd-subnav { z-index: 1029; }
+
+        /* Cards */
+        .card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-header {
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-body {
+            padding: 1.25rem;
+        }
+
+        /* Tables */
+        .table {
+            color: var(--gray-800);
+            margin-bottom: 0;
+        }
+
+        .table thead th {
+            background: var(--gray-50);
+            color: var(--gray-600);
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--gray-200);
+            padding: 0.75rem 1rem;
+        }
+
+        .table tbody td {
+            padding: 0.875rem 1rem;
+            border-color: var(--gray-100);
+            vertical-align: middle;
+        }
+
+        .table-hover tbody tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Forms */
+        .form-control, .form-select {
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-md);
+            padding: 0.625rem 1rem;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Buttons */
+        .btn {
+            font-weight: 500;
+            padding: 0.625rem 1.25rem;
+            border-radius: var(--radius-md);
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+
+        .btn-outline-primary {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Badges */
+        .badge {
+            font-weight: 500;
+            padding: 0.35rem 0.65rem;
+            border-radius: var(--radius-sm);
+        }
+
+        /* Breadcrumbs */
+        .breadcrumb-nav {
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 0.5rem 0;
+            font-size: 0.85rem;
+        }
+        .breadcrumb-nav .breadcrumb {
+            margin-bottom: 0;
+        }
+        .breadcrumb-nav .breadcrumb-item a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        .breadcrumb-nav .breadcrumb-item.active {
+            color: var(--gray-500);
+        }
+
+        /* Footer */
+        .bsd-tzpick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .bsd-tzpick label { font-size: 12px; opacity: .75; margin: 0; }
+        .bsd-tzpick select {
+            background: rgba(255,255,255,.06); color: inherit;
+            border: 1px solid rgba(255,255,255,.18); border-radius: 8px;
+            padding: 5px 10px; font-size: 13px; font-family: inherit; cursor: pointer;
+        }
+        .bsd-tzpick select option { background: #14161a; color: #e6e6e6; }
+        .footer {
+            background: var(--gray-900);
+            color: var(--gray-400);
+            padding: 3rem 0 2rem;
+            margin-top: 4rem;
+        }
+
+        .footer a {
+            color: var(--gray-400);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover {
+            color: white;
+        }
+
+        .footer h6 {
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .footer ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer ul li {
+            margin-bottom: 0.35rem;
+        }
+
+        .footer ul li a {
+            font-size: 0.9rem;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid var(--gray-700);
+            padding-top: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 1.75rem; }
+        }
+    </style>
+    <style>
+    .bsd-odds-pill{position:relative;color:#0b7a5a!important;font-weight:650}
+    .bsd-odds-pill:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+        background:#10b981;margin-right:7px;vertical-align:middle;box-shadow:0 0 0 3px #10b98126}
+    .bsd-odds-pill.active,.bsd-odds-pill:hover{color:#065f46!important}
+    @media (prefers-color-scheme:dark){.bsd-odds-pill{color:#6ee7b7!important}
+      .bsd-odds-pill.active,.bsd-odds-pill:hover{color:#a7f3d0!important}}
+</style>
+    
+
+    <!-- Organization JSON-LD (all pages) -->
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Organization", "name": "Bzzoiro Sports Data", "url": "https://sports.bzzoiro.com", "description": "Free Football Data API with ML predictions, live scores, odds, and player stats.", "contactPoint": {"@type": "ContactPoint", "email": "sports@bzzoiro.com", "contactType": "customer support"}}</script>
+    <!-- Plausible Analytics -->
+    <script defer data-domain="sports.bzzoiro.com" src="https://analytics.bzzoiro.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"></script>
+    <script>window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }</script>
+    <!-- Cloudflare Web Analytics -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "57540ac57fb0444aa50f76185a74839b"}'></script><!-- End Cloudflare Web Analytics -->
+</head>
+<body>
+
+    
+
+    <!-- Discord community banner (dismissible via localStorage) -->
+    <style>
+        #discord-banner {
+            display: none;
+            position: relative;
+            background: linear-gradient(90deg, #5865F2 0%, #7289DA 50%, #5865F2 100%);
+            background-size: 200% 100%;
+            animation: discord-shimmer 6s linear infinite;
+            color: #fff;
+            font-size: 1rem;
+            padding: 0.95rem 3rem;
+            text-align: center;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            box-shadow: 0 2px 12px rgba(88,101,242,0.45);
+            z-index: 1100;
+        }
+        #discord-banner .dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            background: #00ff85;
+            border-radius: 50%;
+            margin-right: 0.55rem;
+            vertical-align: middle;
+            box-shadow: 0 0 0 0 rgba(0,255,133,0.7);
+            animation: discord-pulse 1.6s ease-out infinite;
+        }
+        #discord-banner .bi-discord {
+            font-size: 1.25rem;
+            margin: 0 0.45rem -2px 0;
+            vertical-align: middle;
+        }
+        #discord-banner a.cta {
+            display: inline-block;
+            background: #fff;
+            color: #4752C4;
+            text-decoration: none;
+            font-weight: 800;
+            padding: 0.25rem 0.9rem;
+            margin-left: 0.75rem;
+            border-radius: 999px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+            white-space: nowrap;
+        }
+        #discord-banner a.cta:hover {
+            transform: translateY(-1px) scale(1.03);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+        }
+        #discord-banner .close-btn {
+            position: absolute;
+            right: 0.9rem; top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.14);
+            border: none; color: #fff;
+            font-size: 1rem; line-height: 1;
+            cursor: pointer;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        #discord-banner .close-btn:hover { background: rgba(255,255,255,0.28); }
+        @keyframes discord-shimmer {
+            0%   { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        @keyframes discord-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(0,255,133,0.7); }
+            70%  { box-shadow: 0 0 0 10px rgba(0,255,133,0); }
+            100% { box-shadow: 0 0 0 0 rgba(0,255,133,0); }
+        }
+        #discord-banner .mobile-only { display: none; }
+        @media (max-width: 640px) {
+            #discord-banner {
+                position: fixed; top: 0; left: 0; right: 0;
+                font-size: 0.82rem; padding: 0.55rem 2.2rem;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+            #discord-banner .desktop-only { display: none; }
+            #discord-banner .mobile-only { display: inline; }
+            #discord-banner a.cta { padding: 0.2rem 0.7rem; margin-left: 0.4rem; font-size: 0.82rem; }
+            #discord-banner .close-btn { right: 0.5rem; width: 22px; height: 22px; font-size: 0.9rem; }
+            /* Push everything below the fixed banner */
+            body.has-discord-banner { padding-top: 44px; }
+            body.has-discord-banner .navbar.sticky-top { top: 44px; }
+            body.has-discord-banner .bsd-subnav { top: 108px; }
+        }
+    </style>
+    <div id="discord-banner">
+        <span class="dot"></span>
+        <i class="bi bi-discord"></i>
+        <span class="desktop-only"><strong>Growing Discord community</strong> — direct access to the developer, live coverage & picks.</span>
+        <strong class="mobile-only">Join the Discord</strong>
+        <a class="cta" href="https://discord.gg/tgAuP8u3dH" target="_blank" rel="noopener">Join now →</a>
+        <button type="button" class="close-btn" aria-label="Dismiss"
+                onclick="document.getElementById('discord-banner').style.display='none'; document.body.classList.remove('has-discord-banner'); try{localStorage.setItem('discordBannerDismissed','1');}catch(e){}">&times;</button>
+    </div>
+    <script>
+        (function(){
+            var show = true;
+            try { show = localStorage.getItem('discordBannerDismissed') !== '1'; } catch(e) {}
+            if (show) {
+                document.getElementById('discord-banner').style.display = 'block';
+                document.body.classList.add('has-discord-banner');
+            }
+        })();
+    </script>
+
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <span class="logo-icon"><i class="bi bi-lightning-charge-fill"></i></span>
+                BSD
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                
+                <div class="bsd-search me-lg-auto">
+                    <i class="bi bi-search bsd-search__icon"></i>
+                    <input id="globalSearch" type="text" autocomplete="off" spellcheck="false"
+                           class="bsd-search__input" placeholder="Search teams, players, matches, leagues…"
+                           aria-label="Search">
+                    <div id="searchResults" class="bsd-search__results"></div>
+                </div>
+                
+                
+                <ul class="navbar-nav ms-auto align-items-lg-center">
+
+                    
+                    <li class="nav-item"><a class="nav-link sport-pill active sport-football" href="/">Football</a></li>
+                    <li class="nav-item"><a class="nav-link sport-pill bsd-odds-pill" href="/gamdom/">The&nbsp;Edge</a></li>
+
+                    
+                    <li class="nav-item dropdown">
+                        <a class="nav-link sport-pill dropdown-toggle"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Sports
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item " href="/tennis/"><i class="bi bi-trophy me-2"></i>Tennis</a></li>
+                            <li><a class="dropdown-item " href="/padel/"><i class="bi bi-grid-3x3 me-2"></i>Padel</a></li>
+                            <li><a class="dropdown-item " href="/csgo/"><i class="bi bi-controller me-2"></i>CS2</a></li>
+                            <li><a class="dropdown-item " href="/darts/"><i class="bi bi-bullseye me-2"></i>Darts</a></li>
+                            <li><a class="dropdown-item " href="/hockey/"><i class="bi bi-snow me-2"></i>Hockey</a></li>
+                            <li><a class="dropdown-item " href="/basketball/"><i class="bi bi-dribbble me-2"></i>Basketball</a></li>
+                            <li><a class="dropdown-item " href="/horseracing/"><i class="bi bi-flag me-2"></i>Horse Racing</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            
+                                <li><a class="dropdown-item fw-bold text-primary" href="/pricing/"><i class="bi bi-lightning-charge-fill me-2"></i>Get Sports Addon — $7/mo</a></li>
+                            
+                        </ul>
+                    </li>
+
+                    
+                    <li class="nav-item">
+                        <a class="nav-link active"
+                           href="/docs/">API</a>
+                    </li>
+                    <li class="nav-item"><a class="nav-link " href="/pricing/">Pricing</a></li>
+
+                    <li class="nav-divider d-none d-lg-block" aria-hidden="true"></li>
+
+                    
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle"
+                           href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">More</a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item " href="/news/"><i class="bi bi-newspaper me-2"></i>News</a></li>
+                            <li><a class="dropdown-item " href="/wom/"><i class="bi bi-cash-stack me-2"></i>Money</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item " href="/community/#aura"><i class="bi bi-people me-2"></i>Community</a></li>
+                            <li><a class="dropdown-item " href="/support/"><i class="bi bi-chat-dots me-2"></i>Feedback</a></li>
+                            <li><a class="dropdown-item " href="/status/"><i class="bi bi-activity me-2"></i>Status</a></li>
+                        </ul>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login/">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>Login
+                        </a>
+                    </li>
+                    
+                </ul>
+                
+            </div>
+        </div>
+    </nav>
+
+    
+    
+    <div class="bsd-subnav bsd-subnav--football">
+        <div class="container d-flex flex-wrap align-items-center">
+            
+                <a href="/today/" class="">Matches</a>
+                <a href="/leagues/" class="">Leagues</a>
+                <a href="/predictions/" class="">Predictions</a>
+                <a href="/gamdom/" class="">The Edge</a>
+                <a href="/wom/" class="">Money</a>
+                <a href="/news/" class="">News</a>
+                <a href="/stats/" class="">Stats</a>
+                <a href="/football-coverage/" class="">Coverage</a>
+            
+
+            
+            
+        </div>
+    </div>
+    
+
+    
+
+    <main>
+        
+<div class="bsd-docs">
+  <div class="bsd-docs-shell">
+
+    <aside class="bsd-side">
+      <div class="bsd-side__search">
+        <input type="search" id="bsdDocsSearch" placeholder="Search docs…" autocomplete="off" aria-label="Search documentation">
+        <div class="bsd-search-results" id="bsdSearchResults"></div>
+      </div>
+      <button class="bsd-side__toggle" id="bsdNavToggle" aria-expanded="false">Menu <span>▾</span></button>
+      <nav class="bsd-side__nav" id="bsdSideNav">
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Getting Started</div>
+          
+          <a class="bsd-side__link" href="/docs/">
+            <span>Overview</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/authentication/">
+            <span>Authentication</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/conventions/">
+            <span>Conventions &amp; limits</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/api-license/">
+            <span>Data usage &amp; license</span>
+            <span class="bsd-mini-badge bsd-mini-badge--free">free</span>
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Guides</div>
+          
+          <a class="bsd-side__link" href="/docs/guides/quickstart/">
+            <span>Quickstart: first request</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/league-page/">
+            <span>Build a league page</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/football-player-profile/">
+            <span>Football player profile</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/tennis-player-profile/">
+            <span>Tennis player profile</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/websockets/">
+            <span>Connect to live WebSockets</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/images/">
+            <span>Working with images</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/guides/ai-agents/">
+            <span>Use BSD from AI agents</span>
+            
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Football API</div>
+          
+          <a class="bsd-side__link" href="/docs/football/">
+            <span>Overview</span>
+            <span class="bsd-mini-badge bsd-mini-badge--free">free</span>
+          </a>
+          
+          <a class="bsd-side__link active" href="/docs/football/events/">
+            <span>Events &amp; live scores</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/leagues/">
+            <span>Leagues, seasons &amp; standings</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/competition-structure/">
+            <span>Competition structure</span>
+            <span class="bsd-mini-badge bsd-mini-badge--free">free</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/teams-players/">
+            <span>Teams, players &amp; transfers</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/managers-referees-venues/">
+            <span>Managers, referees &amp; venues</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/odds-predictions/">
+            <span>Odds &amp; predictions</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/broadcasts-social/">
+            <span>TV, broadcasts &amp; social</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/football/v1/">
+            <span>v1 API (legacy)</span>
+            
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">More Sports APIs</div>
+          
+          <a class="bsd-side__link" href="/docs/tennis/">
+            <span>Tennis API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/padel/">
+            <span>Padel API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/csgo/">
+            <span>CS2 API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/darts/">
+            <span>Darts API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/hockey/">
+            <span>Hockey API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/basketball/">
+            <span>Basketball API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/horseracing/">
+            <span>Horse Racing API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--pro">pro</span>
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Weight of Money</div>
+          
+          <a class="bsd-side__link" href="/docs/wom/">
+            <span>Weight of Money API</span>
+            <span class="bsd-mini-badge bsd-mini-badge--addon">addon</span>
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">WebSockets</div>
+          
+          <a class="bsd-side__link" href="/docs/websocket/">
+            <span>Overview</span>
+            <span class="bsd-mini-badge bsd-mini-badge--addon">addon</span>
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/websocket/football/">
+            <span>Football live channel</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/websocket/tennis/">
+            <span>Tennis live channel</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/websocket/arena3d/">
+            <span>Arena 3D</span>
+            
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">AI &amp; Agents</div>
+          
+          <a class="bsd-side__link" href="/docs/mcp/">
+            <span>MCP servers</span>
+            
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Images &amp; Data</div>
+          
+          <a class="bsd-side__link" href="/docs/images/">
+            <span>Image API</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/static-data/">
+            <span>Static datasets</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/explorer/football/">
+            <span>OpenAPI explorer</span>
+            
+          </a>
+          
+        </div>
+        
+        <div class="bsd-side__section">
+          <div class="bsd-side__section-title">Legal</div>
+          
+          <a class="bsd-side__link" href="/docs/terms/">
+            <span>Terms of Service</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/privacy/">
+            <span>Privacy Policy</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/cookies/">
+            <span>Cookie Notice</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/refunds/">
+            <span>Refund Policy</span>
+            
+          </a>
+          
+          <a class="bsd-side__link" href="/docs/api-license/">
+            <span>Data usage &amp; license</span>
+            
+          </a>
+          
+        </div>
+        
+      </nav>
+    </aside>
+
+    <article class="bsd-article">
+      <div class="bsd-article__crumb">
+        <a href="/docs/">Docs</a> <span style="color:var(--muted-2)">/</span> <span>Football API</span>
+        <span class="bsd-mini-badge bsd-mini-badge--free">free</span>
+      </div>
+      <div class="bsd-md"><h1 id="events-live-scores">Events &amp; live scores<a class="headerlink" href="#events-live-scores" title="Permanent link">#</a></h1>
+<p>An <strong>event</strong> is one match. The list endpoint answers "which matches", the
+detail and sub-resources answer "everything about this match".</p>
+<h2 id="list-matches">List matches<a class="headerlink" href="#list-matches" title="Permanent link">#</a></h2>
+<pre><code>GET /api/v2/events/
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>league_id</code></td>
+<td>int</td>
+<td>Filter by league</td>
+</tr>
+<tr>
+<td><code>season_id</code></td>
+<td>int</td>
+<td>Filter by season (use for "this season's fixtures")</td>
+</tr>
+<tr>
+<td><code>team_id</code></td>
+<td>int</td>
+<td>Matches of one team (home or away)</td>
+</tr>
+<tr>
+<td><code>team_name</code></td>
+<td>string</td>
+<td>Fuzzy team-name filter when you don't have the id</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>string</td>
+<td><code>upcoming</code> · <code>live</code> · <code>finished</code> · <code>cancelled</code> · <code>postponed</code> · <code>unresolved</code></td>
+</tr>
+<tr>
+<td><code>date_from</code> / <code>date_to</code></td>
+<td>date</td>
+<td><code>YYYY-MM-DD</code> window (inclusive)</td>
+</tr>
+<tr>
+<td><code>stage</code></td>
+<td>string</td>
+<td>Competition stage, e.g. <code>league-phase</code>, <code>group-stage</code>, <code>round-of-16</code>. See <a href="/docs/football/competition-structure/">Competition structure</a></td>
+</tr>
+<tr>
+<td><code>round</code></td>
+<td>int</td>
+<td>Matchday within <code>stage</code>. Requires <code>stage</code> — round numbers repeat across stages</td>
+</tr>
+<tr>
+<td><code>limit</code> / <code>offset</code></td>
+<td>int</td>
+<td>Pagination, default 50, max 200</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">curl -H &quot;Authorization: Token YOUR_API_KEY&quot; \
+  &quot;https://sports.bzzoiro.com/api/v2/events/?league_id=85&amp;status=upcoming&amp;limit=10&quot;
+</code></pre>
+<h2 id="live-matches">Live matches<a class="headerlink" href="#live-matches" title="Permanent link">#</a></h2>
+<pre><code>GET /api/v2/events/live/
+</code></pre>
+<p>Optional <code>league_id</code>, <code>season_id</code>, <code>team_id</code>. Returns a compact live shape —
+score, period, <code>current_minute</code>, half-time score, extra time and penalty
+shootout state — plus two capability flags:</p>
+<p><code>home_score</code> / <code>away_score</code> are <strong>regulation time only</strong>. Goals scored in extra
+time arrive in <code>extra_time_score</code> and a shootout in <code>penalty_shootout</code>, both
+<code>null</code> until they apply — so a match in extra time shows an unchanged 90-minute
+scoreline unless you add the two together.</p>
+<ul>
+<li><code>live_websocket</code> — this match can be followed on the
+  <a href="/docs/websocket/football/">WebSocket</a></li>
+<li><code>websocket_plus</code> — full per-action coverage (individual events with pitch
+  coordinates) is available for it</li>
+</ul>
+<p>Server-cached ~10–30 s; poll at 10 s or subscribe to the WebSocket.</p>
+<h2 id="match-detail">Match detail<a class="headerlink" href="#match-detail" title="Permanent link">#</a></h2>
+<pre><code>GET /api/v2/events/{id}/
+</code></pre>
+<p>Everything static about the match: teams (ids + names), coaches, referee,
+venue, round/group, kickoff time, scores (FT/HT/ET/pens), weather, pitch
+condition, attendance, derby/neutral-ground flags, travel distance,
+highlights and a head-to-head summary. Also <code>has_xg</code> (whether shot-level xG
+exists for this match) and <code>previous_leg_event_id</code> — set when the match is
+the second leg of a two-legged knockout tie, pointing at the first leg's
+event id.</p>
+<h2 id="sub-resources">Sub-resources<a class="headerlink" href="#sub-resources" title="Permanent link">#</a></h2>
+<p>Every deeper view of a match is its own endpoint under
+<code>/api/v2/events/{id}/…</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/stats/</code></td>
+<td>Team stats (possession, shots, xG — per half where available), per-shot <strong>shotmap</strong>, momentum graph, average player positions, xG-per-minute series. See <a href="#stats-coverage-varies">how much of it you actually get</a></td>
+</tr>
+<tr>
+<td><code>/lineups/</code></td>
+<td>Confirmed XI + bench, each player flagged <code>captain: true/false</code>; or an AI-predicted XI with confidence scores before kickoff; or nothing at all — branch on <code>lineup_status</code>. See <a href="#when-a-lineup-exists">when a lineup exists</a> and <a href="#predicted-benches">predicted benches</a></td>
+</tr>
+<tr>
+<td><code>/incidents/</code></td>
+<td>Chronological goals, cards, substitutions, VAR decisions and missed penalties — each stamped with <code>period_second</code> for sub-minute ordering. <code>type</code> is one of seven values: <code>goal</code>, <code>card</code>, <code>substitution</code>, <code>period</code>, <code>injuryTime</code>, <code>varDecision</code>, <code>penalty_missed</code>. Cards can carry <code>rescinded: true</code> when a card is overturned on review; overturned cards stay in the timeline but are excluded from card counts. A penalty missed in play is a <code>penalty_missed</code> (never a <code>goal</code>) with <code>player</code>, <code>player_id</code>, <code>minute</code>, <code>is_home</code> and <code>reason</code>: <code>saved</code> (the goalkeeper saved it), <code>post</code> (hit the woodwork) or <code>miss</code> (off target). Shoot-out kicks are not incidents</td>
+</tr>
+<tr>
+<td><code>/commentary/</code></td>
+<td>The match as text, line by line: goals, cards, substitutions, VAR, every attempt with its xG, corners, offsides, added time — each line with minute, side, player, score and an English sentence. See <a href="#commentary">Commentary</a></td>
+</tr>
+<tr>
+<td><code>/player-stats/</code></td>
+<td>Per-player match statistics, including an <code>Advanced</code> category (big chances, xG on target, ball-carry progression, goalkeeper sweeper actions). One row per player in the <strong>matchday squad</strong>, not just those who played: unused substitutes come back with <code>minutes_played: 0</code>, every counter at 0 and <code>rating: null</code>, so filter on <code>minutes_played &gt; 0</code>. A counter the source did not send is <code>0</code>, not <code>null</code> — a zero alone does not tell you the stat was recorded. <code>minutes_played</code> counts added time, so a full match can read above 90</td>
+</tr>
+<tr>
+<td><code>/h2h/</code></td>
+<td>Past meetings, W/D/L, goals, win rates, recent results — see <a href="#head-to-head">Head-to-head</a></td>
+</tr>
+<tr>
+<td><code>/odds/</code></td>
+<td>Consensus decimal odds per market, plus when they next refresh — see <a href="#odds-and-when-they-refresh">Odds, and when they refresh</a></td>
+</tr>
+<tr>
+<td><code>/odds/comparison/</code></td>
+<td>Per-market × per-bookmaker grid — <strong>requires Football Unlimited</strong> (403 <code>bookmakers_not_entitled</code> without it; use <code>/api/v2/odds/</code> for the free consensus price)</td>
+</tr>
+<tr>
+<td><code>/polymarket/</code></td>
+<td>Prediction-market implied probabilities (0–1)</td>
+</tr>
+<tr>
+<td><code>/prediction/</code></td>
+<td>Model probabilities per market (same shape as <code>/api/v2/predictions/{id}/</code>)</td>
+</tr>
+<tr>
+<td><code>/metadata/</code></td>
+<td>Kit colours, fun facts, AI-generated match preview</td>
+</tr>
+<tr>
+<td><code>/availability/</code></td>
+<td><strong>Which of the above have data for this match</strong>, in one call — see <a href="#ask-before-you-fetch">Ask before you fetch</a></td>
+</tr>
+<tr>
+<td><code>/broadcasts/</code></td>
+<td>TV broadcasters, filterable by <code>country_code</code></td>
+</tr>
+<tr>
+<td><code>/social/</code></td>
+<td>Curated tweets/videos for the match (<code>type</code> filter)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">curl -H &quot;Authorization: Token YOUR_API_KEY&quot; \
+     &quot;https://sports.bzzoiro.com/api/v2/events/223510/stats/&quot;
+</code></pre>
+<h3 id="commentary">Commentary<a class="headerlink" href="#commentary" title="Permanent link">#</a></h3>
+<pre><code>GET /api/v2/events/{id}/commentary/
+</code></pre>
+<p>A written, minute-by-minute account of the match, ready to display. Lines come
+in match order; every line carries a stable <code>id</code>.</p>
+<pre><code class="language-json">{
+  &quot;event_id&quot;: 209602,
+  &quot;status&quot;: &quot;finished&quot;,
+  &quot;has_play_by_play&quot;: true,
+  &quot;commentary&quot;: [
+    {&quot;id&quot;: &quot;bfe8d9435a69bfe1&quot;, &quot;period&quot;: 1, &quot;minute&quot;: 36, &quot;added_time&quot;: null,
+     &quot;second&quot;: 6, &quot;type&quot;: &quot;goal&quot;, &quot;team&quot;: &quot;away&quot;,
+     &quot;player&quot;: {&quot;id&quot;: 1178, &quot;name&quot;: &quot;J. Manzambi&quot;},
+     &quot;related_player&quot;: {&quot;id&quot;: 528, &quot;name&quot;: &quot;J. Gomes&quot;},
+     &quot;text&quot;: &quot;Goal! Newcastle United 0-1 Aston Villa. J. Manzambi (Aston Villa) scores, assisted by J. Gomes.&quot;,
+     &quot;score&quot;: {&quot;home&quot;: 0, &quot;away&quot;: 1}, &quot;important&quot;: true}
+  ]
+}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td><code>period_start</code>, <code>period_end</code>, <code>goal</code>, <code>penalty_goal</code>, <code>own_goal</code>, <code>penalty_missed</code>, <code>yellow_card</code>, <code>second_yellow_card</code>, <code>red_card</code>, <code>substitution</code>, <code>var</code>, <code>added_time</code>, <code>shot_saved</code>, <code>shot_missed</code>, <code>shot_blocked</code>, <code>shot_post</code>, <code>corner</code>, <code>offside</code></td>
+</tr>
+<tr>
+<td><code>minute</code> / <code>added_time</code></td>
+<td>As on a scoreboard: <code>minute: 90, added_time: 3</code> is 90+3'. <code>second</code> is set when we know it</td>
+</tr>
+<tr>
+<td><code>team</code></td>
+<td>The side the line is about. For a goal, the side credited with it (own goals included); for an offside, the side caught. <code>null</code> on period and added-time lines</td>
+</tr>
+<tr>
+<td><code>player</code> / <code>related_player</code></td>
+<td>Internal player ids. <code>related_player</code> is the assist on a goal, or the player coming on in a substitution (<code>player</code> is the one going off)</td>
+</tr>
+<tr>
+<td><code>score</code></td>
+<td>The score at that moment</td>
+</tr>
+<tr>
+<td><code>important</code></td>
+<td>Goals, red cards, penalties, decisive VAR calls and full-time — the lines to highlight</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Live:</strong> poll with <code>?since=&lt;id of the last line you have&gt;</code> to get only the new
+ones (refreshed every 15 seconds). An <code>id</code> we no longer recognise returns the
+whole list, so de-duplicate on <code>id</code>. <code>?order=desc</code> returns newest first.</p>
+<p><strong>What is not narrated:</strong> fouls — we do not publish who committed a foul unless
+it was booked, and then the card line says so. Corners and offsides need our
+play-by-play coverage, which most top competitions have; <code>has_play_by_play</code>
+says whether this match does. Without it you still get goals, cards,
+substitutions, VAR and every attempt.</p>
+<h3 id="head-to-head">Head-to-head<a class="headerlink" href="#head-to-head" title="Permanent link">#</a></h3>
+<pre><code>GET /api/v2/events/{id}/h2h/
+</code></pre>
+<p>Head-to-head is asked <strong>of a match</strong>, not of a pair of teams: the endpoint takes
+a fixture id and answers about the two clubs playing it. To get the history for
+two clubs with no fixture between them, find any past meeting first — 
+<code>/api/v2/events/?team_id={a}</code> and pick one against club B — then ask this
+endpoint about it.</p>
+<p>The aggregate is oriented to <em>that</em> fixture: <code>home_wins</code> means the club playing
+at home in the match you asked about.</p>
+<pre><code class="language-json">{
+  &quot;total_matches&quot;: 10,
+  &quot;home_wins&quot;: 3, &quot;draws&quot;: 5, &quot;away_wins&quot;: 2,
+  &quot;home_goals&quot;: 11, &quot;away_goals&quot;: 8,
+  &quot;avg_total_goals&quot;: 1.9,
+  &quot;home_win_rate&quot;: 0.3, &quot;away_win_rate&quot;: 0.2,
+  &quot;recent_matches&quot;: [
+    {
+      &quot;event_id&quot;: 213101,
+      &quot;date&quot;: &quot;2026-04-04T16:30:00+00:00&quot;,
+      &quot;home&quot;: &quot;Deportivo de La Coruña&quot;, &quot;away&quot;: &quot;Málaga CF&quot;,
+      &quot;home_team_id&quot;: 1260, &quot;away_team_id&quot;: 1259,
+      &quot;home_score&quot;: 1, &quot;away_score&quot;: 1,
+      &quot;score&quot;: &quot;1-1&quot;
+    }
+  ]
+}
+</code></pre>
+<p><strong>Read the sides from the ids, not the names.</strong> <code>home</code> and <code>away</code> are the names
+as they were recorded on that match, and they get rewritten upstream — the same
+club shows up as "Deportivo de La Coruña", "Deportivo La Coruña" and "Deportivo
+de A Coruña" across three rows of one history. <code>home_team_id</code> and
+<code>away_team_id</code> are stable, and <code>event_id</code> links the row back to the full match.</p>
+<p><code>home_score</code> and <code>away_score</code> are integers, and null on a meeting with no
+result recorded. Parsing the <code>score</code> string instead turns that case into <code>0-0</code>,
+which reads as a real goalless draw.</p>
+<pre><code class="language-json">{
+  &quot;event_id&quot;: 223510,
+  &quot;xg_estimated&quot;: false,
+  &quot;stats&quot;: {
+    &quot;home&quot;: {
+      &quot;ball_possession&quot;: 54, &quot;total_shots&quot;: 13, &quot;shots_on_target&quot;: 5,
+      &quot;shots_off_target&quot;: 4, &quot;blocked_shots&quot;: 3, &quot;hit_woodwork&quot;: 1,
+      &quot;xg&quot;: { &quot;actual&quot;: 1.62, &quot;estimated&quot;: false }, &quot;...&quot;: &quot;...&quot;
+    },
+    &quot;away&quot;: { &quot;ball_possession&quot;: 46, &quot;total_shots&quot;: 9, &quot;shots_on_target&quot;: 3, &quot;...&quot;: &quot;...&quot; },
+    &quot;first_half&quot;: { &quot;home&quot;: { &quot;...&quot;: &quot;...&quot; }, &quot;away&quot;: { &quot;...&quot;: &quot;...&quot; } },
+    &quot;second_half&quot;: { &quot;home&quot;: { &quot;...&quot;: &quot;...&quot; }, &quot;away&quot;: { &quot;...&quot;: &quot;...&quot; } }
+  },
+  &quot;shotmap&quot;: [
+    {
+      &quot;player_id&quot;: 40112, &quot;home&quot;: true, &quot;min&quot;: 23, &quot;type&quot;: &quot;goal&quot;,
+      &quot;sit&quot;: &quot;assisted&quot;, &quot;body&quot;: &quot;left-foot&quot;,
+      &quot;pos&quot;: { &quot;x&quot;: 88.2, &quot;y&quot;: 44.1, &quot;z&quot;: 0 },
+      &quot;gm&quot;: { &quot;x&quot;: 0, &quot;y&quot;: 52.1, &quot;z&quot;: 30.4 }, &quot;gml&quot;: &quot;low-centre&quot;,
+      &quot;xg&quot;: 0.34, &quot;xgot&quot;: 0.61, &quot;xg_estimated&quot;: false
+    }
+  ],
+  &quot;momentum&quot;: [ { &quot;m&quot;: 1, &quot;v&quot;: 12 }, { &quot;m&quot;: 2, &quot;v&quot;: -4 } ],
+  &quot;average_positions&quot;: {
+    &quot;home&quot;: [ { &quot;player_id&quot;: 40112, &quot;name&quot;: &quot;B. Saka&quot;, &quot;pos&quot;: &quot;F&quot;, &quot;x&quot;: 61.5, &quot;y&quot;: 38.0, &quot;n&quot;: 54 } ]
+  },
+  &quot;xg_per_minute&quot;: [
+    { &quot;m&quot;: 23, &quot;xg_home&quot;: 0.34, &quot;xg_away&quot;: 0.0, &quot;cum_home&quot;: 0.34, &quot;cum_away&quot;: 0.12,
+      &quot;estimated&quot;: false }
+  ]
+}
+</code></pre>
+<p>Reading the pieces: <code>pos</code> is the shot's origin on a 0–100 × 0–100 pitch,
+<code>gm</code> where it crossed the goal line, <code>type</code> is one of <code>goal</code>, <code>save</code>, <code>miss</code>,
+<code>block</code>, <code>post</code>, and <code>xgot</code> is xG on target (<code>null</code> for off-target shots).
+In <code>momentum</code>, <code>m</code> is the minute and <code>v</code> the pressure value, positive for the
+home side. In <code>average_positions</code>, <code>n</code> is how many touches the average is
+built from. <code>xg_per_minute</code> carries both the per-minute (<code>xg_home</code>/<code>xg_away</code>)
+and running-total (<code>cum_home</code>/<code>cum_away</code>) series.</p>
+<blockquote>
+<p><strong>Note:</strong> shot-level xG and average positions exist for covered
+competitions; for others the arrays are empty rather than missing — code
+defensively either way.</p>
+</blockquote>
+<h3 id="measured-xg-and-estimated-xg">Measured xG and estimated xG<a class="headerlink" href="#measured-xg-and-estimated-xg" title="Permanent link">#</a></h3>
+<p>Not every xG in this response is a measured one. Where the shot feed ships no
+price, we estimate it from the shot's own geometry, and that estimate is served
+in the same <code>xg</code> field a measured value would be. It is our number, not the
+feed's, and it is calibrated differently — for anything that trains on or
+grades against xG the two are separate variables, not one.</p>
+<p>It is not a rounding error at the edges. <strong>Whole competitions are estimated end
+to end</strong> — France Ligue 2, England League Two, Liga Portugal 2 and the NWSL
+have no measured shot xG at all, and just under half of all matches with a
+shotmap carry at least some xG of ours.</p>
+<p>Four flags tell you which is which. They all answer the same question and take
+the same three values: <code>true</code> = ours, <code>false</code> = measured, <code>null</code> = there is no
+xG to qualify (a shoot-out attempt, or a shot with no usable geometry — those
+are served with <code>xg: null</code> too).</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Field</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Response root</td>
+<td><code>xg_estimated</code></td>
+<td><code>true</code> when <em>any</em> xG below is ours. The one field to read when deciding whether a match belongs in a training set</td>
+</tr>
+<tr>
+<td>Each <code>shotmap</code> entry</td>
+<td><code>xg_estimated</code></td>
+<td>The per-shot truth; every other flag derives from it</td>
+</tr>
+<tr>
+<td>Each <code>stats.*.xg</code> block</td>
+<td><code>estimated</code></td>
+<td>Per side, and per half in <code>first_half</code> / <code>second_half</code></td>
+</tr>
+<tr>
+<td>Each <code>xg_per_minute</code> bucket</td>
+<td><code>estimated</code></td>
+<td><code>true</code> when any shot in that minute is ours</td>
+</tr>
+</tbody>
+</table>
+<p>The team block and the shots can legitimately disagree. <code>stats.home.xg</code> comes
+from the team aggregate where there is one, and a few hundred matches carry a
+measured team total over shots we priced ourselves — so <code>estimated: false</code> on
+the team block next to <code>xg_estimated: true</code> on its shots is not a bug, it is
+the distinction a single per-match flag would lose. The root <code>xg_estimated</code>
+follows the shots.</p>
+<p>Two matches with the same competition and date can differ: the flags are
+per shot and computed from what is actually stored, never inferred from the
+competition.</p>
+<h3 id="shot-counts-which-number-to-trust">Shot counts: which number to trust<a class="headerlink" href="#shot-counts-which-number-to-trust" title="Permanent link">#</a></h3>
+<p><code>stats.*.total_shots</code> and the <code>shotmap</code> array come from two different upstream
+feeds. We publish both as they arrive and deliberately do not reconcile them,
+so they can disagree on the same match. Rules for picking one:</p>
+<ul>
+<li><strong>The shotmap is the per-shot record — use it when you need a shot count.</strong>
+  The stats bag is a separate aggregate, useful for the ~40 other metrics in
+  it that have no per-event equivalent.</li>
+<li><strong>Within the bag the identity is</strong> <code>total_shots = shots_on_target +
+  shots_off_target + blocked_shots + hit_woodwork</code>. <code>hit_woodwork</code> is its own
+  bucket, not folded into the other three — that alone accounts for most
+  apparent arithmetic failures.</li>
+<li><strong>The shotmap includes penalty-shootout attempts, the bag never does.</strong>
+  Those rows carry <code>sit: "shootout"</code> and minutes past 90 or 120. Filter them
+  out before comparing the two, or a match decided on penalties will look like
+  it has 10 extra shots. For the same reason <strong>no xG we publish counts them</strong>:
+  <code>xg_per_minute</code>, the per-half <code>xg</code> blocks and the team totals
+  (<code>stats.home.xg.actual</code>, <code>stats.away.xg.actual</code>, and <code>home_xg_live</code> /
+  <code>away_xg_live</code> on the event) all skip shootout rows, and those rows are
+  served with <code>xg: null</code>. So the per-shot values in <code>shotmap</code> sum to the team
+  total in the same response. Where the upstream aggregate itself had counted
+  the shootout, we serve the total rebuilt from the shotmap instead — on a
+  match decided on penalties that is several xG lower than what this endpoint
+  returned before 2026-08-16.</li>
+<li><strong>Shots on target</strong> corresponds to shotmap rows with <code>type</code> in <code>goal</code> or
+  <code>save</code>, again after dropping shootout rows.</li>
+</ul>
+<p>Two caveats after all of that.</p>
+<p>A stats bag on a just-finished match is the snapshot taken around the final
+whistle; upstream keeps correcting the feed for a few hours afterwards, and we
+re-read it once the match has settled. So a bag can lag its shotmap for a
+window after full time.</p>
+<p>And a residual survives even then: measured over 800 team-sides, once both
+feeds have been re-read after the match settled, <strong>11% still disagree on the
+shot count</strong>, almost always by one, in either direction. That is upstream's own
+two feeds disagreeing with each other and no amount of re-reading fixes it. The
+internal arithmetic is far tighter — after the settle-window re-read, fewer
+than 1% of sides fail the <code>total_shots</code> identity above. If you need one number
+and cannot show two, take the shotmap.</p>
+<h3 id="odds-and-when-they-refresh">Odds, and when they refresh<a class="headerlink" href="#odds-and-when-they-refresh" title="Permanent link">#</a></h3>
+<pre><code class="language-bash">curl -H &quot;Authorization: Token YOUR_API_KEY&quot; \
+     &quot;https://sports.bzzoiro.com/api/v2/events/209535/odds/&quot;
+</code></pre>
+<pre><code class="language-json">{
+  &quot;event_id&quot;: 209535,
+  &quot;odds&quot;: {
+    &quot;home_win&quot;: 1.17, &quot;draw&quot;: 7.26, &quot;away_win&quot;: 15.71,
+    &quot;over_15_goals&quot;: 1.17, &quot;over_25_goals&quot;: 1.56, &quot;over_35_goals&quot;: 2.42,
+    &quot;under_15_goals&quot;: 4.7, &quot;under_25_goals&quot;: 2.35, &quot;under_35_goals&quot;: 1.53,
+    &quot;btts_yes&quot;: 2.48, &quot;btts_no&quot;: 1.49
+  },
+  &quot;last_update_at&quot;: &quot;2026-08-16T21:18:14Z&quot;,
+  &quot;next_update_at&quot;: &quot;2026-08-17T01:18:14Z&quot;,
+  &quot;update_interval_seconds&quot;: 14400,
+  &quot;update_reason&quot;: &quot;pre-match, more than a day out&quot;
+}
+</code></pre>
+<p>Decimal consensus prices across the bookmakers we cover — the eleven keys above
+are the whole set, and any of them is <code>null</code> when that market is not quoted for
+the match. For prices broken out per bookmaker rather than averaged, see
+<a href="/docs/football/odds-predictions/">the odds feed</a>.</p>
+<p>This shape is the full-time summary and does not carry everything we hold: total
+corners, clean sheet, win to nil and the half-time / second-half variants of
+1X2, total goals and both-teams-to-score are all quoted, and reach you through
+<code>/odds/comparison/</code> or the <a href="/docs/football/odds-predictions/">odds feed</a> rather
+than these eleven keys. Prices are <strong>pre-match only</strong> at the moment.</p>
+<p>The four scheduling fields answer "when does this change?" without you having to
+poll and diff:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>last_update_at</code></td>
+<td>When we last <strong>asked</strong> about this match. Not when a price moved — see below</td>
+</tr>
+<tr>
+<td><code>next_update_at</code></td>
+<td>The <strong>earliest</strong> moment these odds may change</td>
+</tr>
+<tr>
+<td><code>update_interval_seconds</code></td>
+<td>How often this match is currently re-read</td>
+</tr>
+<tr>
+<td><code>update_reason</code></td>
+<td>Why it is on that interval, in words</td>
+</tr>
+</tbody>
+</table>
+<p>Three things to know before you build on them.</p>
+<p><strong><code>last_update_at</code> is an ask, not a change.</strong> It advances every time we re-read
+the match, whether or not any price moved, so it answers "have you looked
+recently" and not "has anything moved". Nothing in this payload answers the
+second question — for that you need the per-bookmaker rows on
+<a href="/docs/football/odds-predictions/"><code>/api/v2/odds/</code></a>, where <code>movement</code> and
+<code>previous_decimal_odds</code> carry the direction and the price it moved from.</p>
+<p><strong><code>next_update_at</code> is a floor, not a promise.</strong> It is the earliest the odds may
+change; a re-read can run late, and on a busy evening it does. Treat a time that
+has passed as "due now", not as "we missed it". If it is already in the past
+because the match is overdue for a re-read, the field simply reports now.</p>
+<p><strong>The timestamps go <code>null</code>; <code>update_reason</code> never does.</strong> When nothing is
+scheduled — a match that finished more than a few hours ago, or one no bookmaker
+we read is quoting — <code>next_update_at</code> and <code>update_interval_seconds</code> are <code>null</code>
+and <code>update_reason</code> reads <code>"no further updates scheduled"</code>. <code>last_update_at</code> is
+additionally <code>null</code> when the match was never carried at all, and the <code>odds</code>
+block may still hold the last prices we saw. The <code>null</code> is deliberate: it says
+"we cannot tell you", which is honest, where a timestamp would be a time that
+never arrives. Branch on <code>update_reason</code>, which always has a value.</p>
+<p><code>update_interval_seconds</code> currently takes one of three values, and
+<code>update_reason</code> names each:</p>
+<table>
+<thead>
+<tr>
+<th>Interval</th>
+<th><code>update_reason</code></th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>900</code> (15 min)</td>
+<td><code>match is in play</code></td>
+<td>The match is live</td>
+</tr>
+<tr>
+<td><code>1800</code> (30 min)</td>
+<td><code>kick-off within 24 hours</code></td>
+<td>Kickoff is inside a day</td>
+</tr>
+<tr>
+<td><code>14400</code> (4 h)</td>
+<td><code>pre-match, more than a day out</code></td>
+<td>Everything further out</td>
+</tr>
+</tbody>
+</table>
+<p>These are the intervals the schedule is built on; what we actually observe,
+including the tail, is in
+<a href="/docs/football/odds-predictions/#refresh-cadence">Refresh cadence</a>.</p>
+<h2 id="stats-coverage-varies">Stats coverage varies<a class="headerlink" href="#stats-coverage-varies" title="Permanent link">#</a></h2>
+<p><code>/stats/</code> returns what the match actually reported, and that varies enormously:
+a fully covered league game carries around 44 statistics per side, a lower-tier
+friendly can carry four.</p>
+<p>Eight keys are <strong>always present</strong> on each side, so you can read them without
+guarding:</p>
+<p><code>ball_possession</code>, <code>total_shots</code>, <code>shots_on_target</code>, <code>corner_kicks</code>, <code>fouls</code>,
+<code>yellow_cards</code>, <code>red_cards</code>, <code>offsides</code></p>
+<p>When a match did not report one of them the value is <strong><code>null</code></strong> — never a
+missing key, and never <code>0</code>. The distinction matters: <code>0</code> would assert that
+nothing happened, and on a thinly covered fixture that would be us inventing a
+fact. <code>null</code> says we do not know.</p>
+<p><strong>Live matches.</strong> While a match is in play, a count such as <code>corner_kicks</code>,
+<code>yellow_cards</code> or <code>red_cards</code> can be <code>null</code> until the first one happens, so
+<code>null</code> on a live match can simply mean "none yet". Once the match is finished,
+<code>null</code> goes back to meaning we do not know. If you need a number during the
+match, treat <code>null</code> as <code>0</code> for display, and re-read the final value after full
+time.</p>
+<p>Everything beyond those eight (<code>expected_goals</code>, <code>big_chances</code>, <code>tackles</code>,
+<code>recoveries</code>, …) appears only when the match reported it, so read it
+defensively — check the key before you use it.</p>
+<p>Measured on 2026-08-22 across 214 finished matches from the previous three
+days: 87% were missing at least one of the eight before this guarantee existed.
+<code>red_cards</code> was absent in 149 of them, <code>total_shots</code> in 51.</p>
+<h2 id="when-a-match-is-postponed">When a match is postponed<a class="headerlink" href="#when-a-match-is-postponed" title="Permanent link">#</a></h2>
+<p>A postponed fixture keeps its original row and its original kick-off. We do not
+move it, because that is what upstream holds and because a date you already
+processed should not change under you.</p>
+<p>What you want is the link to where it went:</p>
+<pre><code class="language-json">{&quot;id&quot;: 220285, &quot;event_date&quot;: &quot;2026-10-02T01:00:00+00:00&quot;,
+ &quot;status&quot;: &quot;postponed&quot;, &quot;replaced_by&quot;: 605456}
+</code></pre>
+<p><code>replaced_by</code> is the id of the rescheduled fixture. <strong>It is filled as soon as
+the replacement is scheduled, not after it is played</strong> — which is the point: if
+you only learn where a match moved once it has been played, you have already
+processed it on the wrong day.</p>
+<p>The replacement is matched on the identity the source gives both rows, plus the
+same home/away sides and a six-month window. The reverse fixture shares that
+identity with the sides swapped, so it is never mistaken for a replay.</p>
+<p>If you list a season with <code>?season_id=</code>, postponed fixtures that have a
+replacement are left out and the replacement is included instead — one row per
+fixture, on the date it will actually be played.</p>
+<h2 id="which-line-is-the-main-line">Which line is the main line<a class="headerlink" href="#which-line-is-the-main-line" title="Permanent link">#</a></h2>
+<p>A match publishes eight or ten Asian handicaps and as many totals, and none of
+them used to be marked, so the response told you every line without telling
+you which one is <em>the</em> handicap for the match.</p>
+<p><code>/api/v2/events/{id}/odds/comparison/</code> now carries <code>main_lines</code>:</p>
+<pre><code class="language-json">{&quot;main_lines&quot;: {&quot;asian_handicap&quot;: 0.0, &quot;over_under_25&quot;: 2.5,
+                &quot;total_corners&quot;: 9.5}}
+</code></pre>
+<p>The rule is the market's, not ours: the main line is the one where the two
+best prices sit closest together, because that is the handicap the market
+treats as a coin flip. On Netherlands v Germany that is level (2.06 / 1.89),
+not <code>-0.25</code> (2.40 / 1.68) and certainly not <code>-2.5</code> (9.60 / 1.07).</p>
+<p>It is computed from the <strong>best price on each side</strong> rather than from any one
+bookmaker, so the answer does not change depending on who you ask — your book
+may not even quote the main line.</p>
+<p>A market with no line is absent from the map, and so is a line nobody priced
+on both sides: half a market cannot be a coin flip.</p>
+<h2 id="fixture-change-feed">Fixture change feed<a class="headerlink" href="#fixture-change-feed" title="Permanent link">#</a></h2>
+<p><code>GET /api/v2/fixtures/changes/</code> returns only what moved about scheduled
+matches, so you can stop re-fetching fixture lists and diffing them yourself.</p>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>since</code></td>
+<td>datetime</td>
+<td>ISO-8601 instant. Default 24 hours ago, capped at 7 days back.</td>
+</tr>
+<tr>
+<td><code>league_id</code></td>
+<td>int</td>
+<td>Only changes to matches in this competition.</td>
+</tr>
+<tr>
+<td><code>change</code></td>
+<td>string</td>
+<td>Comma-separated subset of <code>kickoff,status,venue,broadcast_added</code>.</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>int</td>
+<td>1–500, default 100.</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-json">{&quot;since&quot;: &quot;2026-09-25T09:00:00Z&quot;, &quot;until&quot;: &quot;2026-09-26T09:00:00Z&quot;,
+ &quot;count&quot;: 2, &quot;truncated&quot;: false,
+ &quot;changes&quot;: [
+   {&quot;change&quot;: &quot;kickoff&quot;, &quot;changed_at&quot;: &quot;2026-09-25T14:02:11Z&quot;, &quot;event_id&quot;: 212581,
+    &quot;league_id&quot;: 64, &quot;home_team&quot;: &quot;Netherlands&quot;, &quot;away_team&quot;: &quot;Germany&quot;,
+    &quot;event_date&quot;: &quot;2026-09-24T20:45:00+00:00&quot;,
+    &quot;old_value&quot;: &quot;2026-09-24T18:45:00+00:00&quot;, &quot;new_value&quot;: &quot;2026-09-24T20:45:00+00:00&quot;},
+   {&quot;change&quot;: &quot;status&quot;, &quot;changed_at&quot;: &quot;2026-09-25T16:30:04Z&quot;, &quot;event_id&quot;: 224136,
+    &quot;league_id&quot;: 17, &quot;home_team&quot;: &quot;Luton&quot;, &quot;away_team&quot;: &quot;Millwall&quot;,
+    &quot;event_date&quot;: &quot;2026-09-27T14:00:00+00:00&quot;,
+    &quot;old_value&quot;: &quot;notstarted&quot;, &quot;new_value&quot;: &quot;postponed&quot;}
+ ]}
+</code></pre>
+<p><strong>Normal progress is not a change.</strong> A match going <code>notstarted</code> → <code>inprogress</code>
+→ <code>finished</code> never appears. Only transitions in or out of a disrupted state do
+— postponed, cancelled, abandoned, suspended, awarded, walkover — because
+putting the routine ones in would bury the one you are polling for.</p>
+<p><code>broadcast_added</code> entries carry an empty <code>old_value</code>. A channel appearing is an
+addition, not a move, so there is no previous value and we do not invent one.</p>
+<p><strong>To poll without gaps:</strong> take <code>until</code> from the response and send it as the
+next <code>since</code>. When <code>truncated</code> is <code>true</code> the limit cut the window short — do
+<em>not</em> move <code>since</code> to <code>until</code>, re-ask from the last <code>changed_at</code> you received,
+or you will skip whatever was cut.</p>
+<p>A fixture row only carries its current kickoff and status, so a move is only
+visible if it was written down as it happened. Recording started the day this
+endpoint shipped; nothing before that can be recovered.</p>
+<h2 id="ask-before-you-fetch">Ask before you fetch<a class="headerlink" href="#ask-before-you-fetch" title="Permanent link">#</a></h2>
+<p>Most of the endpoints above return an empty body rather than an error when a
+match has nothing for them, which is the right behaviour but makes "does this
+match have corners?" cost a call to find out — and a call per sub-resource per
+match adds up fast.</p>
+<p><code>/api/v2/events/{id}/availability/</code> answers for all of them at once:</p>
+<pre><code class="language-json">{&quot;event_id&quot;: 212581, &quot;status&quot;: &quot;finished&quot;, &quot;lineup_status&quot;: &quot;confirmed&quot;,
+ &quot;available&quot;: {&quot;stats&quot;: true, &quot;lineups&quot;: true, &quot;incidents&quot;: true,
+               &quot;shotmap&quot;: true, &quot;xg&quot;: true, &quot;momentum&quot;: true,
+               &quot;average_positions&quot;: true, &quot;player_stats&quot;: true,
+               &quot;prediction&quot;: true, &quot;broadcasts&quot;: true, &quot;odds&quot;: true},
+ &quot;stat_keys&quot;: [&quot;ball_possession&quot;, &quot;corner_kicks&quot;, &quot;yellow_cards&quot;, &quot;...&quot;],
+ &quot;odds_markets&quot;: [&quot;1x2&quot;, &quot;asian_handicap&quot;, &quot;over_under_25&quot;, &quot;total_corners&quot;]}
+</code></pre>
+<p><code>stat_keys</code> lists only the statistics this match actually carries — the eight
+always-present keys appear only when they are non-null — so it is the precise
+answer to whether corners or cards are there. <code>odds_markets</code> uses the same
+codes <code>/api/v2/odds/?market=</code> accepts.</p>
+<p>Every value is computed from the rows it describes, at the moment you ask.
+There is deliberately no stored <code>has_corners</code> column: a stored flag drifts out
+of step with the data it describes, and a flag that says yes when the answer is
+no is worse than the empty call it saves, because you stop checking.</p>
+<p><code>false</code> means the call would come back empty, not that it would fail. The
+endpoints still answer 200.</p>
+<h2 id="when-a-lineup-exists">When a lineup exists<a class="headerlink" href="#when-a-lineup-exists" title="Permanent link">#</a></h2>
+<p><code>/lineups/</code> always answers. When there is nothing to serve it returns a <strong>200
+with <code>lineups: null</code></strong>, not a 404 — so an integration that reads "empty" as an
+error will call a perfectly normal fixture broken. The field to branch on is
+<code>lineup_status</code>:</p>
+<table>
+<thead>
+<tr>
+<th><code>lineup_status</code></th>
+<th><code>lineups</code></th>
+<th><code>beta</code></th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>confirmed</code></td>
+<td>XI + bench per side</td>
+<td><code>false</code></td>
+<td>The published teamsheet</td>
+</tr>
+<tr>
+<td><code>predicted</code></td>
+<td>XI + bench per side</td>
+<td><code>true</code></td>
+<td>An AI-predicted XI, with <code>confidence</code> per side</td>
+</tr>
+<tr>
+<td><code>unavailable</code></td>
+<td><code>null</code></td>
+<td><code>false</code></td>
+<td>Neither exists for this match right now</td>
+</tr>
+</tbody>
+</table>
+<p>Which one you get depends mostly on how far the match is from kickoff:</p>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Usually</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>More than ~14 days out</td>
+<td><code>unavailable</code> — the predictor has not reached it yet</td>
+</tr>
+<tr>
+<td>~14 days to kickoff</td>
+<td><code>predicted</code>, refreshed every few hours</td>
+</tr>
+<tr>
+<td>The last hour before kickoff</td>
+<td>flips to <code>confirmed</code> once the teamsheet is published — we start looking 75 minutes out, and official sheets typically land inside the final 45</td>
+</tr>
+<tr>
+<td>Live or finished</td>
+<td><code>confirmed</code> if we have it, otherwise <code>unavailable</code> — never <code>predicted</code></td>
+</tr>
+</tbody>
+</table>
+<p>Measured on 2026-08-15 across matches not yet started, a predicted XI exists for
+100% of them within 3 days of kickoff, 99.8% within 7 days, 96% within 14 and
+42% within 30. So a fixtures widget looking a month ahead sees <code>unavailable</code> on
+more than half of what it renders — that is the horizon, not a gap.</p>
+<p>The empty shape, in full:</p>
+<pre><code class="language-json">{
+  &quot;event_id&quot;: 222647,
+  &quot;lineup_status&quot;: &quot;unavailable&quot;,
+  &quot;beta&quot;: false,
+  &quot;lineups&quot;: null,
+  &quot;unavailable_players&quot;: null,
+  &quot;updated_at&quot;: null
+}
+</code></pre>
+<h3 id="coverage-on-past-matches">Coverage on past matches<a class="headerlink" href="#coverage-on-past-matches" title="Permanent link">#</a></h3>
+<p>Confirmed teamsheets thin out going backwards. Of finished competitive matches
+— club friendlies excluded — measured on 2026-08-15: <strong>98.6% of 2026 and 69% of
+2025</strong> carry one, with no month since August 2025 below 91%; but <strong>8% of 2024,
+3% of 2023 and effectively none before 2022</strong>. Club friendlies are patchy in any
+year — 42% over the last 30 days.</p>
+<p><strong>Those older percentages are being filled and the numbers above will be out of
+date.</strong> The archive fill originally brought back results and in-match events
+without teamsheets; a pass now running is going back over those matches and
+attaching the sheet where one exists. It is a large backlog, so expect the
+figures to move rather than jump.</p>
+<p>Where a match still has no teamsheet after that, it is because there is none to
+be had rather than because we stopped looking — and that is a per-competition
+answer, not a per-season one: two matches from the same year, one in a top
+division and one in a regional cup, routinely differ. We do not publish a year
+before which lineups are unavailable, because there isn't one.</p>
+<p><a href="/football-coverage/"><code>/football-coverage/</code></a> has the live per-competition
+picture, Lineups included — that is the number to trust over the ones on this
+page.</p>
+<p><strong>If squads look right but match lineups do not</strong>, that is the expected split
+rather than a bug: <code>/api/v2/teams/{id}/squad/</code> is the club's registered squad
+and is independent of any match, so it answers in full for an archive fixture
+that has no teamsheet at all.</p>
+<h2 id="predicted-benches">Predicted benches<a class="headerlink" href="#predicted-benches" title="Permanent link">#</a></h2>
+<p>When <code>lineup_status</code> is <code>predicted</code>, <code>substitutes</code> is a <strong>predicted bench</strong>:
+the players the model actually rates as likely to be named, ranked by
+<code>ai_score</code> (highest first) and capped at 12, the widest bench any competition
+we cover puts on a teamsheet.</p>
+<p>It used to be the whole registered squad minus the predicted XI — a median of
+21 players and as many as 64 — which was not a bench anybody had predicted.
+Players the model scores at zero are now dropped rather than listed.</p>
+<p>Two consequences worth coding for:</p>
+<ul>
+<li><strong>The bench can be short.</strong> Where the model has little to go on it may name
+  seven, or fewer. That is the prediction, not a truncation — read
+  <code>confidence</code> on the side alongside it.</li>
+<li><strong>Confirmed lineups are never trimmed.</strong> Once <code>lineup_status</code> is
+  <code>confirmed</code>, the bench is the published teamsheet, served whole.</li>
+</ul>
+<p>For the full registered squad, use <code>/api/v2/teams/{id}/squad/</code> instead — that
+is a squad list and is not affected by any of this.</p>
+<h2 id="typical-patterns">Typical patterns<a class="headerlink" href="#typical-patterns" title="Permanent link">#</a></h2>
+<ul>
+<li><strong>Match center page:</strong> detail + <code>/stats/</code> + <code>/incidents/</code> + <code>/lineups/</code> on
+  load (add <code>/commentary/</code> for a text feed, polled with <code>?since=</code>); then poll <code>/api/v2/events/live/?league_id=…</code> or use the
+  <a href="/docs/websocket/football/">WebSocket</a> for updates.</li>
+<li><strong>Fixtures widget:</strong> list with <code>season_id</code> + <code>status=upcoming</code>, group by
+  <code>stage</code> <strong>and then</strong> <code>round_number</code> — round numbers restart in every stage,
+  so grouping by the number alone merges a league-phase matchday with a
+  knockout tie. See <a href="/docs/football/competition-structure/">Competition structure</a>.</li>
+<li><strong>Result + odds recap:</strong> list with <code>status=finished</code> + <code>/odds/</code> per match.</li>
+</ul></div>
+
+      <div class="bsd-pager">
+        <a href="/docs/football/"><span>← Previous</span>Overview</a>
+        <a class="next" href="/docs/football/leagues/"><span>Next →</span>Leagues, seasons &amp; standings</a>
+      </div>
+      <div class="bsd-article__foot">
+        <a href="/docs/football/events.md" style="color:var(--muted-2)">View this page as Markdown</a>
+        · <a href="https://support.bzzoiro.com" style="color:var(--muted-2)">Found a mistake? Tell us</a>
+      </div>
+    </article>
+
+    
+    <aside class="bsd-toc">
+      <div class="bsd-toc__title">On this page</div>
+      <ul>
+        <li><a href="#list-matches">List matches</a>
+          
+        </li><li><a href="#live-matches">Live matches</a>
+          
+        </li><li><a href="#match-detail">Match detail</a>
+          
+        </li>
+        <li><a href="#commentary">Commentary</a>
+          
+        </li>
+        
+        <li><a href="#head-to-head">Head-to-head</a>
+          
+        </li>
+        
+        <li><a href="#measured-xg-and-estimated-xg">Measured xG and estimated xG</a>
+          
+        </li>
+        
+        <li><a href="#shot-counts-which-number-to-trust">Shot counts: which number to trust</a>
+          
+        </li>
+        
+        <li><a href="#odds-and-when-they-refresh">Odds, and when they refresh</a>
+          
+        </li>
+        <li><a href="#sub-resources">Sub-resources</a>
+          <ul><li><a href="#commentary">Commentary</a></li><li><a href="#head-to-head">Head-to-head</a></li><li><a href="#measured-xg-and-estimated-xg">Measured xG and estimated xG</a></li><li><a href="#shot-counts-which-number-to-trust">Shot counts: which number to trust</a></li><li><a href="#odds-and-when-they-refresh">Odds, and when they refresh</a></li></ul>
+        </li><li><a href="#stats-coverage-varies">Stats coverage varies</a>
+          
+        </li><li><a href="#when-a-match-is-postponed">When a match is postponed</a>
+          
+        </li><li><a href="#which-line-is-the-main-line">Which line is the main line</a>
+          
+        </li><li><a href="#fixture-change-feed">Fixture change feed</a>
+          
+        </li><li><a href="#ask-before-you-fetch">Ask before you fetch</a>
+          
+        </li>
+        <li><a href="#coverage-on-past-matches">Coverage on past matches</a>
+          
+        </li>
+        <li><a href="#when-a-lineup-exists">When a lineup exists</a>
+          <ul><li><a href="#coverage-on-past-matches">Coverage on past matches</a></li></ul>
+        </li><li><a href="#predicted-benches">Predicted benches</a>
+          
+        </li><li><a href="#typical-patterns">Typical patterns</a>
+          
+        </li>
+      </ul>
+    </aside>
+    
+
+  </div>
+</div>
+
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="row g-4">
+                <div class="col-lg-4 col-md-6">
+                    
+                    <form method="get" class="bsd-tzpick mb-3">
+                        <label for="bsd-tz-select">Times shown in</label>
+                        <select name="tz" id="bsd-tz-select" onchange="this.form.submit()">
+                            
+                            <option value="UTC" selected>UTC</option>
+                            
+                            <option value="America/Los_Angeles">Los Angeles</option>
+                            
+                            <option value="America/New_York">New York</option>
+                            
+                            <option value="America/Sao_Paulo">São Paulo</option>
+                            
+                            <option value="Europe/Lisbon">Lisbon</option>
+                            
+                            <option value="Europe/London">London</option>
+                            
+                            <option value="Europe/Madrid">Madrid</option>
+                            
+                            <option value="Europe/Paris">Paris</option>
+                            
+                            <option value="Europe/Berlin">Berlin</option>
+                            
+                            <option value="Europe/Athens">Athens</option>
+                            
+                            <option value="Europe/Moscow">Moscow</option>
+                            
+                            <option value="Asia/Dubai">Dubai</option>
+                            
+                            <option value="Asia/Kolkata">India</option>
+                            
+                            <option value="Asia/Singapore">Singapore</option>
+                            
+                            <option value="Asia/Tokyo">Tokyo</option>
+                            
+                            <option value="Australia/Sydney">Sydney</option>
+                            
+                        </select>
+                        <noscript><button type="submit">Set</button></noscript>
+                    </form>
+                    <h6>About</h6>
+                    
+                    <p class="small">Bzzoiro Sports Data (BSD) is a developer API for football and six other sports: 88 competitions, 8,500+ teams, 214,000+ players, live scores, odds from many bookmakers, and analytic forecasts. Football is free.</p>
+                    <p class="small mb-0"><a href="/cdn-cgi/l/email-protection#5122213e23252211332b2b3e38233e7f323e3c"><span class="__cf_email__" data-cfemail="fc8f8c938e888fbc9e868693958e93d29f9391">[email&#160;protected]</span></a></p>
+                </div>
+                <div class="col-lg-2 col-md-6">
+                    <h6>Quick Links</h6>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/register/">Register</a></li>
+                        <li><a href="/pricing/">Pricing</a></li>
+                        <li><a href="/sponsors/">Donate</a></li>
+                        <li><a href="/showcase/">Showcase</a></li>
+                        <li><a href="/status/">Status</a></li>
+                        <li><a href="/support/">Feedback</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2 col-md-6">
+                    <h6>Football</h6>
+                    <ul>
+                        <li><a href="/leagues/">Leagues</a></li>
+                        <li><a href="/teams/">Teams</a></li>
+                        <li><a href="/players/">Players</a></li>
+                        <li><a href="/stats/">Stats</a></li>
+                        <li><a href="/free-football-api/">Free API</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <h6>API &amp; Integrations</h6>
+                    <ul>
+                        <li><a href="/docs/">API Hub</a></li>
+                        <li><a href="/docs/websocket/">Live WebSocket</a></li>
+                        <li><a href="/mcp-info/">MCP Server</a></li>
+                        <li><a href="/docs/static-data/">Static Data</a></li>
+                        <li><a href="/api/docs/">Swagger UI</a></li>
+                        <li><a href="/api/redoc/">ReDoc</a></li>
+                        <li><a href="/api/schema/">OpenAPI Schema</a></li>
+                        <li><a href="/.well-known/llms.txt">llms.txt</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom text-center">
+                
+                <p class="small mb-2 bsd-legal">
+                    <a href="/terms/">Terms of Service</a> &middot;
+                    <a href="/privacy/">Privacy</a> &middot;
+                    <a href="/cookies/">Cookies</a> &middot;
+                    <a href="/refunds/">Refunds</a> &middot;
+                    <a href="/docs/api-license/">Data licence</a>
+                </p>
+                <p class="small mb-0">&copy; 2026 Bzzoiro LLC &mdash; sports.bzzoiro.com</p>
+            </div>
+        </div>
+    </footer>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+(function () {
+  // copy buttons on code blocks
+  document.querySelectorAll('.bsd-md pre').forEach(function (pre) {
+    var btn = document.createElement('button');
+    btn.className = 'bsd-copy'; btn.type = 'button'; btn.textContent = 'copy';
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(pre.querySelector('code') ? pre.querySelector('code').innerText : pre.innerText)
+        .then(function () { btn.textContent = 'copied'; setTimeout(function () { btn.textContent = 'copy'; }, 1400); });
+    });
+    pre.appendChild(btn);
+  });
+
+  // mobile nav toggle
+  var toggle = document.getElementById('bsdNavToggle'), sideNav = document.getElementById('bsdSideNav');
+  if (toggle) toggle.addEventListener('click', function () {
+    var open = sideNav.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  // client-side search
+  var input = document.getElementById('bsdDocsSearch');
+  var box = document.getElementById('bsdSearchResults');
+  var index = null, loading = false;
+  function loadIndex() {
+    if (index || loading) return; loading = true;
+    fetch('/docs/search-index.json').then(function (r) { return r.json(); })
+      .then(function (d) { index = d.pages || []; })
+      .catch(function () { loading = false; });
+  }
+  input.addEventListener('focus', loadIndex);
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    if (!q || !index) { box.classList.remove('open'); box.innerHTML = ''; return; }
+    var terms = q.split(/\s+/);
+    var scored = [];
+    index.forEach(function (p) {
+      var hay = (p.title + ' ' + p.headings.join(' ')).toLowerCase();
+      var score = 0;
+      terms.forEach(function (t) {
+        if (p.title.toLowerCase().indexOf(t) !== -1) score += 6;
+        else if (hay.indexOf(t) !== -1) score += 3;
+        else if (p.text.indexOf(t) !== -1) score += 1;
+      });
+      if (score >= terms.length) scored.push([score, p]);
+    });
+    scored.sort(function (a, b) { return b[0] - a[0]; });
+    box.innerHTML = scored.slice(0, 8).map(function (sp) {
+      var p = sp[1];
+      return '<a href="' + p.url + '">' + p.title + '<small>' + p.section + '</small></a>';
+    }).join('') || '<a href="/docs/" style="color:var(--muted)">No results</a>';
+    box.classList.add('open');
+  });
+  document.addEventListener('click', function (e) {
+    if (!box.contains(e.target) && e.target !== input) box.classList.remove('open');
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { box.classList.remove('open'); input.blur(); }
+    if (e.key === 'Enter') { var first = box.querySelector('a'); if (first) window.location = first.href; }
+  });
+})();
+</script>
+
+<script>
+if (navigator.modelContext) {
+  navigator.modelContext.provideContext({
+    tools: [
+      {
+        name: 'search_matches',
+        description: 'Search football matches by team name, league, date range, or status. Returns upcoming and recent matches with odds and scores.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            team: { type: 'string', description: 'Team name (partial match)' },
+            league: { type: 'integer', description: 'League ID' },
+            date_from: { type: 'string', description: 'Start date (YYYY-MM-DD)' },
+            date_to: { type: 'string', description: 'End date (YYYY-MM-DD)' },
+            status: { type: 'string', enum: ['notstarted', 'inprogress', 'finished'], description: 'Match status' }
+          }
+        },
+        execute: async (params) => {
+          const q = new URLSearchParams();
+          if (params.team) q.set('team', params.team);
+          if (params.league) q.set('league', params.league);
+          if (params.date_from) q.set('date_from', params.date_from);
+          if (params.date_to) q.set('date_to', params.date_to);
+          if (params.status) q.set('status', params.status);
+          const r = await fetch('/api/events/?' + q.toString(), { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      },
+      {
+        name: 'get_live_scores',
+        description: 'Get all football matches currently in play with real-time scores, incidents (goals, cards, subs), and live statistics.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => {
+          const r = await fetch('/api/live/', { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      },
+      {
+        name: 'get_predictions',
+        description: 'Get ML predictions for upcoming matches. Returns win probabilities, expected goals, over/under, BTTS, and recommended bets.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            league: { type: 'integer', description: 'Filter by league ID' }
+          }
+        },
+        execute: async (params) => {
+          const q = params.league ? '?league=' + params.league : '';
+          const r = await fetch('/api/predictions/' + q, { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      },
+      {
+        name: 'get_standings',
+        description: 'Get league standings table with points, wins, draws, losses, goals, and xG data.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            league_id: { type: 'integer', description: 'League ID (required)' }
+          },
+          required: ['league_id']
+        },
+        execute: async (params) => {
+          const r = await fetch('/api/leagues/' + params.league_id + '/standings/', { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      },
+      {
+        name: 'search_players',
+        description: 'Search football players by name, team, nationality, or position. Returns profiles with market values.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            search: { type: 'string', description: 'Player name search' },
+            team: { type: 'integer', description: 'Team ID' },
+            nationality: { type: 'string', description: 'Nationality' },
+            position: { type: 'string', enum: ['G', 'D', 'M', 'F'], description: 'Position' }
+          }
+        },
+        execute: async (params) => {
+          const q = new URLSearchParams();
+          if (params.search) q.set('search', params.search);
+          if (params.team) q.set('team', params.team);
+          if (params.nationality) q.set('nationality', params.nationality);
+          if (params.position) q.set('position', params.position);
+          const r = await fetch('/api/players/?' + q.toString(), { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      },
+      {
+        name: 'get_odds',
+        description: 'Get betting odds for a match from 22+ bookmakers. Compare prices across sportsbooks.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            event: { type: 'integer', description: 'Event ID (required)' },
+            market: { type: 'string', description: 'Market: 1x2, over_under_25, btts, etc.' }
+          },
+          required: ['event']
+        },
+        execute: async (params) => {
+          const q = new URLSearchParams({ event: params.event });
+          if (params.market) q.set('market', params.market);
+          const r = await fetch('/api/odds/compare/?' + q.toString(), { headers: { 'Accept': 'application/json' } });
+          return await r.json();
+        }
+      }
+    ]
+  });
+}
+</script>
+
+
+<nav class="bsd-tabbar d-lg-none" aria-label="Primary mobile navigation">
+    <a href="/" class="bsd-tab ">
+        <i class="bi bi-calendar2-week"></i><span>Matches</span>
+    </a>
+    <a href="/leagues/" class="bsd-tab ">
+        <i class="bi bi-trophy"></i><span>Leagues</span>
+    </a>
+    <a href="#" class="bsd-tab" data-open-search role="button" aria-label="Search">
+        <i class="bi bi-search"></i><span>Search</span>
+    </a>
+    <a href="/predictions/" class="bsd-tab ">
+        <i class="bi bi-graph-up-arrow"></i><span>Predict</span>
+    </a>
+    <a href="/community/#aura" class="bsd-tab ">
+        <i class="bi bi-people"></i><span>Community</span>
+    </a>
+    <a href="#navbarNav" class="bsd-tab" data-bs-toggle="collapse" role="button"
+       aria-controls="navbarNav" aria-label="More" onclick="window.scrollTo({top:0,behavior:'smooth'});">
+        <i class="bi bi-grid"></i><span>More</span>
+    </a>
+</nav>
+
+
+<div id="mSearchOverlay" class="bsd-msearch d-lg-none">
+    <div class="bsd-msearch__bar">
+        <i class="bi bi-search"></i>
+        <input id="mSearchInput" type="text" autocomplete="off" spellcheck="false"
+               placeholder="Search teams, players, matches, leagues…" aria-label="Search">
+        <button id="mSearchClose" type="button">Cancel</button>
+    </div>
+    <div id="mSearchResults" class="bsd-msearch__results"></div>
+</div>
+
+<!-- Global search (desktop navbar + mobile overlay) -->
+<script>
+(function(){
+    const typeIcons = {team:'bi-shield-fill',player:'bi-person-fill',league:'bi-trophy-fill',match:'bi-calendar-event-fill',pair:'bi-people-fill'};
+    const typeColors = {team:'#2563eb',player:'#22c55e',league:'#f59e0b',match:'#8b5cf6',pair:'#7c3aed'};
+    const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
+
+    function render(results){
+        if (!results.length) return '<div class="p-3 text-muted small">No results found</div>';
+        return results.map(r=>`
+            <a href="${r.url}" class="d-flex align-items-center gap-2 px-3 py-2 text-decoration-none border-bottom" style="color:#111;">
+                ${r.img ? `<img src="${r.img}" width="28" height="28" style="object-fit:${r.type==='team'?'contain':'cover'};border-radius:${r.type==='player'?'50%':'4px'};" onerror="this.style.display='none'">` : `<i class="bi ${typeIcons[r.type]||'bi-search'}" style="color:${typeColors[r.type]||'#999'};font-size:1.2rem;width:28px;text-align:center;"></i>`}
+                <div>
+                    <div class="fw-semibold small">${r.name}</div>
+                    <div class="text-muted" style="font-size:0.7rem;">${r.sport&&r.sport!=='football'?cap(r.sport)+' &middot; ':''}${cap(r.type)}${r.extra?' &middot; '+r.extra:''}</div>
+                </div>
+            </a>`).join('');
+    }
+
+    function attachSearch(input, box, opts){
+        opts = opts || {};
+        if (!input || !box) return;
+        let timer = null;
+        input.addEventListener('input', function(){
+            clearTimeout(timer);
+            const q = this.value.trim();
+            if (q.length < 2){ box.innerHTML=''; if(!opts.alwaysOpen) box.style.display='none'; return; }
+            timer = setTimeout(()=>{
+                fetch('/search/?q='+encodeURIComponent(q))
+                    .then(r=>r.json())
+                    .then(data=>{ box.innerHTML = render(data.results); box.style.display='block'; });
+            }, 250);
+        });
+        if (!opts.alwaysOpen){
+            document.addEventListener('click', function(e){
+                if (!input.contains(e.target) && !box.contains(e.target)) box.style.display='none';
+            });
+            input.addEventListener('focus', function(){ if(box.innerHTML && this.value.length>=2) box.style.display='block'; });
+        }
+    }
+
+    // Desktop navbar typeahead
+    attachSearch(document.getElementById('globalSearch'), document.getElementById('searchResults'));
+
+    // Mobile full-screen search overlay (iOS style)
+    const overlay = document.getElementById('mSearchOverlay');
+    const mInput = document.getElementById('mSearchInput');
+    const mBox = document.getElementById('mSearchResults');
+    attachSearch(mInput, mBox, {alwaysOpen:true});
+    function openSearch(){ if(!overlay) return; overlay.classList.add('open'); document.body.style.overflow='hidden'; setTimeout(()=>mInput && mInput.focus(), 50); }
+    function closeSearch(){ if(!overlay) return; overlay.classList.remove('open'); document.body.style.overflow=''; }
+    document.querySelectorAll('[data-open-search]').forEach(el=>el.addEventListener('click', e=>{ e.preventDefault(); openSearch(); }));
+    const mClose = document.getElementById('mSearchClose');
+    if (mClose) mClose.addEventListener('click', closeSearch);
+})();
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5e3eace585faeab',t:'MTc5NTMwODM4Nw=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5e3eace585faeab',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

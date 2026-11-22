@@ -1,20 +1,34 @@
 /**
- * Job de sincronização do módulo Hub (CLI).
+ * Job de sincronização do módulo Hub (CLI) — SISTEMA DE CASCATA.
  *
- *   npx tsx scripts/hub-sync.ts --dates=2 --odds=1 --analyze --settle
+ *   npx tsx scripts/hub-sync.ts --dates=2 --odds=6 --lineups=3 --analyze --settle
  *
- * Ordem: fixtures -> odds dos jogos próximos -> lineups dos jogos na janela de
- * ~2h -> análise (preview/final) -> liquidação do ledger. Cada etapa é
- * idempotente, então rodar de 5 em 5 minutos é seguro e é o desenho esperado
- * do cron (ver /api/hub/cron).
+ * Ordem (cada etapa idempotente, pode rodar de 5 em 5 minutos):
+ *   1. fixtures      ESPN -> Football-Data.org -> Sportmonks
+ *   2. placar        ESPN (jogos de hoje) + Sportmonks inplay
+ *   3. odds          Sportmonks -> Bzzoiro -> ESPN   (sem odd = sem "Valor")
+ *   4. escalações    Sportmonks -> Bzzoiro -> ESPN
+ *   5. stats + H2H   Bzzoiro -> ESPN
+ *   6. análise       preview/final (o motor roda com o que existir)
+ *   7. liquidação    ledger -> won/lost/void
+ *
+ * O relatório final mostra POR FORNECEDOR quem respondeu e quem falhou. É a
+ * primeira coisa a olhar quando um dado some.
  */
 import "dotenv/config";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "../src/db";
-import { hubFixture } from "../src/db/hub-schema";
+import { hubBookmakerOdd, hubFixture, hubLineup } from "../src/db/hub-schema";
 import { runAnalysisJob } from "../src/lib/hub/analysis";
 import { settleFinishedFixtures, voidStalePending } from "../src/lib/hub/settle";
-import { syncFixturesForDate, syncLineups, syncLiveScores, syncOdds } from "../src/lib/hub/sportmonks";
+import {
+  refreshLiveCascade,
+  syncContextCascade,
+  syncFixturesCascade,
+  syncLineupsCascade,
+  syncOddsCascade,
+  type Attempt,
+} from "../src/lib/hub/cascade";
 
 function arg(name: string, fallback?: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -29,88 +43,173 @@ const isoDate = (offsetDays: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+const erro = (e: unknown) => String((e as Error)?.message || e);
+
+function agregar(attempts: Attempt[]): Record<string, { ok: number; fail: number; reasons: string[] }> {
+  const out: Record<string, { ok: number; fail: number; reasons: string[] }> = {};
+  for (const a of attempts) {
+    const slot = (out[a.provider] ??= { ok: 0, fail: 0, reasons: [] });
+    if (a.ok) slot.ok += 1;
+    else {
+      slot.fail += 1;
+      if (a.reason && slot.reasons.length < 5 && !slot.reasons.includes(a.reason)) slot.reasons.push(a.reason);
+    }
+  }
+  return out;
+}
+
 async function main() {
   const dates = Number(arg("dates", "1"));
-  const oddsWindow = Number(arg("odds", "0"));
+  const oddsWindow = Number(arg("odds", "6"));
+  const lineupsWindow = Number(arg("lineups", "3"));
+  const contextWindow = Number(arg("context", "24"));
   const doAnalyze = arg("analyze") === "true" || arg("analyze") === undefined;
   const doSettle = arg("settle") === "true" || arg("settle") === undefined;
 
-  const report: Record<string, unknown> = {};
+  const report: Record<string, unknown> = { startedAt: new Date().toISOString() };
 
-  // 1) fixtures do dia (e dos próximos N dias)
-  const syncSummary = [] as unknown[];
+  /* ---------- 1) fixtures ---------- */
+  const fixtures: Array<Record<string, unknown>> = [];
+  const fixtureAttempts: Attempt[] = [];
   for (let i = 0; i <= dates; i += 1) {
     const day = isoDate(i);
     try {
-      syncSummary.push(await syncFixturesForDate(day));
+      const r = await syncFixturesCascade(day);
+      fixtureAttempts.push(...r.attempts);
+      fixtures.push({ date: day, source: r.source, fixtures: r.created, attempts: r.attempts });
     } catch (e) {
-      syncSummary.push({ date: day, error: String((e as Error).message || e) });
+      fixtures.push({ date: day, error: erro(e) });
     }
   }
-  report.fixtures = syncSummary;
+  report.fixtures = { byDate: fixtures, providers: agregar(fixtureAttempts) };
 
-  // 2) placar ao vivo
+  /* ---------- 2) placar ao vivo ---------- */
   try {
-    report.live = await syncLiveScores(isoDate(0));
+    const live = await refreshLiveCascade();
+    report.live = { touched: live.touched, providers: agregar(live.attempts) };
   } catch (e) {
-    report.live = { error: String((e as Error).message || e) };
+    report.live = { error: erro(e) };
   }
 
-  // 3) odds dos jogos que começam nas próximas `oddsWindow` horas (ou todos se 0)
+  /* ---------- 3) odds ---------- */
   const horizon = new Date(Date.now() + Math.max(oddsWindow, 1) * 3600_000);
-  const near = await db
-    .select({ id: hubFixture.id, sportmonksId: hubFixture.sportmonksId })
+  const jogosOdds = await db
+    .select({ id: hubFixture.id })
     .from(hubFixture)
     .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, horizon)))
     .limit(80);
 
-  const oddsReport: unknown[] = [];
-  for (const f of near) {
+  const oddsAttempts: Attempt[] = [];
+  const oddsPorFonte: Record<string, number> = {};
+  const semOdd: number[] = [];
+  let oddsWritten = 0;
+  for (const f of jogosOdds) {
     try {
-      oddsReport.push(await syncOdds(f.sportmonksId));
+      const r = await syncOddsCascade(f.id);
+      oddsAttempts.push(...r.attempts);
+      oddsWritten += r.written;
+      oddsPorFonte[r.source] = (oddsPorFonte[r.source] ?? 0) + 1;
+      if (r.written === 0) semOdd.push(f.id);
     } catch (e) {
-      oddsReport.push({ fixture: f.sportmonksId, error: String((e as Error).message || e) });
+      oddsAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
     }
   }
-  report.odds = { fixtures: near.length, results: oddsReport.length };
+  report.odds = {
+    fixtures: jogosOdds.length,
+    written: oddsWritten,
+    bySource: oddsPorFonte,
+    withoutOdds: semOdd.length,
+    providers: agregar(oddsAttempts),
+  };
 
-  // 4) lineups dos jogos nas próximas 3h
-  const lineupHorizon = new Date(Date.now() + 3 * 3600_000);
-  const close = await db
-    .select({ sportmonksId: hubFixture.sportmonksId })
+  /* ---------- 4) escalações ---------- */
+  const lineupHorizon = new Date(Date.now() + Math.max(lineupsWindow, 1) * 3600_000);
+  const jogosLineup = await db
+    .select({ id: hubFixture.id })
     .from(hubFixture)
     .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, lineupHorizon)))
     .limit(60);
 
-  let confirmed = 0;
-  for (const f of close) {
+  const lineupAttempts: Attempt[] = [];
+  const lineupPorFonte: Record<string, number> = {};
+  let confirmadas = 0;
+  let comEscalacao = 0;
+  for (const f of jogosLineup) {
     try {
-      const res = await syncLineups(f.sportmonksId);
-      if (res.confirmed) confirmed += 1;
-    } catch {
-      // lineup ainda não publicado: normal antes de ~1h do jogo
+      const r = await syncLineupsCascade(f.id);
+      lineupAttempts.push(...r.attempts);
+      lineupPorFonte[r.source] = (lineupPorFonte[r.source] ?? 0) + 1;
+      if (r.players > 0) comEscalacao += 1;
+      if (r.confirmed) confirmadas += 1;
+    } catch (e) {
+      lineupAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
     }
   }
-  report.lineups = { checked: close.length, confirmed };
+  report.lineups = {
+    fixtures: jogosLineup.length,
+    withLineup: comEscalacao,
+    confirmed: confirmadas,
+    bySource: lineupPorFonte,
+    providers: agregar(lineupAttempts),
+  };
 
-  // 5) análise
+  /* ---------- 5) stats + H2H ---------- */
+  const contextHorizon = new Date(Date.now() + Math.max(contextWindow, 1) * 3600_000);
+  const jogosContexto = await db
+    .select({ id: hubFixture.id })
+    .from(hubFixture)
+    .where(and(gte(hubFixture.matchDate, new Date(Date.now() - 6 * 3600_000)), lte(hubFixture.matchDate, contextHorizon)))
+    .limit(40);
+
+  const contextAttempts: Attempt[] = [];
+  const contextoPorFonte: Record<string, number> = {};
+  for (const f of jogosContexto) {
+    try {
+      const r = await syncContextCascade(f.id);
+      contextAttempts.push(...r.attempts);
+      contextoPorFonte[r.source] = (contextoPorFonte[r.source] ?? 0) + 1;
+    } catch (e) {
+      contextAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+    }
+  }
+  report.context = { fixtures: jogosContexto.length, bySource: contextoPorFonte, providers: agregar(contextAttempts) };
+
+  /* ---------- 6) análise ---------- */
   if (doAnalyze) {
     try {
       report.analysis = await runAnalysisJob();
     } catch (e) {
-      report.analysis = { error: String((e as Error).message || e) };
+      report.analysis = { error: erro(e) };
     }
   }
 
-  // 6) liquidação
+  /* ---------- 7) liquidação ---------- */
   if (doSettle) {
     try {
       report.settle = await settleFinishedFixtures();
       report.voids = await voidStalePending();
     } catch (e) {
-      report.settle = { error: String((e as Error).message || e) };
+      report.settle = { error: erro(e) };
     }
   }
+
+  /* ---------- resumo ---------- */
+  const [{ total }] = await db.select({ total: sql<number>`count(*)::int` }).from(hubFixture);
+  const [{ comOdd }] = await db
+    .select({ comOdd: sql<number>`count(distinct ${hubBookmakerOdd.fixtureId})::int` })
+    .from(hubBookmakerOdd);
+  const [{ comXi }] = await db
+    .select({ comXi: sql<number>`count(*)::int` })
+    .from(hubLineup)
+    .where(eq(hubLineup.confirmed, true));
+
+  report.summary = {
+    fixturesInDb: total,
+    fixturesWithOdds: comOdd,
+    fixturesWithConfirmedLineup: comXi,
+    rule: "Sem odd real não há tag de Valor: o motor publica só a probabilidade.",
+  };
+  report.finishedAt = new Date().toISOString();
 
   console.log(JSON.stringify(report, null, 2));
 }

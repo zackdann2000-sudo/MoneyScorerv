@@ -120,6 +120,13 @@
       "when": 1795303741299,
       "tag": "0016_lovely_shen",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795308485714,
+      "tag": "0017_cute_shadow_king",
+      "breakpoints": true
     }
   ]
 }
