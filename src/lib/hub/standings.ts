@@ -448,6 +448,37 @@ export async function posicaoDoTime(
   return linha ?? null;
 }
 
+export type LigaComRetrato = {
+  id: number;
+  name: string;
+  slug: string;
+  externalRef: string | null;
+  countryName: string | null;
+  isCup: boolean;
+};
+
+/**
+ * Competições que já têm retrato gravado — é a lista do seletor da tela.
+ *
+ * Só entram ligas com pelo menos uma linha em `hub_standing`: mostrar no seletor
+ * uma liga que não tem tabela seria oferecer uma tela vazia.
+ */
+export async function ligasComRetrato(): Promise<LigaComRetrato[]> {
+  const rows = await db
+    .selectDistinct({
+      id: hubLeague.id,
+      name: hubLeague.name,
+      slug: hubLeague.slug,
+      externalRef: hubLeague.externalRef,
+      countryName: hubLeague.countryName,
+      isCup: hubLeague.hasKnockout,
+    })
+    .from(hubLeague)
+    .innerJoin(hubStanding, eq(hubStanding.leagueId, hubLeague.id))
+    .orderBy(asc(hubLeague.name));
+  return rows;
+}
+
 /** Competições que o job deve varrer por padrão (as tier-one mapeadas). */
 export const COMPETICOES_PADRAO = ["BSA", "SA", "PL", "PD", "BL1", "FL1", "PPL", "DED", "ELC"] as const;
 

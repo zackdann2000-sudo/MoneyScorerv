@@ -182,7 +182,10 @@ export default async function HubPage() {
             {total} jogo{total === 1 ? "" : "s"} em {ligas} liga{ligas === 1 ? "" : "s"} · próximas 72h
           </p>
         </div>
-        <Link href="/ev" className="ml-auto text-[11px] font-bold text-acc shrink-0 self-center">
+        <Link href="/hub/classificacao" className="ml-auto text-[11px] font-bold text-acc shrink-0 self-center">
+          Classificação
+        </Link>
+        <Link href="/ev" className="text-[11px] font-bold text-acc shrink-0 self-center">
           +EV
         </Link>
       </div>

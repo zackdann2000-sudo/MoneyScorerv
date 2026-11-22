@@ -20,6 +20,7 @@ const DRAWER_NAV = [
   { href: "/", label: "Hoje", icon: Home },
   { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
   { href: "/hub", label: "Centro de Jogos", icon: CalendarRange },
+  { href: "/hub/classificacao", label: "Classificação", icon: Trophy },
   { href: "/favoritos", label: "Favoritos", icon: Star },
   { href: "/noticias", label: "Notícias", icon: Newspaper },
   { href: "/ligas", label: "Ligas", icon: Trophy },
@@ -51,6 +52,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme, user, toasts, dismissToast, favorites } = useApp();
   const [open, setOpen] = useState(false);
   const favCount = favorites.length;
+  /* Ativo = rota exata ou sub-rota. Sem isto "/hub" acenderia também em
+     "/hub/classificacao" e a nav mostraria duas seções selecionadas. */
+  const ativo = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
   const go = (href: string) => { setOpen(false); router.push(href); };
 
   return (
@@ -78,6 +82,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="max-w-3xl mx-auto px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar">
           {[
             ["/hub", "Hub"],
+            ["/hub/classificacao", "Classificação"],
             ["/ao-vivo", "Ao vivo agora"],
             ["/times", "Times"],
             ["/jogadores", "Jogadores"],
@@ -90,7 +95,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             ["/fontes/sportmonks", "Sports Alert"],
             ["/fontes/football-data", "FD.org"],
           ].map(([href, label]) => (
-            <Link key={href} href={href} className={`shrink-0 px-3 h-8 rounded-full border text-[11px] font-bold inline-flex items-center ${path === href || path.startsWith(href) ? "border-acc text-acc" : "border-line text-mut"}`}>{label}</Link>
+            <Link key={href} href={href} className={`shrink-0 px-3 h-8 rounded-full border text-[11px] font-bold inline-flex items-center ${ativo(href) ? "border-acc text-acc" : "border-line text-mut"}`}>{label}</Link>
           ))}
           {user?.isAdmin && <Link href="/admin" className="shrink-0 px-3 h-8 rounded-full border border-warn text-warn text-[11px] font-bold inline-flex items-center">Admin</Link>}
         </div>
@@ -106,7 +111,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <p className="px-4 text-[10px] font-bold tracking-widest text-mut">NAVEGAÇÃO</p>
             <div className="mt-1">
               {DRAWER_NAV.map((n) => {
-                const on = n.href === "/" ? path === "/" : path.startsWith(n.href);
+                const on = ativo(n.href);
                 const Icon = n.icon;
                 return (
                   <button key={n.href} onClick={() => go(n.href)} className={`w-full flex items-center gap-3 px-4 h-11 text-sm font-semibold ${on ? "bg-live text-white" : "text-ink"}`}>
