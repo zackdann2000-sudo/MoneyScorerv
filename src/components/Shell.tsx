@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit, TrendingUp, BarChart3 } from "lucide-react";
+import { Radio, Star, Newspaper, Trophy, Sun, Moon, Bell, ShieldCheck, X, CalendarDays, CalendarRange, Menu, Home, Sparkles, Gem, CircleDollarSign, Scale, Activity, Users, BookOpen, Cable, CircleHelp, Radar, Whistle, Crown, BrainCircuit, TrendingUp, BarChart3 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
@@ -19,6 +19,7 @@ const NAV = [
 const DRAWER_NAV = [
   { href: "/", label: "Hoje", icon: Home },
   { href: "/ao-vivo", label: "Ao Vivo", icon: Radio },
+  { href: "/hub", label: "Centro de Jogos", icon: CalendarRange },
   { href: "/favoritos", label: "Favoritos", icon: Star },
   { href: "/noticias", label: "Notícias", icon: Newspaper },
   { href: "/ligas", label: "Ligas", icon: Trophy },
@@ -76,6 +77,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div className="sticky top-14 z-40 bg-bg/95 border-b border-line">
         <div className="max-w-3xl mx-auto px-3 py-2 flex gap-2 overflow-x-auto no-scrollbar">
           {[
+            ["/hub", "Hub"],
             ["/ao-vivo", "Ao vivo agora"],
             ["/times", "Times"],
             ["/jogadores", "Jogadores"],
