@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users, Flame, TrendingUp, Coins } from "lucide-react";
+import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users, Flame, TrendingUp, Coins, Sparkles } from "lucide-react";
 import { Crest, StatCompareRow } from "@/components/ui";
 import DestaquesConfronto from "@/components/hub/DestaquesConfronto";
 import FatoresXg from "@/components/hub/FatoresXg";
 import PadroesEstatisticos from "@/components/hub/PadroesEstatisticos";
 import OddsMultiCasa from "@/components/hub/OddsMultiCasa";
+import AiReport from "@/components/hub/AiReport";
+import { gerarRelatorio } from "@/lib/hub/aiReport";
 import { hubGameDetail, type HubDetail } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
@@ -118,6 +120,27 @@ export default async function HubGamePage({ params }: Props) {
   const over25 = d.markets.find((m) => m.market === "Over/Under" && m.selection === "Over 2.5");
   const under25 = d.markets.find((m) => m.market === "Over/Under" && m.selection === "Under 2.5");
 
+  /* Relatório em linguagem natural: sai só do que o motor calculou. Jogo de
+     demonstração não gera texto (os números ali são de exemplo). */
+  const relatorio = gerarRelatorio({
+    home: d.home.name,
+    away: d.away.name,
+    demo: d.demo,
+    probabilities: d.probabilities,
+    expectedGoals: d.expectedGoals,
+    xg: d.xg,
+    xgSource: d.xgSource,
+    markets: d.markets,
+    topScores: d.topScores,
+    value: d.value,
+    hasOdds: d.hasOdds,
+    h2h: d.h2h,
+    forma: d.forma ? { home: d.forma.home, away: d.forma.away } : null,
+    confidence: d.confidence,
+    riskFactors: d.riskFactors,
+    oddsMultiCasa: d.oddsMultiCasa,
+  });
+
   return (
     <div>
       <Link href="/hub" className="inline-flex items-center gap-1 text-[11px] font-bold text-mut mb-2">
@@ -185,6 +208,15 @@ export default async function HubGamePage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* Relatório IA — resumo de jornalista no topo, feito só com os números acima */}
+      {relatorio && (
+        <div className="mt-3">
+          <Secao icon={<Sparkles size={13} />} title="Relatório IA" right="gerado do modelo">
+            <AiReport relatorio={relatorio} />
+          </Secao>
+        </div>
+      )}
 
       {/* 1X2 do modelo */}
       <div className="mt-3">
