@@ -22,6 +22,7 @@ import { fdFixturesForDate, fdTablePositions } from "./footballdata-hub";
 import { bzFindEventId, bzH2HForEvent, bzLineupsForEvent, bzOddsForEvent, bzStatsForEvent } from "./bzzoiro-hub";
 import { smFixturesForDate, smLineupsForFixture, smOddsForFixture, smRefreshLive } from "./sportmonks";
 import type { ContextPayload, LineupPayload, OddsWrite, RawFixture } from "./types";
+import { extrairCartoes } from "./cartoes";
 
 /**
  * SISTEMA DE CASCATA do módulo Hub.
@@ -669,13 +670,14 @@ async function saveContext(fixtureId: number, provider: Provider, h2h: ContextPa
     .where(eq(hubFixtureContext.fixtureId, fixtureId))
     .limit(1);
   const source = h2h ? provider : atual?.source ?? provider;
+  const statsFinal = stats ?? atual?.stats ?? null;
   await db
     .insert(hubFixtureContext)
     .values({
       fixtureId,
       source,
       h2h: h2h ?? atual?.h2h ?? null,
-      stats: stats ?? atual?.stats ?? null,
+      stats: statsFinal,
       fetchedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -683,10 +685,36 @@ async function saveContext(fixtureId: number, provider: Provider, h2h: ContextPa
       set: {
         source,
         h2h: h2h ?? atual?.h2h ?? null,
-        stats: stats ?? atual?.stats ?? null,
+        stats: statsFinal,
         fetchedAt: new Date(),
       },
     });
+
+  await gravarCartoes(fixtureId, statsFinal);
+}
+
+/**
+ * Persiste os cartões do jogo nas colunas de `hub_fixture`.
+ *
+ * Por que aqui e não na leitura: a média de cartões da liga era calculada
+ * varrendo o JSON de contexto em cada request (até 120 jogos, busca por texto
+ * na chave). Extrair no sync transforma isso num `avg()` de coluna.
+ *
+ * Regras:
+ *  - só escreve a cor que veio: `null` do fornecedor NÃO apaga o que já existe;
+ *  - chamado no mesmo ponto para Bzzoiro e ESPN, então não há dois caminhos de
+ *    escrita para divergir.
+ */
+async function gravarCartoes(fixtureId: number, stats: ContextPayload["stats"]): Promise<void> {
+  const cartoes = extrairCartoes(stats);
+  if (!cartoes) return;
+
+  const set: { yellowCards?: number; redCards?: number } = {};
+  if (cartoes.yellow != null) set.yellowCards = cartoes.yellow;
+  if (cartoes.red != null) set.redCards = cartoes.red;
+  if (Object.keys(set).length === 0) return;
+
+  await db.update(hubFixture).set(set).where(eq(hubFixture.id, fixtureId));
 }
 
 /** Estatística e H2H: Bzzoiro -> ESPN. Nada é gravado se ninguém responder. */

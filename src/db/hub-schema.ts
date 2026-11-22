@@ -154,6 +154,23 @@ export const hubFixture = pgTable("hub_fixture", {
   awayScoreFt: integer("away_score_ft").notNull().default(0),
   homeRedCards: integer("home_red_cards").notNull().default(0),
   awayRedCards: integer("away_red_cards").notNull().default(0),
+  /**
+   * Cartões amarelos DO JOGO (mandante + visitante).
+   *
+   * `null` = o fornecedor não informou, e isso é diferente de 0: a média da
+   * liga ignora null em vez de contar o jogo como “jogo sem cartão”. Foi por
+   * isso que a coluna virou retrato no banco — a média antes dependia de varrer
+   * o JSON de contexto a cada request.
+   */
+  yellowCards: integer("yellow_cards"),
+  /**
+   * Cartões vermelhos DO JOGO (soma dos dois lados). Mesma semântica de null.
+   *
+   * As colunas por lado (`home_red_cards`/`away_red_cards`) continuam existindo
+   * por compatibilidade com o contrato antigo do `upsertFixture`; quem manda é
+   * este total, escrito junto com o contexto da partida.
+   */
+  redCards: integer("red_cards"),
   minutesPlayed: integer("minutes_played").notNull().default(0),
   /** NS | INPLAY_1ST_HALF | HT | INPLAY_2ND_HALF | FT | AET | POSTPONED */
   liveState: text("live_state").notNull().default("NS"),

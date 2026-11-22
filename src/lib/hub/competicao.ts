@@ -9,7 +9,7 @@
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { hubFixture, hubFixtureContext, hubLeague, hubPlayer, hubPlayerStat, hubSeason, hubTeam } from "@/db/hub-schema";
+import { hubFixture, hubLeague, hubPlayer, hubPlayerStat, hubSeason, hubTeam } from "@/db/hub-schema";
 import { lerClassificacao, resolverLigaId, type Classificacao } from "./standings";
 
 /** Estados em que o jogo tem placar final. Espelha `queries.ts`. */
@@ -50,12 +50,14 @@ export type MediasLiga = {
   golsForaPorJogo: number | null;
   over25Pct: number | null;
   bttsPct: number | null;
-  /** Amarelos por jogo — só existe quando o contexto da partida trouxe cartões. */
+  /** Amarelos por jogo — média sobre os jogos em que o cartão foi coletado. */
   amarelosPorJogo: number | null;
-  /** Vermelhos por jogo — vem da própria fixture, é o dado mais confiável. */
+  /** Vermelhos por jogo — mesma regra de base. */
   vermelhosPorJogo: number | null;
-  /** Quantos jogos tinham cartões no contexto (base dos amarelos). */
+  /** Quantos jogos tinham amarelos gravados (denominador da média). */
   amostraCartoes: number;
+  /** Quantos jogos tinham vermelhos gravados. */
+  amostraVermelhos: number;
 };
 
 export type DadosCompeticao = {
@@ -171,13 +173,13 @@ async function artilhariaDa(leagueId: number, seasonId: number | null): Promise<
 }
 
 /**
- * Média de gols (SQL, sobre a temporada toda) e de cartões.
+ * Média de gols e cartões — agregado SQL sobre os jogos encerrados.
  *
- * Gols: agregado no banco, barato e exato.
- * Amarelos: só existem dentro do JSON de contexto da ESPN/Bzzoiro. Lemos uma
- * amostra limitada dos jogos mais recentes que têm contexto e contamos as
- * chaves que falam em cartão — o fornecedor grava o RÓTULO ("Cartões
- * amarelos"), então a busca é por texto, não por chave fixa.
+ * Gols e vermelhos/amarelos saem de colunas da fixture. Os totais de cartão
+ * foram persistidos pelo sync (`yellow_cards` / `red_cards`), com `null` quando
+ * o fornecedor não informou: `avg()` ignora null naturalmente, então o
+ * denominador dos cartões é só o número de jogos em que o dado existe — a base
+ * honesta de cada média.
  */
 async function mediasDa(leagueId: number, seasonId: number | null): Promise<{ medias: MediasLiga; total: number }> {
   const filtroTemporada = seasonId
@@ -192,68 +194,32 @@ async function mediasDa(leagueId: number, seasonId: number | null): Promise<{ me
       golsFora: sql<number>`coalesce(sum(${hubFixture.awayScore}), 0)::int`,
       over25: sql<number>`coalesce(sum(case when (${hubFixture.homeScore} + ${hubFixture.awayScore}) >= 3 then 1 else 0 end), 0)::int`,
       btts: sql<number>`coalesce(sum(case when ${hubFixture.homeScore} > 0 and ${hubFixture.awayScore} > 0 then 1 else 0 end), 0)::int`,
-      vermelhos: sql<number>`coalesce(sum(${hubFixture.homeRedCards} + ${hubFixture.awayRedCards}), 0)::int`,
+      amarelos: sql<number | null>`avg(${hubFixture.yellowCards})::float8`,
+      vermelhos: sql<number | null>`avg(${hubFixture.redCards})::float8`,
+      jogosComAmarelo: sql<number>`count(${hubFixture.yellowCards})::int`,
+      jogosComVermelho: sql<number>`count(${hubFixture.redCards})::int`,
     })
     .from(hubFixture)
     .where(filtroTemporada);
 
   const jogos = Number(agregado?.jogos ?? 0);
-
-  /* Amarelos: amostra dos jogos com contexto, mais recentes primeiro. */
-  let amarelosTotal = 0;
-  let jogosComCartao = 0;
-  if (jogos > 0) {
-    const comContexto = await db
-      .select({ stats: hubFixtureContext.stats })
-      .from(hubFixtureContext)
-      .innerJoin(hubFixture, eq(hubFixture.id, hubFixtureContext.fixtureId))
-      .where(filtroTemporada)
-      .orderBy(desc(hubFixture.matchDate))
-      .limit(120);
-
-    for (const c of comContexto) {
-      const cartoes = cartoesDoContexto(c.stats);
-      if (cartoes == null) continue;
-      amarelosTotal += cartoes.amarelos;
-      jogosComCartao++;
-    }
-  }
+  const ar = (v: number | null, casas = 2) => (v == null ? null : Number(v.toFixed(casas)));
 
   return {
     total: jogos,
     medias: {
       amostra: jogos,
-      golsPorJogo: jogos > 0 ? Number((Number(agregado?.gols ?? 0) / jogos).toFixed(2)) : null,
-      golsCasaPorJogo: jogos > 0 ? Number((Number(agregado?.golsCasa ?? 0) / jogos).toFixed(2)) : null,
-      golsForaPorJogo: jogos > 0 ? Number((Number(agregado?.golsFora ?? 0) / jogos).toFixed(2)) : null,
-      over25Pct: jogos > 0 ? Number((Number(agregado?.over25 ?? 0) / jogos).toFixed(3)) : null,
-      bttsPct: jogos > 0 ? Number((Number(agregado?.btts ?? 0) / jogos).toFixed(3)) : null,
-      amarelosPorJogo: jogosComCartao > 0 ? Number((amarelosTotal / jogosComCartao).toFixed(2)) : null,
-      vermelhosPorJogo: jogos > 0 ? Number((Number(agregado?.vermelhos ?? 0) / jogos).toFixed(2)) : null,
-      amostraCartoes: jogosComCartao,
+      golsPorJogo: ar(jogos > 0 ? Number(agregado?.gols ?? 0) / jogos : null),
+      golsCasaPorJogo: ar(jogos > 0 ? Number(agregado?.golsCasa ?? 0) / jogos : null),
+      golsForaPorJogo: ar(jogos > 0 ? Number(agregado?.golsFora ?? 0) / jogos : null),
+      over25Pct: ar(jogos > 0 ? Number(agregado?.over25 ?? 0) / jogos : null, 3),
+      bttsPct: ar(jogos > 0 ? Number(agregado?.btts ?? 0) / jogos : null, 3),
+      amarelosPorJogo: ar(jogos > 0 ? (agregado?.amarelos ?? null) : null),
+      vermelhosPorJogo: ar(jogos > 0 ? (agregado?.vermelhos ?? null) : null),
+      amostraCartoes: Number(agregado?.jogosComAmarelo ?? 0),
+      amostraVermelhos: Number(agregado?.jogosComVermelho ?? 0),
     },
   };
-}
-
-/**
- * Cartões amarelos de um JSON de contexto.
- *
- * O rótulo vem do fornecedor ("Cartões amarelos", "Yellow Cards"), então a
- * busca é sem acento e case-insensitive. Vermelho é ignorado aqui de propósito:
- * ele já vem na coluna da fixture.
- */
-function cartoesDoContexto(stats: unknown): { amarelos: number } | null {
-  if (!stats || typeof stats !== "object") return null;
-  const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  for (const [chave, valor] of Object.entries(stats as Record<string, { home?: unknown; away?: unknown }>)) {
-    const k = semAcento(chave);
-    if (!/amarelo|yellow/.test(k)) continue;
-    const casa = Number(valor?.home);
-    const fora = Number(valor?.away);
-    if (!Number.isFinite(casa) || !Number.isFinite(fora)) continue;
-    return { amarelos: casa + fora };
-  }
-  return null;
 }
 
 /** Lê tudo que a página da liga precisa. `null` = competição não encontrada. */
@@ -302,6 +268,7 @@ export async function dadosDaCompeticao(entrada: string): Promise<DadosCompetica
         amarelosPorJogo: null,
         vermelhosPorJogo: null,
         amostraCartoes: 0,
+        amostraVermelhos: 0,
       } satisfies MediasLiga,
     })),
   ]);

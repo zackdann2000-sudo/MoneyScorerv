@@ -134,7 +134,7 @@ function Medias({ m, jogos }: { m: MediasLiga; jogos: number }) {
     ["Over 2,5", pct(m.over25Pct), "jogos com 3+ gols"],
     ["Ambas marcam", pct(m.bttsPct), "BTTS"],
     ["Amarelos/jogo", num(m.amarelosPorJogo), m.amarelosPorJogo == null ? "não coletado" : `${m.amostraCartoes} jogos`],
-    ["Vermelhos/jogo", num(m.vermelhosPorJogo), "expulsões"],
+    ["Vermelhos/jogo", num(m.vermelhosPorJogo), m.vermelhosPorJogo == null ? "não coletado" : `${m.amostraVermelhos} jogos`],
     ["Base", String(jogos), "jogos encerrados"],
   ];
 
@@ -162,8 +162,9 @@ function Medias({ m, jogos }: { m: MediasLiga; jogos: number }) {
         </div>
       )}
       <p className="mt-1.5 text-[10px] text-mut leading-relaxed">
-        Gols, over e BTTS saem do placar das partidas encerradas. Amarelos vêm do resumo da partida (ESPN/Bzzoiro) e são
-        contados só nos jogos em que o fornecedor mandou cartão; vermelhos vêm da própria ficha do jogo.
+        Gols, over e BTTS saem do placar das partidas encerradas. Cartões saem das colunas gravadas pelo sync
+        (<code className="text-ink">yellow_cards</code>/<code className="text-ink">red_cards</code>); a média de cartão usa
+        como base apenas os jogos em que o fornecedor mandou o dado — jogo sem cartão coletado não entra como zero.
       </p>
     </section>
   );
