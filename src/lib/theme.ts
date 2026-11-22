@@ -1,5 +1,5 @@
 /**
- * DESIGN TOKENS — Money Sênior
+ * DESIGN TOKENS — GreenScore
  * =====================================================================
  * Fonte única de verdade para cores e tipografia usadas nos componentes
  * TypeScript. Os valores abaixo ESPELHAM exatamente as variáveis CSS de

@@ -1,5 +1,5 @@
 /*
- * Money Sênior — service worker único do site.
+ * GreenScore — service worker único do site.
  *
  * Por que um arquivo só: o Chrome Android só oferece "Instalar app" quando o
  * worker que CONTROLA a página tem um handler de `fetch`. Até aqui existiam
@@ -21,12 +21,12 @@ self.addEventListener("push", function (event) {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: "Money Sênior", body: event.data ? event.data.text() : "" };
+    data = { title: "GreenScore", body: event.data ? event.data.text() : "" };
   }
   // payload do OneSignal (custom.i / _osp) -> quem mostra é o SDK deles
   if (data && (data.custom || data._osp || data["google.c.a"])) return;
 
-  const title = data.title || "⚽ Money Sênior";
+  const title = data.title || "⚽ GreenScore";
   const options = {
     body: data.body || "",
     icon: data.icon || "/icon-192x192.png",

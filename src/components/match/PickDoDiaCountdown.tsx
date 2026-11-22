@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 /* =======================================================================
-   COUNTDOWN DO MONEY SÊNIOR — 12:00 de Brasília
+   COUNTDOWN DO PICK DO DIA — 12:00 de Brasília
    Regras (confirmadas):
    · Antes das 12:00  → contador regressivo
    · Depois das 12:00 → mostra o pick revelado do dia, se existir
@@ -72,7 +72,7 @@ function pad(n: number) {
 
 export type CountdownState = "counting" | "revealed" | "waiting";
 
-export default function MoneySeniorCountdown({
+export default function PickDoDiaCountdown({
   hasPick,
   onReveal,
 }: {
@@ -109,7 +109,7 @@ export default function MoneySeniorCountdown({
             Pick do dia revelado
           </p>
           <p className="text-[11px] text-mut leading-tight">
-            O Money Sênior já liberou o palpite das 12:00. Toque para ver as listas.
+            O GreenScore IA já liberou o palpite das 12:00. Toque para ver as listas.
           </p>
         </div>
         <span className="text-acc font-bold text-lg shrink-0">→</span>
@@ -143,7 +143,7 @@ export default function MoneySeniorCountdown({
         <span className="text-2xl shrink-0">🧙‍♂️</span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-acc">
-            Money Sênior · Pick do dia
+            GreenScore IA · Pick do dia
           </p>
           <p className="text-[10px] text-mut leading-tight">
             {hasPick ? "Palpite liberado às 12:00" : "O próximo pick revela em"} (horário de Brasília)

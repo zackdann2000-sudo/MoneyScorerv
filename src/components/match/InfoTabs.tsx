@@ -802,7 +802,7 @@ export function MoneyTab({ matchId }: { matchId: string }) {
   return (
     <div className="text-center py-8 bg-panel border border-line rounded-2xl px-4">
       <span className="text-4xl">🧙‍♂️</span>
-      <p className="font-display font-bold uppercase text-lg mt-2">O Money Sênior escolheu outro jogo hoje</p>
+      <p className="font-display font-bold uppercase text-lg mt-2">O GreenScore IA escolheu outro jogo hoje</p>
       <p className="text-xs text-mut mt-1">{data.pick ? `Pick do dia: ${data.pick.jogo.timeCasa} x ${data.pick.jogo.timeFora}` : "Ainda calculando o pick do dia com os jogos disponíveis."}</p>
       <Link href="/money-tips" className="inline-block mt-4 px-5 py-2 rounded-full bg-purple text-white text-xs font-extrabold">VER MONEY TIPS →</Link>
     </div>

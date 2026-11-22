@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
 import InstallApp from "@/components/InstallApp";
+import Onboarding from "@/components/Onboarding";
 
 const NAV = [
   { href: "/ao-vivo", label: "Ao vivo", icon: Radio },
@@ -179,6 +180,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       {/* convite de instalação: só aparece quando o navegador diz que dá para instalar */}
       <InstallApp />
+
+      {/* tutorial de 3 telas: só para conta logada que ainda não viu (localStorage) */}
+      <Onboarding />
     </div>
   );
 }

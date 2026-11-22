@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { MoveHorizontal, BarChart3, ListOrdered } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
 import { GoalsBars } from "@/components/charts";
-import MoneySeniorCountdown from "./MoneySeniorCountdown";
+import PickDoDiaCountdown from "./PickDoDiaCountdown";
 import OddsCards from "./OddsCards";
 
 type Team = { id: string; name: string; logo: string };
@@ -47,7 +47,7 @@ export default function OppTab({ matchId, league, home, away, odds, oddsSource }
     return () => clearTimeout(t);
   }, [view, duplo, hasOther, otherSide, load]);
 
-  /* Pick do dia — usado pelo banner de countdown do Money Sênior */
+  /* Pick do dia — usado pelo banner de countdown do GreenScore IA */
   useEffect(() => {
     let on = true;
     fetch("/api/money-tips")
@@ -70,10 +70,10 @@ export default function OppTab({ matchId, league, home, away, odds, oddsSource }
 
   return (
     <div>
-      {/* Banner do Money Sênior — countdown até 12:00 (Brasília).
+      {/* Banner do GreenScore IA — countdown até 12:00 (Brasília).
           No estado "revelado" ele vira botão e abre a lista de picks do dia. */}
       <div className="mb-3">
-        <MoneySeniorCountdown
+        <PickDoDiaCountdown
           hasPick={!!moneyPick?.pick}
           onReveal={() => router.push("/money-tips?tab=pick")}
         />

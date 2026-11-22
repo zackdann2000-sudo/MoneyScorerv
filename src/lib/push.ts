@@ -88,8 +88,8 @@ export async function enviarNotificacao(userId: number | null, titulo: string, m
   return sent;
 }
 
-/* ============ Alerta rico do MONEY TIPS (Money Sênior) ============ */
-export async function enviarNotificacaoMoneySenior(matchId: string, jogoNome: string, pickTitulo: string, pickDescricao: string, avatarUrl?: string) {
+/* ============ Alerta rico do MONEY TIPS (GreenScore IA) ============ */
+export async function enviarNotificacaoMoneyTips(matchId: string, jogoNome: string, pickTitulo: string, pickDescricao: string, avatarUrl?: string) {
   const title = "🧙‍️ Bet do Money TIPS Disponível!";
   const body = `A aposta do Money TIPS para ${jogoNome}: ${pickTitulo}. ${pickDescricao} Clique para ver.`;
   const url = `/jogos/${matchId}?tab=money-tips`;
