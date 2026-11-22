@@ -154,7 +154,14 @@ function LigaBloco({ grupo }: { grupo: HubLeagueGroup }) {
   return (
     <section className="mb-4">
       <div className="flex items-center gap-2 mb-2 px-0.5">
-        <h2 className="font-display font-bold text-sm uppercase tracking-wide truncate">{grupo.name}</h2>
+        {/* O nome da liga é o caminho para a página central da competição. */}
+        <Link
+          href={`/hub/liga/${grupo.id}`}
+          className="flex items-center gap-1 min-w-0 group hover:text-acc transition-colors"
+        >
+          <h2 className="font-display font-bold text-sm uppercase tracking-wide truncate">{grupo.name}</h2>
+          <ChevronRight size={13} className="shrink-0 text-mut group-hover:text-acc" />
+        </Link>
         {grupo.country && <span className="text-[10px] font-bold text-mut shrink-0">{grupo.country}</span>}
         {grupo.isExperimental && <FlaskConical size={12} className="text-warn shrink-0" aria-label="Liga experimental" />}
         <span className="ml-auto text-[10px] font-bold text-mut shrink-0">{grupo.games.length} jogo{grupo.games.length > 1 ? "s" : ""}</span>
