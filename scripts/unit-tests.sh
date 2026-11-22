@@ -47,6 +47,7 @@ SUITES+=(
   "cache|src/lib/cache.ts|src/lib/cache.test.cjs"
   "idadeDado|src/lib/idadeDado.ts|src/lib/idadeDado.test.cjs"
   "particoes|src/lib/apitou/particoes.ts src/lib/apitou/analise.ts src/lib/apitou/engine.ts src/lib/apitou/fonte.ts src/lib/formaRecente.ts|src/lib/apitou/particoes.test.cjs"
+  "tiebreak|src/lib/hub/tiebreak.ts|src/lib/hub/tiebreak.test.cjs"
 )
 
 for suite in "${SUITES[@]}"; do

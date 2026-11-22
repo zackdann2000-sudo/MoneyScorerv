@@ -58,6 +58,20 @@ export const hubLeague = pgTable("hub_league", {
   isTracked: boolean("is_tracked").notNull().default(true),
   /** Ligas em teste: entram com aviso e ficam FORA das estatísticas. */
   isExperimental: boolean("is_experimental").notNull().default(false),
+  /**
+   * Regra de desempate da competição, ordenada do critério mais forte ao mais fraco.
+   *
+   * É DADO, não código: o Brasileirão desempata por VITÓRIAS antes do saldo de
+   * gols, e as ligas europeias por SALDO antes de vitórias. Ordenar todo mundo
+   * pela regra europeia publica uma tabela errada e plausível (ver
+   * `lib/hub/tiebreak.ts` e `scripts/probe-tiebreak.mjs`).
+   */
+  tiebreakRules: jsonb("tiebreak_rules")
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'["points","goalDifference","goalsFor"]'::jsonb`),
+  /** Copa/mata-mata: quando não há tabela, a UI mostra bracket e não "sem dados". */
+  hasKnockout: boolean("has_knockout").notNull().default(false),
   oddsProviderId: integer("odds_provider_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -187,6 +201,60 @@ export const hubFixtureContext = pgTable("hub_fixture_context", {
   stats: jsonb("stats").$type<HubMatchStats | null>(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Classificação de uma competição — RETRATO, não histórico.
+ *
+ * Antes desta tabela a classificação vinha do fornecedor a cada request
+ * (`/api/standings`), o que significava: fornecedor fora do ar = aba vazia,
+ * e nenhuma possibilidade de aplicar/auditar a regra de desempate.
+ *
+ * Decisões que o esquema garante:
+ *
+ *  1. `season_id` e `stage_name` são NOT NULL de propósito. Em índice único,
+ *     NULLs são DISTINTOS no Postgres: `unique (league, season, stage, team)`
+ *     com `season_id` nulo aceitaria a mesma linha duas vezes. Tornar as duas
+ *     colunas obrigatórias fecha esse buraco em vez de confiar em `coalesce()`.
+ *  2. `goal_diff` é derivado (GF - GC), mas é coluna materializada e o sync
+ *     recalcula GF/GC/SG juntos na mesma transação. Coluna gerada seria mais
+ *     segura; materializada foi escolhida para o upsert conseguir gravar o
+ *     retrato do fornecedor sem divergir do Drizzle.
+ *  3. A linha é um retrato do fornecedor: quando o time some da tabela, a linha
+ *     é apagada pelo sync (não fica órfã mostrando posição velha).
+ */
+export const hubStanding = pgTable("hub_standing", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  leagueId: integer("league_id").notNull().references(() => hubLeague.id, { onDelete: "cascade" }),
+  seasonId: integer("season_id").notNull().references(() => hubSeason.id, { onDelete: "cascade" }),
+  teamId: integer("team_id").notNull().references(() => hubTeam.id, { onDelete: "cascade" }),
+  /** "Regular Season" | "Group A" | "Championship Round". '' = tabela única. */
+  stageName: text("stage_name").notNull().default(""),
+  /** Posição JÁ calculada pela regra da competição (ver tiebreak.ts). */
+  position: integer("position").notNull(),
+  played: integer("played").notNull().default(0),
+  wins: integer("wins").notNull().default(0),
+  draws: integer("draws").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+  goalsFor: integer("goals_for").notNull().default(0),
+  goalsAgainst: integer("goals_against").notNull().default(0),
+  /** Derivado: goals_for - goals_against, gravado pelo sync junto com os dois. */
+  goalDiff: integer("goal_diff").notNull().default(0),
+  points: integer("points").notNull().default(0),
+  /** Últimos 5, do mais antigo ao mais novo ("VVEED"). Alimenta FormDots. */
+  form: text("form"),
+  formHome: text("form_home"),
+  formAway: text("form_away"),
+  /** espn | footballdata */
+  source: text("source").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("hub_standing_uq").on(t.leagueId, t.seasonId, t.stageName, t.teamId),
+  index("hub_standing_order_idx").on(t.leagueId, t.seasonId, t.stageName, t.position),
+  index("hub_standing_team_idx").on(t.teamId),
+  check("hub_standing_position_chk", sql`${t.position} >= 1`),
+  check("hub_standing_played_chk", sql`${t.played} >= ${t.wins} + ${t.draws} + ${t.losses}`),
+  check("hub_standing_goal_diff_chk", sql`${t.goalDiff} = ${t.goalsFor} - ${t.goalsAgainst}`),
+]);
 
 export const hubAnalysis = pgTable("hub_analysis", {
   id: serial("id").primaryKey(),
