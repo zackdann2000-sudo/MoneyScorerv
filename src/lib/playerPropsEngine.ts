@@ -10,6 +10,8 @@
  * confronto entra como blend: `media = (1-w)·media10 + w·mediaH2H`.
  */
 
+import { getWeightedAverage } from "./formWeight";
+
 export type StatKey =
   | "gols"
   | "assistencias"
@@ -41,6 +43,8 @@ export type JogadorAmostra = {
   timeId?: string;
   lado: "home" | "away";
   posicao: string;
+  /** Foto publicada pelo fornecedor; null quando ele não manda. */
+  foto?: string | null;
   /** Mais antigo → mais recente. */
   jogos: JogoValores[];
 };
@@ -220,4 +224,219 @@ export function montarCards(
     mercado: m,
     top: topDoMercado(jogadores, m, h2hPorJogador, n),
   })).filter((c) => c.top.length > 0);
+}
+
+/* ========================================================================== */
+/* DESTAQUES DO CONFRONTO — ranking por média real, sem inventar nada.        */
+/* ========================================================================== */
+
+/**
+ * Mercados do bloco "Top jogadores por mercado".
+ *
+ * Diferente de `MERCADOS`, aqui o que importa é a MÉDIA/jogo do jogador na
+ * janela real, não a probabilidade de um Over. É o olhar de scout: quem chuta
+ * mais, quem toma cartão, quem defende — sempre a partir dos jogos que a fonte
+ * devolveu.
+ */
+export type DestaqueMercado =
+  | "gols_assistencias"
+  | "cartoes"
+  | "finalizacoes"
+  | "chutes_no_gol"
+  | "defesas";
+
+/** Um jogador já ranqueado, com o que a UI precisa para desenhar o card. */
+export type DestaqueJogador = {
+  jogadorId: string;
+  nome: string;
+  time: string;
+  lado: "home" | "away";
+  posicao: string;
+  foto: string | null;
+  /** Média ponderada/jogo. `null` = amostra insuficiente (não estimamos). */
+  media: number | null;
+  /** Jogos da janela em que a fonte publicou ESTA estatística. */
+  amostra: number;
+  /** Jogos que o jogador tem na janela (mesmo sem o dado do mercado). */
+  jogosNaJanela: number;
+  /** % dos jogos da amostra em que o evento aconteceu (0..1). */
+  frequencia: number | null;
+  /** false → a UI mostra "Amostra insuficiente" e esconde a barra. */
+  suficiente: boolean;
+  /** 0..1 relativo ao líder do card (nunca uma probabilidade inventada). */
+  barra: number;
+  /** Métrica complementar real (ex.: chutes no gol no card de finalizações). */
+  mediaSecundaria?: number | null;
+  rotuloSecundaria?: string;
+};
+
+export type DestaqueGrupo = {
+  id: "gols_assistencias" | "cartoes" | "finalizacoes" | "goleiros";
+  rotulo: string;
+  icone: string;
+  descricao: string;
+  /** true = Top N de CADA time; false = Top N do confronto inteiro. */
+  porLado: boolean;
+  itens: DestaqueJogador[];
+};
+
+const normalizaPosicao = (p: string) =>
+  String(p || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+/** Goleiro nas nomenclaturas que a fonte costuma mandar (G, GK, Goalkeeper...). */
+export function ehGoleiro(posicao: string): boolean {
+  const p = normalizaPosicao(posicao);
+  return p === "g" || p === "gk" || p === "goalkeeper" || p === "goleiro" || p === "keeper";
+}
+
+/** Série do mercado, um valor por jogo (null quando a fonte não publicou). */
+function serieDoMercado(jogador: JogadorAmostra, mercado: DestaqueMercado): (number | null)[] {
+  if (mercado === "gols_assistencias") {
+    return jogador.jogos.map((j) => {
+      const gols = j.gols;
+      const assists = j.assistencias;
+      if (gols == null && assists == null) return null;
+      return (gols ?? 0) + (assists ?? 0);
+    });
+  }
+  const stat: StatKey = mercado === "chutes_no_gol" ? "chutesNoGol" : (mercado as StatKey);
+  return jogador.jogos.map((j) => (j[stat] == null ? null : Number(j[stat])));
+}
+
+function montarDestaque(
+  jogador: JogadorAmostra,
+  mercado: DestaqueMercado,
+  secundario?: DestaqueMercado,
+): DestaqueJogador {
+  const serie = serieDoMercado(jogador, mercado);
+  const validos = serie.filter((v): v is number => v != null && Number.isFinite(v));
+  const suficiente = validos.length >= MIN_AMOSTRA;
+
+  // `formWeight` espera a série do jogo MAIS RECENTE para o mais antigo;
+  // `jogador.jogos` está em ordem cronológica. Sem inverter, o peso de forma
+  // cairia no jogo errado.
+  const media = suficiente ? getWeightedAverage([...serie].reverse()) : null;
+  const frequencia = suficiente && validos.length > 0 ? validos.filter((v) => v > 0).length / validos.length : null;
+
+  let mediaSecundaria: number | null = null;
+  if (secundario) {
+    const serieSec = serieDoMercado(jogador, secundario).filter((v): v is number => v != null && Number.isFinite(v));
+    if (serieSec.length >= MIN_AMOSTRA) {
+      const m = getWeightedAverage([...serieDoMercado(jogador, secundario)].reverse());
+      mediaSecundaria = m == null ? null : +m.toFixed(2);
+    }
+  }
+
+  return {
+    jogadorId: jogador.id,
+    nome: jogador.nome,
+    time: jogador.time,
+    lado: jogador.lado,
+    posicao: jogador.posicao,
+    foto: jogador.foto ?? null,
+    media: media == null ? null : +media.toFixed(2),
+    amostra: validos.length,
+    jogosNaJanela: serie.length,
+    frequencia: frequencia == null ? null : +frequencia.toFixed(3),
+    suficiente: suficiente && media != null,
+    barra: 0,
+    mediaSecundaria,
+    rotuloSecundaria: secundario === "chutes_no_gol" ? "no gol" : undefined,
+  };
+}
+
+/** Aplica a barra relativa ao líder, mas SÓ em quem tem amostra suficiente. */
+function comBarras(itens: DestaqueJogador[]): DestaqueJogador[] {
+  const max = itens.reduce((m, i) => (i.media != null && i.media > m ? i.media : m), 0);
+  return itens.map((i) => ({
+    ...i,
+    barra: i.suficiente && i.media != null && max > 0 ? Math.min(1, i.media / max) : 0,
+  }));
+}
+
+/** Ranking de um mercado: Top N por lado (casa/fora) ou Top N geral. */
+function ranquear(
+  jogadores: JogadorAmostra[],
+  mercado: DestaqueMercado,
+  opts: { porLado: boolean; n: number; secundario?: DestaqueMercado },
+): DestaqueJogador[] {
+  const ordenar = (lista: JogadorAmostra[]) =>
+    lista
+      .map((j) => montarDestaque(j, mercado, opts.secundario))
+      .filter((d) => d.amostra > 0)
+      .sort((a, b) => (b.media ?? -1) - (a.media ?? -1) || b.amostra - a.amostra)
+      .slice(0, opts.n);
+
+  const itens = opts.porLado
+    ? [...ordenar(jogadores.filter((j) => j.lado === "home")), ...ordenar(jogadores.filter((j) => j.lado === "away"))]
+    : ordenar(jogadores);
+
+  return comBarras(itens);
+}
+
+/**
+ * Goleiro titular provável: quem mais jogos tem na janela. O goleiro reserva
+ * que entrou uma vez não vira "titular" por ter média alta num jogo só.
+ */
+function goleirosDoConfronto(jogadores: JogadorAmostra[]): DestaqueJogador[] {
+  const itens: DestaqueJogador[] = [];
+  for (const lado of ["home", "away"] as const) {
+    const [titular] = jogadores
+      .filter((j) => j.lado === lado && ehGoleiro(j.posicao))
+      .sort((a, b) => b.jogos.length - a.jogos.length);
+    if (!titular) continue;
+    const destaque = montarDestaque(titular, "defesas");
+    // Sem nenhum jogo do goleiro, não há o que mostrar — nem um zero falso.
+    if (destaque.jogosNaJanela === 0) continue;
+    itens.push(destaque);
+  }
+  return comBarras(itens);
+}
+
+/**
+ * Monta os 4 cards do bloco "Top jogadores por mercado".
+ *
+ * Regra de honestidade: média só existe com `MIN_AMOSTRA` jogos do dado.
+ * Abaixo disso o item aparece com `media: null`/`suficiente: false` e a UI
+ * mostra "Amostra insuficiente" — nunca uma média extrapolada.
+ */
+export function montarDestaques(jogadores: JogadorAmostra[], n = 3): DestaqueGrupo[] {
+  return [
+    {
+      id: "gols_assistencias",
+      rotulo: "Gols & Assistências",
+      icone: "⚽",
+      descricao: `Top ${n} de cada time em participações diretas (gols + assistências) por jogo.`,
+      porLado: true,
+      itens: ranquear(jogadores, "gols_assistencias", { porLado: true, n }),
+    },
+    {
+      id: "cartoes",
+      rotulo: "Cartões",
+      icone: "🟨",
+      descricao: `Os ${n} mais indisciplinados do confronto (cartões por jogo).`,
+      porLado: false,
+      itens: ranquear(jogadores, "cartoes", { porLado: false, n }),
+    },
+    {
+      id: "finalizacoes",
+      rotulo: "Finalizações & Chutes no gol",
+      icone: "🎯",
+      descricao: `Os ${n} que mais finalizam por jogo; a linha extra mostra os chutes no gol.`,
+      porLado: false,
+      itens: ranquear(jogadores, "finalizacoes", { porLado: false, n, secundario: "chutes_no_gol" }),
+    },
+    {
+      id: "goleiros",
+      rotulo: "Goleiros (Defesas)",
+      icone: "🧤",
+      descricao: "Média de defesas por jogo do goleiro titular de cada time.",
+      porLado: true,
+      itens: goleirosDoConfronto(jogadores),
+    },
+  ];
 }

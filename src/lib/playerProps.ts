@@ -23,6 +23,8 @@ export type JogadorCache = {
   id: string;
   nome: string;
   posicao: string;
+  /** Foto oficial do fornecedor (opcional; cache antigo pode não ter). */
+  foto?: string | null;
   jogos: JogoValores[];
 };
 
@@ -30,6 +32,9 @@ export type PayloadTime = {
   teamId: string;
   teamName: string;
   sample: number;
+  /** Janela que foi PEDIDA na coleta. Se a fonte só tinha 4 de 10, guarda 10
+   * aqui para não repetir a chamada a cada abertura — a amostra real segue 4. */
+  janela?: number;
   /** Temporada de onde vieram os jogos (null = últimos jogos genéricos). */
   season?: number | null;
   jogadores: JogadorCache[];
@@ -150,20 +155,29 @@ async function ultimosFixtures(teamId: number, n: number): Promise<{ fixtures: a
 
 /**
  * Props de um time (cache-first). `permitirApi:false` só lê o cache.
+ *
+ * `jogos` define a janela pedida (3..10). Se o cache tem uma amostra MENOR que
+ * a pedida e a API está liberada, refaz a coleta para a janela maior; se a API
+ * não pode ser gasta, devolve a amostra real que já existe (nunca inventa).
  * Devolve `null` quando não há dado nem permissão de gastar cota.
  */
-export async function getPropsDoTime(nome: string, opts: { permitirApi?: boolean } = {}): Promise<PropsTime | null> {
+export async function getPropsDoTime(
+  nome: string,
+  opts: { permitirApi?: boolean; jogos?: number } = {},
+): Promise<PropsTime | null> {
   const permitirApi = opts.permitirApi ?? true;
+  const janela = Math.max(3, Math.min(10, Math.floor(opts.jogos ?? PROPS_MAX_JOGOS)));
+
   const emCache = await lerCache(nome);
-  if (emCache) return emCache;
-  if (!permitirApi || PROPS_DISABLED) return null;
+  if (emCache && (emCache.sample >= janela || (emCache.janela ?? 0) >= janela)) return emCache;
+  if (!permitirApi || PROPS_DISABLED) return emCache;
 
   const time = await resolverTime(nome);
-  if (!time) return null;
+  if (!time) return emCache;
 
   // 1) últimos N jogos encerrados (com fallback de temporada para o plano Free)
-  const achado = await ultimosFixtures(time.id, PROPS_MAX_JOGOS);
-  if (!achado) return null;
+  const achado = await ultimosFixtures(time.id, janela);
+  if (!achado) return emCache;
   const fixtures = achado.fixtures;
 
   // 2) estatísticas individuais jogo a jogo
@@ -187,6 +201,7 @@ export async function getPropsDoTime(nome: string, opts: { permitirApi?: boolean
               id,
               nome: String(p?.player?.name || "Jogador"),
               posicao: String(st?.games?.position || ""),
+              foto: p?.player?.photo ? String(p.player.photo) : null,
               jogos: [],
             } satisfies JogadorCache);
           atual.jogos.push(valoresDoJogo(st));
@@ -204,12 +219,13 @@ export async function getPropsDoTime(nome: string, opts: { permitirApi?: boolean
     .sort((a, b) => b.jogos.length - a.jogos.length)
     .slice(0, 30);
 
-  if (!jogadores.length) return null;
+  if (!jogadores.length) return emCache;
 
   const payload: PayloadTime = {
     teamId: String(time.id),
     teamName: time.name,
     sample: fixtures.length,
+    janela,
     season: achado.season,
     jogadores,
   };
@@ -227,6 +243,7 @@ export function montarJogadores(casa: PropsTime | null, fora: PropsTime | null):
       timeId: t!.teamId,
       lado,
       posicao: j.posicao,
+      foto: j.foto ?? null,
       jogos: j.jogos,
     }));
   return [...map(casa, "home"), ...map(fora, "away")];

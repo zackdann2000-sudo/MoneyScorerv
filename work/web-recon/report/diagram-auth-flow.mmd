@@ -1,0 +1,17 @@
+flowchart TD
+    A["GET /jogos (sem sessão)"] -->|"307 location: /login?callbackUrl=%2Fjogos"| B["/login (SSR Next App Router)"]
+    B --> C["Chunks públicos /_next/static/**\n2 CSS + 13 JS (15×200)"]
+    C --> D["app/login/page chunk"]
+    D --> E["POST /api/auth/login-check\n{email, password}"]
+    D --> F["POST /api/auth/register\n{..., cpf, whatsapp, country, referralCode}"]
+    D --> G["POST /api/auth/password/forgot {email}"]
+    D --> H["POST /api/auth/password/reset\n{token, password, confirmPassword}"]
+    E -->|"ok"| I["next-auth signin\n/api/auth/signin? + cookie de sessão"]
+    I --> J["app/layout chunk"]
+    J --> K["GET /api/chatwoot/identity\ncredentials: include"]
+    J --> L["POST|PUT /api/user/locale\n{lang} + reload"]
+    I --> M["Área logada\n/ jogos, estatísticas, ligas\n(não mapeada — exige sessão)"]
+
+    style M stroke-dasharray: 5 5
+    style C fill:#0a0f1a,color:#ff5200
+    style I fill:#ff5200,color:#050505

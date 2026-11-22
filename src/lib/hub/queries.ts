@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -85,6 +85,17 @@ export type HubDetail = HubGame & {
   stats: HubMatchStats | null;
   contextSource: string | null;
   bestOdds: Array<{ selection: string; odds: number; bookmaker: string }>;
+  /** Forma dos últimos 10 jogos encerrados: "V-E-D-V-D" (mais recente 1º). */
+  forma: HubForma | null;
+  /** xG do fornecedor ("real") ou do modelo Poisson ("estimado"). */
+  xgSource: "real" | "estimado" | null;
+};
+
+export type HubForma = {
+  home: string;
+  away: string;
+  homeJogos: number;
+  awayJogos: number;
 };
 
 const JANELA_PASSADO_MS = 4 * 60 * 60 * 1000;
@@ -347,6 +358,66 @@ export async function hubGames(dias = 3): Promise<HubGamesResult> {
 
 /* ================================== detalhe ================================= */
 
+/**
+ * Forma recente REAL dos dois times: últimos 10 jogos encerrados antes deste
+ * confronto, do mais recente para o mais antigo. Só banco — sem estimativa.
+ */
+async function formasRecentes(homeId: number, awayId: number, before: Date): Promise<HubForma | null> {
+  try {
+    const rows = await db
+      .select({
+        homeTeamId: hubFixture.homeTeamId,
+        awayTeamId: hubFixture.awayTeamId,
+        homeScore: hubFixture.homeScoreFt,
+        awayScore: hubFixture.awayScoreFt,
+      })
+      .from(hubFixture)
+      .where(
+        and(
+          inArray(hubFixture.liveState, ["FT", "AET", "PEN"]),
+          lt(hubFixture.matchDate, before),
+          or(
+            inArray(hubFixture.homeTeamId, [homeId, awayId]),
+            inArray(hubFixture.awayTeamId, [homeId, awayId]),
+          ),
+        ),
+      )
+      .orderBy(desc(hubFixture.matchDate))
+      .limit(80);
+
+    const daCasa: string[] = [];
+    const deFora: string[] = [];
+    for (const r of rows) {
+      const resultado = (teamId: number) => {
+        const emCasa = r.homeTeamId === teamId;
+        const gf = emCasa ? r.homeScore : r.awayScore;
+        const ga = emCasa ? r.awayScore : r.homeScore;
+        return gf > ga ? "V" : gf === ga ? "E" : "D";
+      };
+      if ((r.homeTeamId === homeId || r.awayTeamId === homeId) && daCasa.length < 10) daCasa.push(resultado(homeId));
+      if ((r.homeTeamId === awayId || r.awayTeamId === awayId) && deFora.length < 10) deFora.push(resultado(awayId));
+      if (daCasa.length >= 10 && deFora.length >= 10) break;
+    }
+
+    if (!daCasa.length && !deFora.length) return null;
+    return { home: daCasa.join(""), away: deFora.join(""), homeJogos: daCasa.length, awayJogos: deFora.length };
+  } catch {
+    return null;
+  }
+}
+
+/** xG publicado pelo fornecedor no contexto da partida ("real"), se existir. */
+function xgDoContexto(stats: HubMatchStats | null): { home: number; away: number } | null {
+  if (!stats) return null;
+  for (const [label, v] of Object.entries(stats)) {
+    if (!/x\s*g|expected\s*goals|gols\s*esperados/i.test(label)) continue;
+    const h = typeof v.home === "number" ? v.home : Number(String(v.home ?? "").replace(",", ".").replace(/[^0-9.-]/g, ""));
+    const a = typeof v.away === "number" ? v.away : Number(String(v.away ?? "").replace(",", ".").replace(/[^0-9.-]/g, ""));
+    if (Number.isFinite(h) && Number.isFinite(a)) return { home: h, away: a };
+  }
+  return null;
+}
+
 function demoDetail(id: number): HubDetail | null {
   const game = DEMO_GAMES.find((g) => g.id === id);
   if (!game) return null;
@@ -395,6 +466,9 @@ function demoDetail(id: number): HubDetail | null {
           { selection: "Away", odds: game.odds.away, bookmaker: "Pinnacle" },
         ]
       : [],
+    // Jogo de demonstração: não há histórico real por trás, então não inventamos forma.
+    forma: null,
+    xgSource: "estimado",
   };
 }
 
@@ -413,9 +487,10 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       .limit(1)) as FixtureRow[];
     if (!row) return null;
 
-    const [analises, contexto] = await Promise.all([
+    const [analises, contexto, forma] = await Promise.all([
       latestAnalysesFor([row.id]),
       db.select().from(hubFixtureContext).where(eq(hubFixtureContext.fixtureId, row.id)).limit(1),
+      formasRecentes(row.homeId, row.awayId, row.kickoff),
     ]);
     const analise = analises.get(row.id) ?? null;
 
@@ -454,6 +529,7 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
     const value = valor[0] ?? null;
     const hasOdds = sum?.hasOdds ?? melhor.size > 0;
     const ctx = contexto[0] ?? null;
+    const xgReal = xgDoContexto(ctx?.stats ?? null);
 
     return {
       id: row.id,
@@ -468,7 +544,8 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       away: { id: row.awayId, name: row.awayName, logoUrl: row.awayLogo, tablePosition: row.awayPos },
       probabilities: probabilidades1x2(predicoes.filter((p) => p.market === "1X2")),
       expectedGoals: sum?.expectedTotalGoals ?? null,
-      xg: sum ? { home: sum.xgHome, away: sum.xgAway } : null,
+      xg: xgReal ?? (sum ? { home: sum.xgHome, away: sum.xgAway } : null),
+      xgSource: xgReal ? "real" : sum ? "estimado" : null,
       hasOdds,
       value: hasOdds && value ? { ...value } : null,
       demo: false,
@@ -483,6 +560,7 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       stats: ctx?.stats ?? null,
       contextSource: ctx?.source ?? null,
       bestOdds: [...melhor.values()],
+      forma,
     };
   } catch {
     // Banco fora: se o id existe na massa de demonstração, ainda abrimos a tela.

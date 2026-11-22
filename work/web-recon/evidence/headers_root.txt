@@ -1,0 +1,25 @@
+HTTP/2 307 
+content-security-policy: frame-ancestors 'self' https://chat.statshub.com.br
+cross-origin-opener-policy: same-origin
+date: Sun, 22 Nov 2026 13:51:08 GMT
+location: /login?callbackUrl=%2Fjogos
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+x-content-type-options: nosniff
+x-dns-prefetch-control: on
+
+HTTP/2 200 
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+content-security-policy: frame-ancestors 'self' https://chat.statshub.com.br
+content-type: text/html; charset=utf-8
+cross-origin-opener-policy: same-origin
+date: Sun, 22 Nov 2026 13:51:08 GMT
+link: </_next/static/media/e4af272ccee01ff0-s.p.woff2>; rel=preload; as="font"; crossorigin=""; type="font/woff2", </_next/static/media/636a5ac981f94f8b-s.p.woff2>; rel=preload; as="font"; crossorigin=""; type="font/woff2"
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=63072000; includeSubDomains; preload
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch, Accept-Encoding
+x-content-type-options: nosniff
+x-dns-prefetch-control: on
+

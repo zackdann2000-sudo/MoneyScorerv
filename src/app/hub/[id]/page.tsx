@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users } from "lucide-react";
 import { Crest, StatCompareRow } from "@/components/ui";
+import DestaquesConfronto from "@/components/hub/DestaquesConfronto";
 import { hubGameDetail, type HubDetail } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,45 @@ const nomeSelecao = (selection: string, d: HubDetail) =>
   selection === "Home" ? d.home.name : selection === "Away" ? d.away.name : selection === "Draw" ? "Empate" : selection;
 
 const AO_VIVO = new Set(["INPLAY_1ST_HALF", "HT", "INPLAY_2ND_HALF", "ET", "PEN_LIVE"]);
+
+const tomForma = (r: string) =>
+  r === "V" ? "bg-acc text-black" : r === "E" ? "bg-warn text-black" : r === "D" ? "bg-danger text-white" : "bg-panel2 text-mut";
+
+function FormaTime({
+  nome,
+  forma,
+  jogos,
+  lado,
+}: {
+  nome: string;
+  forma: string;
+  jogos: number;
+  lado: "home" | "away";
+}) {
+  const letras = forma.split("");
+  return (
+    <div className="flex items-center gap-2 py-1.5 border-t border-line first:border-t-0">
+      <span className={`w-2 h-2 rounded-full shrink-0 ${lado === "home" ? "bg-home" : "bg-away"}`} />
+      <span className="text-[11px] font-bold truncate flex-1 min-w-0">{nome}</span>
+      <div className="flex gap-1 shrink-0" aria-label={`Forma recente: ${letras.join("-")}`}>
+        {letras.length ? (
+          letras.map((r, i) => (
+            <span
+              key={`${r}-${i}`}
+              title={r === "V" ? "Vitória" : r === "E" ? "Empate" : "Derrota"}
+              className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-extrabold ${tomForma(r)}`}
+            >
+              {r}
+            </span>
+          ))
+        ) : (
+          <span className="text-[10px] font-bold text-mut">—</span>
+        )}
+      </div>
+      <span className="text-[9px] text-mut tabular-nums shrink-0 w-6 text-right">{jogos}j</span>
+    </div>
+  );
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -173,6 +213,22 @@ export default async function HubGamePage({ params }: Props) {
                   <span className="text-center">Total {d.expectedGoals != null ? d.expectedGoals.toFixed(2) : "—"}</span>
                   <span className="text-right">xG fora {d.xg ? d.xg.away.toFixed(2) : "—"}</span>
                 </div>
+                {d.xgSource && (
+                  <p className="mt-1.5 text-center">
+                    <span
+                      title={
+                        d.xgSource === "real"
+                          ? "xG publicado pelo fornecedor para estes times."
+                          : "xG calculado pelo modelo Poisson/Dixon-Coles a partir dos últimos jogos — não é dado oficial."
+                      }
+                      className={`inline-block px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-wide ${
+                        d.xgSource === "real" ? "bg-acc/15 text-acc" : "bg-warn/15 text-warn"
+                      }`}
+                    >
+                      {d.xgSource === "real" ? "xG Real" : "xG Estimado"}
+                    </span>
+                  </p>
+                )}
               </>
             ) : (
               <p className="text-[11px] text-mut py-2 text-center">
@@ -183,6 +239,29 @@ export default async function HubGamePage({ params }: Props) {
           </div>
         </Secao>
       </div>
+
+      {/* forma recente real, antes dos placares */}
+      <Secao
+        icon={<Activity size={13} />}
+        title="Veredito estatístico · forma recente"
+        right={d.forma ? "mais recente →" : undefined}
+      >
+        <div className="rounded-xl border border-line bg-panel p-3">
+          {d.forma ? (
+            <>
+              <FormaTime nome={d.home.name} forma={d.forma.home} jogos={d.forma.homeJogos} lado="home" />
+              <FormaTime nome={d.away.name} forma={d.forma.away} jogos={d.forma.awayJogos} lado="away" />
+              <p className="text-[9px] text-mut mt-1.5 leading-snug">
+                Últimos 10 jogos encerrados antes deste confronto, do mais recente para o mais antigo. V = vitória, E = empate, D = derrota.
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-mut py-2 text-center leading-snug">
+              Ainda não há jogos encerrados no banco para montar a forma recente destes times. Preferimos não estimar.
+            </p>
+          )}
+        </div>
+      </Secao>
 
       {/* Top 5 placares exatos */}
       <Secao icon={<BarChart3 size={13} />} title="Top 5 placares exatos" right="Poisson / Dixon-Coles">
@@ -289,6 +368,11 @@ export default async function HubGamePage({ params }: Props) {
             <p className="text-[11px] text-mut py-2 text-center">Nenhum fornecedor trouxe o histórico do confronto para este jogo.</p>
           )}
         </div>
+      </Secao>
+
+      {/* top jogadores por mercado — scout individual */}
+      <Secao icon={<Users size={13} />} title="Top jogadores por mercado" right="dados reais">
+        <DestaquesConfronto fixtureId={d.id} home={d.home.name} away={d.away.name} />
       </Secao>
 
       {/* estatísticas do confronto */}
