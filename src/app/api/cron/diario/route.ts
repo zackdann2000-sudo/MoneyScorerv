@@ -7,8 +7,16 @@
  *
  *   1. sincroniza as fontes do apitou  (`sincronizarEGravar`)
  *   2. pré-aquece os rankings das 6 ligas e grava no Neon (`aquecerRankings`)
+ *   3. sincroniza o Hub (`runHubSync`): fixtures + context, sem odds
  *
- * Regras: uma etapa que falha não impede a outra; as duas são idempotentes.
+ * Regras: uma etapa que falha não impede a outra; todas são idempotentes.
+ *
+ * Sobre o Hub: função serverless NÃO continua rodando depois de responder, então
+ * "background" aqui é um orçamento de tempo (`budgetMs`) dentro do maxDuration —
+ * se o relógio estourar, as etapas seguintes são PULADAS e marcadas em
+ * `hub.skipped`, nunca deixamos a função morrer no meio de uma escrita.
+ * As odds ficam de fora do cron (a Sportmonks free bloqueia) e continuam na
+ * rota manual `/api/hub/sync`. Desligue com `?hub=0`.
  *
  * Autorização (mesmo esquema das outras rotas internas):
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
@@ -20,9 +28,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { cronConfigurado, motivoCronAutorizado } from "@/lib/cronAuth";
 import { aquecerRankings } from "@/lib/rankingsWarm";
 import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
+import { runHubSync } from "@/lib/hub/sync-runner";
 
 export const dynamic = "force-dynamic";
-// 300s = teto do Hobby (Fluid Compute). Apitou (~36s) + rankings (~50s) cabem com folga.
+// 300s = teto do Hobby (Fluid Compute). Apitou (~36s) + rankings (~50s) +
+// Hub com orçamento de 120s cabem com folga; o orçamento protege o pior caso.
 export const maxDuration = 300;
 
 const erro = (e: any) => String(e?.message || e || "falha").slice(0, 200);
@@ -73,6 +83,34 @@ export async function GET(req: NextRequest) {
       out.rankings = await aquecerRankings({ ligas: ligas.length ? ligas : undefined });
     } catch (e) {
       out.rankings = { ok: false, erro: erro(e) };
+    }
+  }
+
+  if (acao === "tudo" || acao === "hub") {
+    const hubAtivo = req.nextUrl.searchParams.get("hub") !== "0";
+    if (!hubAtivo) {
+      out.hub = { skipped: true, reason: "desligado por ?hub=0" };
+    } else {
+      // 120s de Hub + apitou (~36s) + rankings (~50s) cabe nos 300s do Hobby.
+      // Se os dois primeiros consumirem mais, o orçamento corta as etapas do
+      // Hub em vez de a função morrer no teto da Vercel.
+      const budgetParam = Number(req.nextUrl.searchParams.get("hubBudget"));
+      const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : 120_000;
+      try {
+        out.hub = await runHubSync({
+          dates: 1,
+          context: 24,
+          // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
+          oddsEnabled: false,
+          lineupsEnabled: false,
+          analyze: true,
+          settle: true,
+          maxContext: 20,
+          budgetMs,
+        });
+      } catch (e) {
+        out.hub = { ok: false, erro: erro(e) };
+      }
     }
   }
 

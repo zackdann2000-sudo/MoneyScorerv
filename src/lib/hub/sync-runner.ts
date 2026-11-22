@@ -42,6 +42,20 @@ export type HubSyncOptions = {
   maxOdds?: number;
   maxLineups?: number;
   maxContext?: number;
+  /**
+   * Etapas ligadas/desligadas. O cron diário desliga `oddsEnabled` (a
+   * Sportmonks free bloqueia) e `lineupsEnabled` para caber no tempo, e deixa
+   * as duas para a rota manual `/api/hub/sync`.
+   */
+  oddsEnabled?: boolean;
+  lineupsEnabled?: boolean;
+  contextEnabled?: boolean;
+  /**
+   * Orçamento em ms. Uma vez estourado, as etapas seguintes são PULADAS e
+   * marcadas em `report.skipped` — nunca deixamos a função morrer no teto da
+   * Vercel no meio de uma escrita. 0 = sem limite.
+   */
+  budgetMs?: number;
 };
 
 export type SyncProviderStats = Record<string, { ok: number; fail: number; reasons: string[] }>;
@@ -77,6 +91,15 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   const maxOdds = opts.maxOdds ?? 80;
   const maxLineups = opts.maxLineups ?? 60;
   const maxContext = opts.maxContext ?? 40;
+  const oddsEnabled = opts.oddsEnabled ?? true;
+  const lineupsEnabled = opts.lineupsEnabled ?? true;
+  const contextEnabled = opts.contextEnabled ?? true;
+  const budgetMs = opts.budgetMs ?? 0;
+
+  const t0 = Date.now();
+  const skipped: string[] = [];
+  /** false quando a etapa está desligada ou o orçamento de tempo acabou. */
+  const podeRodar = () => budgetMs <= 0 || Date.now() - t0 < budgetMs;
 
   const report: Record<string, unknown> = { startedAt: new Date().toISOString() };
 
@@ -104,105 +127,126 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   }
 
   /* ---------- 3) odds ---------- */
-  const horizon = new Date(Date.now() + Math.max(oddsWindow, 1) * 3600_000);
-  const jogosOdds = await db
-    .select({ id: hubFixture.id })
-    .from(hubFixture)
-    .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, horizon)))
-    .limit(maxOdds);
+  if (oddsEnabled && podeRodar()) {
+    const horizon = new Date(Date.now() + Math.max(oddsWindow, 1) * 3600_000);
+    const jogosOdds = await db
+      .select({ id: hubFixture.id })
+      .from(hubFixture)
+      .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, horizon)))
+      .limit(maxOdds);
 
-  const oddsAttempts: Attempt[] = [];
-  const oddsPorFonte: Record<string, number> = {};
-  const semOdd: number[] = [];
-  let oddsWritten = 0;
-  for (const f of jogosOdds) {
-    try {
-      const r = await syncOddsCascade(f.id);
-      oddsAttempts.push(...r.attempts);
-      oddsWritten += r.written;
-      oddsPorFonte[r.source] = (oddsPorFonte[r.source] ?? 0) + 1;
-      if (r.written === 0) semOdd.push(f.id);
-    } catch (e) {
-      oddsAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+    const oddsAttempts: Attempt[] = [];
+    const oddsPorFonte: Record<string, number> = {};
+    const semOdd: number[] = [];
+    let oddsWritten = 0;
+    for (const f of jogosOdds) {
+      try {
+        const r = await syncOddsCascade(f.id);
+        oddsAttempts.push(...r.attempts);
+        oddsWritten += r.written;
+        oddsPorFonte[r.source] = (oddsPorFonte[r.source] ?? 0) + 1;
+        if (r.written === 0) semOdd.push(f.id);
+      } catch (e) {
+        oddsAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+      }
     }
+    report.odds = {
+      fixtures: jogosOdds.length,
+      written: oddsWritten,
+      bySource: oddsPorFonte,
+      withoutOdds: semOdd.length,
+      providers: agregar(oddsAttempts),
+    };
+  } else {
+    skipped.push("odds");
+    report.odds = { skipped: true, reason: oddsEnabled ? "orçamento de tempo esgotado" : "desligado" };
   }
-  report.odds = {
-    fixtures: jogosOdds.length,
-    written: oddsWritten,
-    bySource: oddsPorFonte,
-    withoutOdds: semOdd.length,
-    providers: agregar(oddsAttempts),
-  };
 
   /* ---------- 4) escalações ---------- */
-  const lineupHorizon = new Date(Date.now() + Math.max(lineupsWindow, 1) * 3600_000);
-  const jogosLineup = await db
-    .select({ id: hubFixture.id })
-    .from(hubFixture)
-    .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, lineupHorizon)))
-    .limit(maxLineups);
+  if (lineupsEnabled && podeRodar()) {
+    const lineupHorizon = new Date(Date.now() + Math.max(lineupsWindow, 1) * 3600_000);
+    const jogosLineup = await db
+      .select({ id: hubFixture.id })
+      .from(hubFixture)
+      .where(and(eq(hubFixture.liveState, "NS"), gte(hubFixture.matchDate, new Date()), lte(hubFixture.matchDate, lineupHorizon)))
+      .limit(maxLineups);
 
-  const lineupAttempts: Attempt[] = [];
-  const lineupPorFonte: Record<string, number> = {};
-  let confirmadas = 0;
-  let comEscalacao = 0;
-  for (const f of jogosLineup) {
-    try {
-      const r = await syncLineupsCascade(f.id);
-      lineupAttempts.push(...r.attempts);
-      lineupPorFonte[r.source] = (lineupPorFonte[r.source] ?? 0) + 1;
-      if (r.players > 0) comEscalacao += 1;
-      if (r.confirmed) confirmadas += 1;
-    } catch (e) {
-      lineupAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+    const lineupAttempts: Attempt[] = [];
+    const lineupPorFonte: Record<string, number> = {};
+    let confirmadas = 0;
+    let comEscalacao = 0;
+    for (const f of jogosLineup) {
+      try {
+        const r = await syncLineupsCascade(f.id);
+        lineupAttempts.push(...r.attempts);
+        lineupPorFonte[r.source] = (lineupPorFonte[r.source] ?? 0) + 1;
+        if (r.players > 0) comEscalacao += 1;
+        if (r.confirmed) confirmadas += 1;
+      } catch (e) {
+        lineupAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+      }
     }
+    report.lineups = {
+      fixtures: jogosLineup.length,
+      withLineup: comEscalacao,
+      confirmed: confirmadas,
+      bySource: lineupPorFonte,
+      providers: agregar(lineupAttempts),
+    };
+  } else {
+    skipped.push("lineups");
+    report.lineups = { skipped: true, reason: lineupsEnabled ? "orçamento de tempo esgotado" : "desligado" };
   }
-  report.lineups = {
-    fixtures: jogosLineup.length,
-    withLineup: comEscalacao,
-    confirmed: confirmadas,
-    bySource: lineupPorFonte,
-    providers: agregar(lineupAttempts),
-  };
 
   /* ---------- 5) stats + H2H ---------- */
-  const contextHorizon = new Date(Date.now() + Math.max(contextWindow, 1) * 3600_000);
-  const jogosContexto = await db
-    .select({ id: hubFixture.id })
-    .from(hubFixture)
-    .where(and(gte(hubFixture.matchDate, new Date(Date.now() - 6 * 3600_000)), lte(hubFixture.matchDate, contextHorizon)))
-    .limit(maxContext);
+  if (contextEnabled && podeRodar()) {
+    const contextHorizon = new Date(Date.now() + Math.max(contextWindow, 1) * 3600_000);
+    const jogosContexto = await db
+      .select({ id: hubFixture.id })
+      .from(hubFixture)
+      .where(and(gte(hubFixture.matchDate, new Date(Date.now() - 6 * 3600_000)), lte(hubFixture.matchDate, contextHorizon)))
+      .limit(maxContext);
 
-  const contextAttempts: Attempt[] = [];
-  const contextoPorFonte: Record<string, number> = {};
-  for (const f of jogosContexto) {
-    try {
-      const r = await syncContextCascade(f.id);
-      contextAttempts.push(...r.attempts);
-      contextoPorFonte[r.source] = (contextoPorFonte[r.source] ?? 0) + 1;
-    } catch (e) {
-      contextAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+    const contextAttempts: Attempt[] = [];
+    const contextoPorFonte: Record<string, number> = {};
+    for (const f of jogosContexto) {
+      try {
+        const r = await syncContextCascade(f.id);
+        contextAttempts.push(...r.attempts);
+        contextoPorFonte[r.source] = (contextoPorFonte[r.source] ?? 0) + 1;
+      } catch (e) {
+        contextAttempts.push({ provider: "cascade", ok: false, reason: erro(e) });
+      }
     }
+    report.context = { fixtures: jogosContexto.length, bySource: contextoPorFonte, providers: agregar(contextAttempts) };
+  } else {
+    skipped.push("context");
+    report.context = { skipped: true, reason: contextEnabled ? "orçamento de tempo esgotado" : "desligado" };
   }
-  report.context = { fixtures: jogosContexto.length, bySource: contextoPorFonte, providers: agregar(contextAttempts) };
 
   /* ---------- 6) análise ---------- */
-  if (doAnalyze) {
+  if (doAnalyze && podeRodar()) {
     try {
       report.analysis = await runAnalysisJob();
     } catch (e) {
       report.analysis = { error: erro(e) };
     }
+  } else if (doAnalyze) {
+    skipped.push("analysis");
+    report.analysis = { skipped: true, reason: "orçamento de tempo esgotado" };
   }
 
   /* ---------- 7) liquidação ---------- */
-  if (doSettle) {
+  if (doSettle && podeRodar()) {
     try {
       report.settle = await settleFinishedFixtures();
       report.voids = await voidStalePending();
     } catch (e) {
       report.settle = { error: erro(e) };
     }
+  } else if (doSettle) {
+    skipped.push("settle");
+    report.settle = { skipped: true, reason: "orçamento de tempo esgotado" };
   }
 
   /* ---------- resumo ---------- */
@@ -221,6 +265,8 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
     fixturesWithConfirmedLineup: comXi,
     rule: "Sem odd real não há tag de Valor: o motor publica só a probabilidade.",
   };
+  report.skipped = skipped;
+  report.durationMs = Date.now() - t0;
   report.finishedAt = new Date().toISOString();
 
   return report;
