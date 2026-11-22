@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users, Flame, TrendingUp } from "lucide-react";
+import { ArrowLeft, Target, GitCompareArrows, BarChart3, TriangleAlert, Info, MapPin, Clock, Activity, Users, Flame, TrendingUp, Coins } from "lucide-react";
 import { Crest, StatCompareRow } from "@/components/ui";
 import DestaquesConfronto from "@/components/hub/DestaquesConfronto";
 import FatoresXg from "@/components/hub/FatoresXg";
 import PadroesEstatisticos from "@/components/hub/PadroesEstatisticos";
+import OddsMultiCasa from "@/components/hub/OddsMultiCasa";
 import { hubGameDetail, type HubDetail } from "@/lib/hub/queries";
 
 export const dynamic = "force-dynamic";
@@ -338,6 +339,15 @@ export default async function HubGamePage({ params }: Props) {
           </div>
         </Secao>
       )}
+
+      {/* Odds multi-casa: preço de cada casa + melhor preço e lucro potencial */}
+      <Secao
+        icon={<Coins size={13} />}
+        title="Odds multi-casa"
+        right={d.oddsMultiCasa.length ? "dados do cache" : undefined}
+      >
+        <OddsMultiCasa comparativos={d.oddsMultiCasa} home={d.home.name} away={d.away.name} />
+      </Secao>
 
       {/* confronto direto */}
       <Secao icon={<GitCompareArrows size={13} />} title="Confronto direto" right={d.h2h ? `${d.h2h.matches} jogos` : undefined}>

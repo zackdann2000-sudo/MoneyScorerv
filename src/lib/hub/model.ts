@@ -526,3 +526,131 @@ export function pickOpportunity(
 
   return bestCandidate;
 }
+
+/* =========================== ODDS MULTI-CASA =========================== */
+
+/**
+ * Leitura de odds de várias casas para o mesmo mercado/seleção.
+ *
+ * A ingestão (`smOddsForFixture`) já grava uma linha por casa em
+ * `hub_bookmaker_odd` — inclusive Pinnacle, Bet365 e 1xBet quando a Sportmonks
+ * devolve no payload. O que faltava era LER esse conjunto: o motor só olhava a
+ * casa "pick" (Pinnacle) para achar valor. Aqui a mesma base vira um comparativo
+ * por seleção: onde cada casa está, qual paga mais e quanto vale a diferença.
+ *
+ * Nada é interpolado: casa que não cotou a seleção simplesmente não aparece.
+ */
+
+/** Casas que o produto acompanha quando o fornecedor devolve. */
+export const CASAS_DESTAQUE: Array<{ slug: string; nome: string; aliases: string[] }> = [
+  { slug: "pinnacle", nome: "Pinnacle", aliases: ["pinnacle", "pin"] },
+  { slug: "bet365", nome: "Bet365", aliases: ["bet365", "bet365com"] },
+  { slug: "1xbet", nome: "1xBet", aliases: ["1xbet", "onexbet", "xbet"] },
+];
+
+/** Chave comparável de nome/slug de casa ("1xBet" == "1XBET" == "onexbet"). */
+export function chaveCasa(valor: string): string {
+  return String(valor ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Nome canônico + posição de destaque de uma casa. */
+export function casaCanonica(bookmaker: string, slug?: string | null): { slug: string; nome: string; destaque: boolean } {
+  const chaves = new Set([chaveCasa(slug ?? ""), chaveCasa(bookmaker)]);
+  for (const c of CASAS_DESTAQUE) {
+    if (c.aliases.some((a) => chaves.has(chaveCasa(a)))) return { slug: c.slug, nome: c.nome, destaque: true };
+  }
+  return { slug: chaveCasa(slug ?? bookmaker) || "casa", nome: bookmaker || "Casa", destaque: false };
+}
+
+export type CasaOdd = { casa: string; slug: string; odd: number; destaque: boolean; isPick: boolean };
+
+export type ComparativoSelecao = {
+  market: string;
+  selection: string;
+  /** Casas que cotaram ESTA seleção, da melhor para a pior odd. */
+  casas: CasaOdd[];
+  melhor: { casa: string; slug: string; odd: number } | null;
+  pior: number | null;
+  /** Quantas casas cotaram (não é cortado pelo limite de exibição). */
+  totalCasas: number;
+  /** Vantagem da melhor sobre a pior odd, em %. `null` com uma casa só. */
+  vantagemPct: number | null;
+};
+
+/** Seleções que o bloco comparativo mostra por padrão. */
+export const SELECOES_COMPARATIVO: Array<{ market: string; selection: string }> = [
+  { market: "1X2", selection: "Home" },
+  { market: "1X2", selection: "Draw" },
+  { market: "1X2", selection: "Away" },
+  { market: "BTTS", selection: "Yes" },
+  { market: "Over/Under", selection: "Over 2.5" },
+  { market: "Over/Under", selection: "Under 2.5" },
+];
+
+/**
+ * Comparativo por seleção. `limiteCasas` corta só a EXIBIÇÃO — a melhor odd e a
+ * contagem de casas sempre consideram todas as linhas do índice.
+ */
+export function compararCasas(
+  odds: OddsIndex,
+  selecoes: Array<{ market: string; selection: string }> = SELECOES_COMPARATIVO,
+  limiteCasas = 6,
+): ComparativoSelecao[] {
+  const out: ComparativoSelecao[] = [];
+
+  for (const sel of selecoes) {
+    const rows = odds[`${sel.market}|${sel.selection}`] ?? [];
+    const validas = rows
+      .filter((r) => Number.isFinite(r.odds) && r.odds > 1.01)
+      .map((r) => {
+        const canonica = casaCanonica(r.bookmaker, r.bookmakerSlug);
+        return {
+          casa: canonica.nome,
+          slug: canonica.slug,
+          odd: round(r.odds, 2),
+          destaque: canonica.destaque,
+          isPick: Boolean(r.isPick),
+        };
+      });
+    if (!validas.length) continue;
+
+    // Mesma casa pode repetir (duas linhas do fornecedor): fica a maior odd.
+    const porCasa = new Map<string, CasaOdd>();
+    for (const c of validas) {
+      const atual = porCasa.get(c.slug);
+      if (!atual || c.odd > atual.odd) porCasa.set(c.slug, c);
+    }
+
+    const ordenadas = [...porCasa.values()].sort(
+      (a, b) => b.odd - a.odd || Number(b.destaque) - Number(a.destaque) || a.casa.localeCompare(b.casa),
+    );
+
+    const melhor = ordenadas[0];
+    const pior = ordenadas[ordenadas.length - 1];
+    const vantagemPct =
+      ordenadas.length > 1 && pior.odd > 0 ? round(((melhor.odd - pior.odd) / pior.odd) * 100, 1) : null;
+
+    out.push({
+      market: sel.market,
+      selection: sel.selection,
+      casas: ordenadas.slice(0, Math.max(1, limiteCasas)),
+      melhor: { casa: melhor.casa, slug: melhor.slug, odd: melhor.odd },
+      pior: pior.odd,
+      totalCasas: ordenadas.length,
+      vantagemPct,
+    });
+  }
+
+  return out;
+}
+
+/** Lucro e retorno de um bilhete simples (sem impostos nem cash-out). */
+export function lucroPotencial(stake: number, odd: number): { stake: number; retorno: number; lucro: number } {
+  const valor = Number.isFinite(stake) && stake > 0 ? stake : 0;
+  const cotacao = Number.isFinite(odd) && odd > 1 ? odd : 1;
+  return { stake: round(valor, 2), retorno: round(valor * cotacao, 2), lucro: round(valor * (cotacao - 1), 2) };
+}

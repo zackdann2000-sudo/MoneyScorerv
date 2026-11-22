@@ -19,6 +19,7 @@ import {
   type HubMatchStats,
 } from "@/db/hub-schema";
 import type { TopScore } from "./model";
+import { compararCasas, SELECOES_COMPARATIVO, type ComparativoSelecao, type OddsIndex } from "./model";
 import { DEMO_GAMES, demoProbabilities, demoValue, type DemoGame } from "./demo";
 
 /**
@@ -99,6 +100,11 @@ export type HubDetail = HubGame & {
   labInsights: HubLabInsight[];
   /** Fatores que deslocam o xG de cada lado, como o motor gravou em `hub_xg_factor`. */
   xgFactors: Array<{ side: string; factorType: string; impact: number; weight: number; context: Record<string, unknown> | null }>;
+  /**
+   * Comparativo de odds entre casas (Pinnacle, Bet365, 1xBet e as demais que o
+   * fornecedor mandou), por seleção. Vazio quando nenhuma casa cotou o jogo.
+   */
+  oddsMultiCasa: ComparativoSelecao[];
 };
 
 export type HubForma = {
@@ -277,34 +283,41 @@ export type HubInsightsCache = {
 const SEM_INSIGHTS: HubInsightsCache = { fixtureId: null, labInsights: [], xgFactors: [], xg: null, analise: null };
 
 /**
- * Padrões e fatores de xG de um jogo da ESPN, só com o que já está no banco.
+ * Ponte de identidade: id do evento na ESPN -> fixture interna do Hub.
  *
  * A tela `/jogos/[id]` trabalha com o id do evento na ESPN, enquanto o Hub
- * guarda a fixture com id próprio. A ponte é a identidade `(provider, externalId)`
- * de `hub_fixture_source` — com fallback para `hub_fixture.(source, external_ref)`.
- * Nenhuma chamada de fornecedor aqui: se o jogo não foi sincronizado, devolve
- * vazio e a UI diz que o dado está indisponível.
+ * guarda a fixture com id próprio. A identidade canônica é
+ * `hub_fixture_source.(provider, external_id)`, com fallback para
+ * `hub_fixture.(source, external_ref)`. Só banco, nenhum fornecedor.
+ */
+async function fixtureIdPorEspnId(idBruto: string): Promise<number | null> {
+  const id = String(idBruto ?? "").trim();
+  if (!id) return null;
+
+  const [porFonte] = await db
+    .select({ fixtureId: hubFixtureSource.fixtureId })
+    .from(hubFixtureSource)
+    .where(and(eq(hubFixtureSource.provider, "espn"), eq(hubFixtureSource.externalId, id)))
+    .limit(1);
+  if (porFonte?.fixtureId != null) return porFonte.fixtureId;
+
+  const [porRef] = await db
+    .select({ id: hubFixture.id })
+    .from(hubFixture)
+    .where(and(eq(hubFixture.source, "espn"), eq(hubFixture.externalRef, id)))
+    .limit(1);
+  return porRef?.id ?? null;
+}
+
+/**
+ * Padrões e fatores de xG de um jogo da ESPN, só com o que já está no banco.
+ *
+ * Nenhuma chamada de fornecedor: se o jogo não foi sincronizado, devolve vazio
+ * e a UI diz que o dado está indisponível.
  */
 export async function hubInsightsPorEspnId(externalId: string): Promise<HubInsightsCache> {
-  const id = String(externalId ?? "").trim();
-  if (!id) return SEM_INSIGHTS;
-
   try {
-    const [porFonte] = await db
-      .select({ fixtureId: hubFixtureSource.fixtureId })
-      .from(hubFixtureSource)
-      .where(and(eq(hubFixtureSource.provider, "espn"), eq(hubFixtureSource.externalId, id)))
-      .limit(1);
-
-    let fixtureId = porFonte?.fixtureId ?? null;
-    if (fixtureId == null) {
-      const [porRef] = await db
-        .select({ id: hubFixture.id })
-        .from(hubFixture)
-        .where(and(eq(hubFixture.source, "espn"), eq(hubFixture.externalRef, id)))
-        .limit(1);
-      fixtureId = porRef?.id ?? null;
-    }
+    const fixtureId = await fixtureIdPorEspnId(externalId);
     if (fixtureId == null) return SEM_INSIGHTS;
 
     const analise = (await latestAnalysesFor([fixtureId])).get(fixtureId) ?? null;
@@ -334,6 +347,58 @@ export async function hubInsightsPorEspnId(externalId: string): Promise<HubInsig
   } catch {
     // Banco fora não pode derrubar a Pré-Live: a tela cai no "indisponível".
     return SEM_INSIGHTS;
+  }
+}
+
+export type HubOddsMultiCasa = {
+  /** Fixture interna encontrada a partir do id da ESPN (`null` = não sincronizado). */
+  fixtureId: number | null;
+  comparativos: ComparativoSelecao[];
+  /** Casas diferentes que cotaram o jogo (contagem real, sem corte de exibição). */
+  totalCasas: number;
+};
+
+/**
+ * Comparativo de odds multi-casa do jogo da ESPN informado — só cache do banco.
+ *
+ * O comparativo é o mesmo que a tela `/hub/[id]` monta (`compararCasas`): a
+ * ingestão da Sportmonks já grava Pinnacle, Bet365, 1xBet e as demais casas que
+ * vierem no payload; aqui só lemos e ordenamos.
+ */
+export async function hubOddsPorEspnId(externalId: string): Promise<HubOddsMultiCasa> {
+  const vazio: HubOddsMultiCasa = { fixtureId: null, comparativos: [], totalCasas: 0 };
+  try {
+    const fixtureId = await fixtureIdPorEspnId(externalId);
+    if (fixtureId == null) return vazio;
+
+    const rows = await db
+      .select({
+        market: hubBookmakerOdd.market,
+        selection: hubBookmakerOdd.selection,
+        odds: hubBookmakerOdd.odds,
+        bookmaker: hubBookmakerOdd.bookmaker,
+        bookmakerSlug: hubBookmakerOdd.bookmakerSlug,
+        isPick: hubBookmakerOdd.isPick,
+      })
+      .from(hubBookmakerOdd)
+      .where(eq(hubBookmakerOdd.fixtureId, fixtureId));
+
+    const indice: OddsIndex = {};
+    const casas = new Set<string>();
+    for (const o of rows) {
+      if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
+      casas.add(o.bookmakerSlug || o.bookmaker);
+      (indice[`${o.market}|${o.selection}`] ??= []).push({
+        bookmaker: o.bookmaker,
+        bookmakerSlug: o.bookmakerSlug,
+        odds: o.odds,
+        isPick: o.isPick,
+      });
+    }
+
+    return { fixtureId, comparativos: compararCasas(indice, SELECOES_COMPARATIVO), totalCasas: casas.size };
+  } catch {
+    return vazio;
   }
 }
 
@@ -557,6 +622,8 @@ function demoDetail(id: number): HubDetail | null {
     // Sem análise gravada também não há fator nem padrão: a UI mostra "indisponível".
     labInsights: [],
     xgFactors: [],
+    // Odds de exemplo da massa de demonstração não viram comparativo de casas.
+    oddsMultiCasa: [],
   };
 }
 
@@ -615,14 +682,34 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
         ? db.select().from(hubValueBet).where(eq(hubValueBet.analysisId, analise.id)).limit(1)
         : Promise.resolve([]),
       db
-        .select({ selection: hubBookmakerOdd.selection, odds: hubBookmakerOdd.odds, bookmaker: hubBookmakerOdd.bookmaker })
+        .select({
+          market: hubBookmakerOdd.market,
+          selection: hubBookmakerOdd.selection,
+          odds: hubBookmakerOdd.odds,
+          bookmaker: hubBookmakerOdd.bookmaker,
+          bookmakerSlug: hubBookmakerOdd.bookmakerSlug,
+          isPick: hubBookmakerOdd.isPick,
+        })
         .from(hubBookmakerOdd)
-        .where(and(eq(hubBookmakerOdd.fixtureId, row.id), eq(hubBookmakerOdd.market, "1X2")))
+        .where(eq(hubBookmakerOdd.fixtureId, row.id))
         .orderBy(desc(hubBookmakerOdd.odds)),
     ]);
 
+    /* Índice "mercado|seleção" -> todas as casas que cotaram, como o motor lê. */
+    const indiceOdds: OddsIndex = {};
+    for (const o of odds) {
+      if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
+      (indiceOdds[`${o.market}|${o.selection}`] ??= []).push({
+        bookmaker: o.bookmaker,
+        bookmakerSlug: o.bookmakerSlug,
+        odds: o.odds,
+        isPick: o.isPick,
+      });
+    }
+
     const melhor = new Map<string, { selection: string; odds: number; bookmaker: string }>();
     for (const o of odds) {
+      if (o.market !== "1X2") continue;
       if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
       if (!melhor.has(o.selection)) melhor.set(o.selection, o);
     }
@@ -665,6 +752,7 @@ export async function hubGameDetail(id: number): Promise<HubDetail | null> {
       forma,
       labInsights: analise?.labInsights ?? [],
       xgFactors: fatores.map((f) => ({ ...f, context: (f.context ?? null) as Record<string, unknown> | null })),
+      oddsMultiCasa: compararCasas(indiceOdds, SELECOES_COMPARATIVO),
     };
   } catch {
     // Banco fora: se o id existe na massa de demonstração, ainda abrimos a tela.
