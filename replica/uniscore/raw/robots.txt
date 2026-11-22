@@ -1,0 +1,126 @@
+# *
+User-agent: *
+Disallow: /standings/
+Disallow: /draw/
+Disallow: /redirect/
+Disallow: /newsfeed/
+Disallow: /match/
+Disallow: /news
+Disallow: /tips
+Disallow: /ad-test.html
+Disallow: /ad-test-v2.html
+Disallow: /ads.html
+Disallow: /test-0909
+Disallow: /demos/
+Disallow: /dev/
+
+# Googlebot
+User-agent: Googlebot
+Allow: /
+
+# SmartViper
+User-agent: SmartViper
+Disallow: /
+
+# Mediapartners-Google
+User-agent: Mediapartners-Google
+Disallow: /standings/
+Disallow: /draw/
+Disallow: /x/
+
+# CCBot
+User-agent: CCBot
+Disallow: /
+
+# Omgilibot
+User-agent: Omgilibot
+Disallow: /
+
+# Omgili
+User-agent: Omgili
+Disallow: /
+
+# FacebookBot
+User-agent: FacebookBot
+Disallow: /
+
+# Meta-ExternalAgent
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+# Meta-ExternalFetcher
+User-agent: Meta-ExternalFetcher
+Disallow: /
+
+# Diffbot
+User-agent: Diffbot
+Disallow: /
+
+# DuckAssistBot
+User-agent: DuckAssistBot
+Disallow: /
+
+# AI2Bot
+User-agent: AI2Bot
+Disallow: /
+
+# Bytespider
+User-agent: Bytespider
+Disallow: /
+
+# ImagesiftBot
+User-agent: ImagesiftBot
+Disallow: /
+
+# Kangaroo Bot
+User-agent: Kangaroo Bot
+Disallow: /
+
+# cohere-ai
+User-agent: cohere-ai
+Disallow: /
+
+# Timpibot
+User-agent: Timpibot
+Disallow: /
+
+# Webzio-Extended
+User-agent: Webzio-Extended
+Disallow: /
+
+# YouBot
+User-agent: YouBot
+Disallow: /
+
+# Host
+Host: https://uniscore.com
+
+# Sitemaps
+
+# Sitemaps (sitemap-go)
+Sitemap: https://uniscore.com/sitemap.xml
+Sitemap: https://uniscore.com/sitemap-ar-XA.xml
+Sitemap: https://uniscore.com/sitemap-bn.xml
+Sitemap: https://uniscore.com/sitemap-de.xml
+Sitemap: https://uniscore.com/sitemap-el.xml
+Sitemap: https://uniscore.com/sitemap-en.xml
+Sitemap: https://uniscore.com/sitemap-en-GB.xml
+Sitemap: https://uniscore.com/sitemap-es.xml
+Sitemap: https://uniscore.com/sitemap-fr.xml
+Sitemap: https://uniscore.com/sitemap-hi.xml
+Sitemap: https://uniscore.com/sitemap-hr.xml
+Sitemap: https://uniscore.com/sitemap-id.xml
+Sitemap: https://uniscore.com/sitemap-it.xml
+Sitemap: https://uniscore.com/sitemap-ja.xml
+Sitemap: https://uniscore.com/sitemap-km.xml
+Sitemap: https://uniscore.com/sitemap-ko.xml
+Sitemap: https://uniscore.com/sitemap-ms.xml
+Sitemap: https://uniscore.com/sitemap-nl.xml
+Sitemap: https://uniscore.com/sitemap-pl.xml
+Sitemap: https://uniscore.com/sitemap-pt.xml
+Sitemap: https://uniscore.com/sitemap-pt-BR.xml
+Sitemap: https://uniscore.com/sitemap-ru.xml
+Sitemap: https://uniscore.com/sitemap-th.xml
+Sitemap: https://uniscore.com/sitemap-tr.xml
+Sitemap: https://uniscore.com/sitemap-uk.xml
+Sitemap: https://uniscore.com/sitemap-zh-CN.xml

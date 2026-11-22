@@ -1,0 +1,37 @@
+feature,area,priority,original,clone,notes
+Placar ao vivo com atualização automática (sem F5),placar ao vivo,must,yes,no,S01-S04; polling ou SSE; minuto e estado no mesmo payload
+Lista de jogos agrupada por competição (grupo colapsável),placar ao vivo,must,yes,no,S01; título da liga + seta + contagem
+"Seletor de data (hoje, amanhã, dias anteriores)",placar ao vivo,must,yes,no,S01-S03; fuso America/Sao_Paulo
+"Linha de partida com escudos, hora/placar e estado (NS/1T/INT/2T/ET/PEN/FT/adiado)",placar ao vivo,must,yes,no,componente MatchRow + ScoreBadge
+Detalhe da partida em tela única com abas,partida,must,yes,no,"S04; 6 abas: Detalhes, Escalações, Previsão IA, CD, Dados, Classificações"
+"Aba Detalhes com linha do tempo (gol, pênalti, contra, cartão, substituição, VAR)",partida,must,yes,no,S05; placar parcial por evento
+"Aba Dados com estatísticas comparativas (posse, finalizações, no alvo, escanteios, arremessos, faltas, cartões)",partida,must,yes,no,"S09; mostar ""sem dados"" quando o fornecedor não publica"
+"Aba Escalações (XI, formação, banco, desfalques)",partida,must,yes,no,S06; estados confirmada / provável / indisponível
+Aba CD — confrontos diretos com agregado,partida,must,yes,no,"S08; histórico por data, competição e placar"
+"Aba Previsão IA com probabilidades (1X2, O/U, BTTS) e texto do modelo",partida,must,yes,no,"S07; sem base histórica = ""dados indisponíveis"", nunca número inventado"
+Aba Classificações no contexto do jogo (tabela com os dois times em destaque),partida,must,yes,no,S10; mata-mata sem tabela precisa de estado próprio
+Página de competição (jogos + tabela + artilharia),competição,must,yes,no,S11
+"Página de time (próximos jogos, últimos resultados, posição)",time,must,yes,no,S12
+"Tabela de classificação completa (pos, J, V, E, D, GP, GC, SG, P, forma)",competição,must,yes,no,S10-S11; critérios de desempate por competição
+"Odds do jogo: asiática, europeia e Over/Under",odds,must,yes,no,S15; sem casa licenciada não exibe odd
+Multi-idioma (pt-BR + demais locales),plataforma,must,yes,no,rotas /amp/<locale>/...; i18n por rota
+Estado de jogo consistente entre lista e detalhe,plataforma,must,yes,no,"mesmo enum em lista, detalhe e previsão"
+"Calendário de próximos jogos (hoje + amanhã, hora, competição)",calendário,should,yes,no,S03
+Resultados de dias anteriores,calendário,should,yes,no,S02
+Busca por time ou competição,descoberta,should,yes,no,entrada no topo; sem busca o app não escala em liga pequena
+Favoritar time e filtrar lista por favoritos,personalização,should,yes,no,S18 + S01; precisa de storage local ou conta
+Notificação sonora de gol com permissão do navegador,alertas,should,yes,no,S18; Web Notifications + Audio; só com jogo aberto ou aba em background
+Elenco por time com posição e número,time,should,yes,no,S12; vem das escalações mais recentes
+Artilharia e assistências por competição,competição,should,yes,no,S11
+Prévia/análise escrita por especialista,conteúdo,should,yes,no,"S04/S16; texto próprio, nunca copiado do original"
+Vídeos de destaque pós-jogo (embed oficial),conteúdo,should,yes,no,S16; só com provedor autorizado; ver linha skip de licenciamento
+"Outros esportes no mesmo shell (tênis, basquete, badminton)",multi-esporte,could,yes,no,S13; tênis não tem placar por time — modelo de dados muda
+Grade de TV / onde assistir por país,conteúdo,could,yes,no,S17; curadoria muda toda semana
+xG e gráficos avançados na aba Dados,dados,could,yes,no,S09; depende de fornecedor com xG
+Compartilhar jogo/liga (share sheet + deep link),crescimento,could,yes,no,URLs SEO por jogo/time/competição
+PWA instalável com cache do último placar,plataforma,could,yes,no,service worker + manifest
+Feed de dados ao vivo proprietário (rede de fornecedores e SLA),infraestrutura,skip,yes,no,é o ativo deles; nosso feed vem de API própria/licenciada
+Vídeos e direitos de transmissão,licenciamento,skip,yes,no,direito de mídia; não clonável
+Odds de casas de apostas (contrato/afiliação),licenciamento,skip,yes,no,sem licença não se exibe odd multi-casa
+Texto SEO institucional e páginas legais do original,conteúdo,skip,yes,no,escrito do zero no clone; legal precisa de advogado próprio
+"Marca, logo, cores e nome ""Uniscore""",marca,skip,yes,no,rebrand obrigatório antes de qualquer deploy
