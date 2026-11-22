@@ -16,47 +16,22 @@ import type Stripe from "stripe";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { PLANOS, type Plano, type PlanoId } from "@/lib/planos";
 
 export const STRIPE_API_VERSION = "2026-10-28.endive" as const;
 
-/** Planos à venda. Os price IDs vêm de env para não vazar config no código. */
-export type PlanoId = "mensal" | "anual";
+/* Preço/período vêm de `@/lib/planos` (fonte única, importável no client).
+   Aqui só anexamos o `priceId`, que é configuração de servidor. */
+export type { Plano, PlanoId };
 
-export type Plano = {
-  id: PlanoId;
-  nome: string;
-  preco: number;
-  /** Valor por mês, só para exibição. */
-  precoMes: number;
-  periodo: string;
-  destaque?: boolean;
-  priceId: string | undefined;
-  /** Dias de acesso por pagamento — usado para calcular expiresAt. */
-  dias: number;
-};
+export type PlanoVenda = Plano & { priceId: string | undefined };
 
-export function planos(): Plano[] {
-  return [
-    {
-      id: "mensal",
-      nome: "VIP Mensal",
-      preco: 29.9,
-      precoMes: 29.9,
-      periodo: "por mês",
-      priceId: process.env.STRIPE_PRICE_MENSAL,
-      dias: 30,
-    },
-    {
-      id: "anual",
-      nome: "VIP Anual",
-      preco: 249.9,
-      precoMes: 20.83,
-      periodo: "por ano",
-      destaque: true,
-      priceId: process.env.STRIPE_PRICE_ANUAL,
-      dias: 365,
-    },
-  ];
+export function planos(): PlanoVenda[] {
+  const precos: Record<PlanoId, string | undefined> = {
+    mensal: process.env.STRIPE_PRICE_MENSAL,
+    anual: process.env.STRIPE_PRICE_ANUAL,
+  };
+  return PLANOS.map((p) => ({ ...p, priceId: precos[p.id] }));
 }
 
 /** True quando as chaves essenciais existem. Sem isso as rotas respondem 503. */

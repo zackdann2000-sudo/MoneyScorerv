@@ -51,10 +51,29 @@ export async function POST(req: NextRequest) {
 
   try {
     const stripe = await getStripe();
+
+    // Reaproveita o customer pelo e-mail da conta. Sem isto o Stripe cria um
+    // customer novo a cada checkout, e o Portal do Cliente (/api/stripe/portal)
+    // poderia abrir a assinatura errada. Se a busca falhar, cai no
+    // `customer_email` e o checkout continua funcionando.
+    let customerId: string | undefined;
+    try {
+      const existentes = await stripe.customers.list({
+        email: user.email.trim().toLowerCase(),
+        limit: 1,
+      });
+      customerId = existentes.data[0]?.id;
+    } catch (e) {
+      console.warn(
+        "[stripe/checkout] busca de customer falhou; usando customer_email:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+
     const sessao = await stripe.checkout.sessions.create({
       mode: "subscription",
-      // Obrigatório para assinatura: cria/reaproveita o customer.
-      customer_email: user.email,
+      // Um dos dois é obrigatório em assinatura. `customer` evita duplicar.
+      ...(customerId ? { customer: customerId } : { customer_email: user.email }),
       line_items: [{ price: plano.priceId, quantity: 1 }],
       allow_promotion_codes: true,
       client_reference_id: String(user.id),

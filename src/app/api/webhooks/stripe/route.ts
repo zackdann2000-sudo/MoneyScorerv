@@ -6,8 +6,14 @@
  * Trata os eventos que dão e tiram acesso:
  *   checkout.session.completed        -> pagou: concede VIP
  *   invoice.paid                      -> renovação da assinatura: estende VIP
+ *   invoice.payment_failed            -> cartão recusado: NÃO revoga (só loga)
  *   customer.subscription.deleted     -> cancelou: encerra o acesso
  *   charge.refunded                   -> reembolsou: encerra o acesso
+ *
+ * REGRA DE REVOGAÇÃO: acesso só cai em `customer.subscription.deleted` ou
+ * `charge.refunded`. Falha de pagamento é temporária — o Stripe ainda vai
+ * tentar de novo (Smart Retries) antes de cancelar. Revogar na primeira
+ * recusa puniria um cartão que expirou e foi trocado no dia seguinte.
  *
  * IDENTIFICAÇÃO DO USUÁRIO — dois caminhos, nesta ordem:
  *  1. metadata.userId / client_reference_id: gravados na criação do checkout.
@@ -171,6 +177,22 @@ export async function POST(req: NextRequest) {
         }
         const r = await conceder(identidade(inv), dias, "renovação");
         if (!r.ok) console.error("[stripe/webhook] renovação:", r.motivo);
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        // Cartão recusado. NÃO revogamos aqui: o Stripe faz novas tentativas
+        // (Smart Retries) antes de cancelar, e o cliente pode trocar o cartão
+        // no Portal. O acesso cai só quando o Stripe emitir
+        // `customer.subscription.deleted`.
+        const inv = evento.data.object as unknown as Record<string, unknown>;
+        const tentativa = typeof inv.attempt_count === "number" ? inv.attempt_count : 0;
+        const proxima = typeof inv.next_payment_attempt === "number"
+          ? new Date(inv.next_payment_attempt * 1000).toISOString()
+          : "sem nova tentativa agendada";
+        console.warn(
+          `[stripe/webhook] pagamento falhou (tentativa ${tentativa}); próxima: ${proxima}. Acesso mantido.`,
+        );
         break;
       }
 

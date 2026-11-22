@@ -5,27 +5,17 @@ import { useSearchParams } from "next/navigation";
 import { Check, Crown, Loader2, ShieldCheck, Sparkles, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
+import { PLANOS, brl } from "@/lib/planos";
 
 /**
  * Página de planos (/planos).
  *
  * O checkout é criado no servidor (/api/stripe/checkout) e a navegação é feita
  * pelo `url` devolvido. Fazer isso no cliente com a secret key exporia a chave.
+ *
+ * Preços vêm de `@/lib/planos` — a mesma fonte que o servidor usa para conceder
+ * os dias de acesso. Antes eram duplicados aqui e podiam divergir do Stripe.
  */
-
-type Plano = {
-  id: "mensal" | "anual";
-  nome: string;
-  preco: number;
-  precoMes: number;
-  periodo: string;
-  destaque?: boolean;
-};
-
-const PLANOS: Plano[] = [
-  { id: "mensal", nome: "VIP Mensal", preco: 29.9, precoMes: 29.9, periodo: "por mês" },
-  { id: "anual", nome: "VIP Anual", preco: 249.9, precoMes: 20.83, periodo: "por ano", destaque: true },
-];
 
 const BENEFICIOS = [
   "Todas as props do radar, sem limite de 3",
@@ -34,8 +24,6 @@ const BENEFICIOS = [
   "+EV, Money Tips e Palpites IA",
   "Sem anúncios",
 ];
-
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function PlanosInner() {
   const { user, vip } = useApp();
@@ -198,7 +186,7 @@ function PlanosInner() {
       </div>
 
       <p className="text-[10px] text-mut text-center leading-relaxed inline-flex items-center gap-1.5 justify-center w-full">
-        <ShieldCheck size={11} /> Pagamento seguro via Stripe · cancele quando quiser
+        <ShieldCheck size={11} /> Cartão de crédito via Stripe · cancele quando quiser
       </p>
     </div>
   );

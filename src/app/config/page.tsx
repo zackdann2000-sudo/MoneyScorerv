@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2, Clock } from "lucide-react";
+import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2, Crown, CreditCard, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { mensagemAcesso } from "@/lib/accessMessage";
 import { Toggle, Crest } from "@/components/ui";
@@ -23,6 +23,24 @@ export default function Config() {
   const [delEmail, setDelEmail] = useState("");
   const [delConfirm, setDelConfirm] = useState(false);
   const [delMsg, setDelMsg] = useState("");
+  const [portalCarregando, setPortalCarregando] = useState(false);
+
+  /* Portal do Stripe: cancelar/trocar cartão/faturas sem passar pelo suporte. */
+  const abrirPortal = async () => {
+    setPortalCarregando(true);
+    try {
+      const r = await fetch("/api/stripe/portal", { method: "POST" });
+      const j = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!r.ok || !j.url) throw new Error(j.error ?? `HTTP ${r.status}`);
+      window.location.href = j.url;
+    } catch (e) {
+      addToast({
+        title: "Não foi possível abrir o portal",
+        body: e instanceof Error ? e.message : "Tente novamente em instantes.",
+      });
+      setPortalCarregando(false);
+    }
+  };
 
   // permissão inicial lida de forma preguiçosa (sem efeito de montagem com setState)
   useEffect(() => {
@@ -105,7 +123,7 @@ export default function Config() {
         ) : (
           <div className="text-center py-2">
             <p className="font-display font-bold uppercase text-lg">Entre na sua conta</p>
-            <p className="text-[11px] text-mut">Cadastro com e-mail = 24h de acesso. Sem assinatura.</p>
+            <p className="text-[11px] text-mut">24h grátis ao criar conta. Depois, assinatura no cartão de crédito.</p>
             <div className="flex gap-2 justify-center mt-3">
               <Link href="/login" className="px-5 py-2 rounded-full bg-panel2 border border-line text-xs font-extrabold">ENTRAR</Link>
               <Link href="/cadastro" className="px-5 py-2 rounded-full bg-acc text-black text-xs font-extrabold">CRIAR CONTA</Link>
@@ -119,16 +137,43 @@ export default function Config() {
         <div className="p-4">
           <div className="flex items-center gap-2">
             <span className="w-9 h-9 rounded-xl bg-warn/15 border border-warn/40 text-warn flex items-center justify-center shrink-0">
-              <Clock size={18} />
+              <Crown size={18} />
             </span>
-            <p className="font-display font-bold text-xl uppercase">Acesso de 24h</p>
+            <p className="font-display font-bold text-xl uppercase">24h grátis, depois assinatura</p>
           </div>
-          <p className="text-[12px] mt-2 text-ink">Não há assinatura. Toda conta criada com e-mail recebe 24h para ver oportunidades, dicas e estratégias. Depois, essas telas ficam ocultas. Placares, ligas e estatísticas de partida continuam disponíveis.</p>
+          <p className="text-[12px] mt-2 text-ink">
+            Toda conta criada com e-mail recebe <strong>24 horas de acesso completo</strong>. Passado esse
+            período, quem quiser continuar usa a <strong>assinatura VIP no cartão de crédito</strong> —
+            mensal ou anual, com cancelamento quando quiser. Placares, ligas e estatísticas de partida
+            continuam gratuitos.
+          </p>
           {user && (
             <p className={`text-[12px] mt-2 font-bold ${vip ? "text-acc" : "text-danger"}`}>
               {mensagemAcesso({ isAdmin: user.isAdmin, accessActive: user.access.active, expiresAt: user.expiresAt })}
             </p>
           )}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Link
+              href="/planos"
+              className="flex-1 h-10 rounded-xl bg-acc text-black text-xs font-extrabold inline-flex items-center justify-center gap-1.5"
+            >
+              <CreditCard size={14} /> {vip ? "Ver planos" : "Assinar VIP no cartão"}
+            </Link>
+            {user && vip && (
+              <button
+                onClick={abrirPortal}
+                disabled={portalCarregando}
+                className="flex-1 h-10 rounded-xl bg-panel2 border border-line text-ink text-xs font-extrabold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                {portalCarregando ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                Gerenciar assinatura
+              </button>
+            )}
+          </div>
+          <p className="text-[9px] text-mut mt-2">
+            Pagamento processado pelo Stripe. No portal você troca o cartão, baixa faturas e cancela sem
+            falar com o suporte.
+          </p>
         </div>
       </div>
 

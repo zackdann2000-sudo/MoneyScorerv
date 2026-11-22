@@ -31,7 +31,7 @@ export default function Cadastro() {
       <div className="text-center mb-5">
         <img src="/icon.png" alt="GreenScore" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
         <h1 className="font-display font-bold text-3xl uppercase">Criar conta</h1>
-        <p className="text-xs text-mut">Qualquer e-mail ganha 24h. Sem assinatura.</p>
+        <p className="text-xs text-mut">Qualquer e-mail ganha 24h. Depois, assinatura no cartão.</p>
       </div>
       <div className="flex items-center gap-2 rounded-xl p-3 mb-3 border bg-panel border-line">
         <p className="text-[12px] font-semibold text-ink">Ao criar a conta você recebe 24h para ver oportunidades, dicas e estratégias. Depois disso, placares e estatísticas continuam abertos.</p>
@@ -45,7 +45,7 @@ export default function Cadastro() {
         <p className="text-[11px] font-semibold text-acc text-center leading-snug">
           Crie sua conta e ganhe 24h de acesso VIP completo a todas as estatísticas e alertas
         </p>
-        <p className="text-[9px] text-mut text-center">Após o teste, o acesso VIP é liberado pelo administrador (PIX). Estatísticas básicas continuam gratuitas.</p>
+        <p className="text-[9px] text-mut text-center">Após as 24h, quem quiser continuar assina o VIP no cartão de crédito (mensal ou anual, cancele quando quiser). Estatísticas básicas continuam gratuitas.</p>
       </form>
       <p className="text-center text-xs text-mut mt-4">Já tem conta? <Link href="/login" className="text-acc font-bold">Entrar</Link></p>
     </div>

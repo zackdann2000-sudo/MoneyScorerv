@@ -110,7 +110,7 @@ export default function InstallApp() {
         <div className="flex items-center gap-2">
           <Download className="h-4 w-4 shrink-0 text-acc" />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-extrabold leading-tight text-txt">Instalar o Money Sênior</p>
+            <p className="text-[11px] font-extrabold leading-tight text-txt">Instalar o GreenScore</p>
             <p className="text-[9px] leading-snug text-mut">
               {ios
                 ? "Toque em Compartilhar e depois em “Adicionar à Tela de Início”."
