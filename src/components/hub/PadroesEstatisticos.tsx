@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Bloco "Padrões Estatísticos" da tela de detalhe do jogo (DumbleScore).
  *

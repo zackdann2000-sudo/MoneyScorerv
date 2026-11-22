@@ -12,6 +12,7 @@ import {
   hubTopScore,
   hubValueBet,
   hubXgFactor,
+  hubFixtureSource,
   type HubAnalysisSummary,
   type HubH2H,
   type HubLabInsight,
@@ -166,6 +167,7 @@ type AnalysisPick = {
   keyFactors: string[];
   riskFactors: string[];
   labInsights: HubLabInsight[];
+  createdAt: Date;
 };
 
 /**
@@ -261,6 +263,78 @@ function demoGameToHub(game: DemoGame, agora: number): HubGame {
 function demoGroups(): HubLeagueGroup[] {
   const agora = Date.now();
   return ordenarPorLiga(DEMO_GAMES.map((g) => demoGameToHub(g, agora)));
+}
+
+export type HubInsightsCache = {
+  /** Fixture interna encontrada a partir do id da ESPN (`null` = jogo não sincronizado). */
+  fixtureId: number | null;
+  labInsights: HubLabInsight[];
+  xgFactors: HubDetail["xgFactors"];
+  xg: { home: number; away: number } | null;
+  analise: { tipo: "Preview" | "Final"; atualizadoEm: string } | null;
+};
+
+const SEM_INSIGHTS: HubInsightsCache = { fixtureId: null, labInsights: [], xgFactors: [], xg: null, analise: null };
+
+/**
+ * Padrões e fatores de xG de um jogo da ESPN, só com o que já está no banco.
+ *
+ * A tela `/jogos/[id]` trabalha com o id do evento na ESPN, enquanto o Hub
+ * guarda a fixture com id próprio. A ponte é a identidade `(provider, externalId)`
+ * de `hub_fixture_source` — com fallback para `hub_fixture.(source, external_ref)`.
+ * Nenhuma chamada de fornecedor aqui: se o jogo não foi sincronizado, devolve
+ * vazio e a UI diz que o dado está indisponível.
+ */
+export async function hubInsightsPorEspnId(externalId: string): Promise<HubInsightsCache> {
+  const id = String(externalId ?? "").trim();
+  if (!id) return SEM_INSIGHTS;
+
+  try {
+    const [porFonte] = await db
+      .select({ fixtureId: hubFixtureSource.fixtureId })
+      .from(hubFixtureSource)
+      .where(and(eq(hubFixtureSource.provider, "espn"), eq(hubFixtureSource.externalId, id)))
+      .limit(1);
+
+    let fixtureId = porFonte?.fixtureId ?? null;
+    if (fixtureId == null) {
+      const [porRef] = await db
+        .select({ id: hubFixture.id })
+        .from(hubFixture)
+        .where(and(eq(hubFixture.source, "espn"), eq(hubFixture.externalRef, id)))
+        .limit(1);
+      fixtureId = porRef?.id ?? null;
+    }
+    if (fixtureId == null) return SEM_INSIGHTS;
+
+    const analise = (await latestAnalysesFor([fixtureId])).get(fixtureId) ?? null;
+    if (!analise) return { ...SEM_INSIGHTS, fixtureId };
+
+    const fatores = await db
+      .select({
+        side: hubXgFactor.side,
+        factorType: hubXgFactor.factorType,
+        impact: hubXgFactor.impact,
+        weight: hubXgFactor.weight,
+        context: hubXgFactor.context,
+      })
+      .from(hubXgFactor)
+      .where(eq(hubXgFactor.analysisId, analise.id));
+
+    return {
+      fixtureId,
+      labInsights: analise.labInsights ?? [],
+      xgFactors: fatores.map((f) => ({ ...f, context: (f.context ?? null) as Record<string, unknown> | null })),
+      xg: analise.summary ? { home: analise.summary.xgHome, away: analise.summary.xgAway } : null,
+      analise: {
+        tipo: analise.analysisType as "Preview" | "Final",
+        atualizadoEm: analise.createdAt.toISOString(),
+      },
+    };
+  } catch {
+    // Banco fora não pode derrubar a Pré-Live: a tela cai no "indisponível".
+    return SEM_INSIGHTS;
+  }
 }
 
 /* ================================== listas ================================== */

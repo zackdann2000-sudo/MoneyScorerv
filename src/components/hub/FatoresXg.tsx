@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Bloco "Fatores de xG" da tela de detalhe do jogo (DumbleScore).
  *

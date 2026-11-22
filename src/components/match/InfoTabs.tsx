@@ -6,6 +6,7 @@ import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge 
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import { VereditoBlock } from "@/components/match/VereditoBlock";
+import { InsightsCache } from "@/components/match/InsightsCache";
 import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
@@ -181,6 +182,10 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
       {/* Veredito Estatístico (forma 70% × H2H 30%) + ladder de gols: o resumo
           do confronto vem primeiro; o detalhe vem depois. */}
       {matchId && <VereditoBlock matchId={matchId} />}
+
+      {/* Fatores de xG e padrões estatísticos: cache do DumbleScore do Hub para
+          este jogo, logo abaixo do veredito. Rota fina, sem fornecedor novo. */}
+      {matchId && <InsightsCache matchId={matchId} home={home.name} away={away.name} />}
 
       {/* As 4 análises em destaque: o detalhe do confronto. */}
       <BlocoAnalises casa={h.averages} fora={a.averages} nomes={[home.name, away.name]} h2h={h2hCtx} />
