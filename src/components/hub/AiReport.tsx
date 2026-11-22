@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Card "Relatório IA" — o resumo em linguagem natural no topo do detalhe do jogo.
  *

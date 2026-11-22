@@ -1,29 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Flame, TrendingUp } from "lucide-react";
 import FatoresXg from "@/components/hub/FatoresXg";
 import PadroesEstatisticos from "@/components/hub/PadroesEstatisticos";
 import type { FatorXgBruto } from "@/lib/hub/fatoresXg";
 import type { InsightCache } from "@/lib/hub/padroes";
+import type { RelatorioIA } from "@/lib/hub/aiReport";
 
 /**
  * "Fatores de xG" + "Padrões estatísticos" na aba Pré-Live de `/jogos/[id]`.
  *
  * A Pré-Live trabalha com o id do evento na ESPN; o Hub guarda outra chave. Quem
  * faz a ponte é a rota fina `/api/matches/[id]/insights`, que só lê cache —
- * nenhum fornecedor é chamado e nenhum número é recalculado aqui.
+ * nenhum fornecedor é chamado e nenhum número é recalculado aqui. O fetch mora
+ * no `PreLiveTab` (um só para os três blocos: relatório, padrões e fatores).
  *
  * Jogo que o Hub não sincronizou (`found: false`) não renderiza nada: a Pré-Live
  * já mostra a análise da ESPN, e dois cartões de "indisponível" seriam só ruído.
  */
 
-type Resposta = {
+export type RespostaInsights = {
   found?: boolean;
   xg?: { home: number; away: number } | null;
   labInsights?: InsightCache[];
   xgFactors?: FatorXgBruto[];
   analise?: { tipo: string; atualizadoEm: string } | null;
+  relatorio?: RelatorioIA | null;
 };
 
 function Cabecalho({ icone, titulo, nota }: { icone: React.ReactNode; titulo: string; nota?: string }) {
@@ -36,20 +38,16 @@ function Cabecalho({ icone, titulo, nota }: { icone: React.ReactNode; titulo: st
   );
 }
 
-export function InsightsCache({ matchId, home, away }: { matchId: string; home: string; away: string }) {
-  const [dados, setDados] = useState<Resposta | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    fetch(`/api/matches/${matchId}/insights`)
-      .then((r) => r.json())
-      .then((j) => vivo && setDados((j ?? {}) as Resposta))
-      .catch(() => vivo && setDados({}));
-    return () => {
-      vivo = false;
-    };
-  }, [matchId]);
-
+export function InsightsCache({
+  dados,
+  home,
+  away,
+}: {
+  /** `null` = ainda carregando; `{}`/`found:false` = jogo fora do Hub. */
+  dados: RespostaInsights | null;
+  home: string;
+  away: string;
+}) {
   if (!dados) {
     return (
       <div className="space-y-2">

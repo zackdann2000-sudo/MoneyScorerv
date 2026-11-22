@@ -6,8 +6,9 @@ import { Crest, FormDots, SourceFoot, StatCompareRow, VipLock, Modal, LiveBadge 
 import { Momentum, RadialDuo, GoalsBars } from "@/components/charts";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import { VereditoBlock } from "@/components/match/VereditoBlock";
-import { InsightsCache } from "@/components/match/InsightsCache";
+import { InsightsCache, type RespostaInsights } from "@/components/match/InsightsCache";
 import { OddsMultiCasaLive } from "@/components/match/OddsMultiCasaLive";
+import AiReport from "@/components/hub/AiReport";
 import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
@@ -139,6 +140,8 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
   const [cat, setCat] = useState("ATAQUE");
   const [refOpen, setRefOpen] = useState(false);
   const [leagueAvg, setLeagueAvg] = useState<number | null>(null);
+  /* Cache do DumbleScore (relatório, fatores e padrões): um fetch só, sem fornecedor. */
+  const [insights, setInsights] = useState<RespostaInsights | null>(null);
 
   useEffect(() => {
     fetch(`/api/teams/${home.id}?league=${league}`).then((r) => r.json()).then(setH).catch(() => {});
@@ -149,6 +152,18 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
       if (gp) setLeagueAvg(+(gf / gp).toFixed(2));
     }).catch(() => {});
   }, [home.id, away.id, league]);
+
+  useEffect(() => {
+    if (!matchId) return;
+    let vivo = true;
+    fetch(`/api/matches/${matchId}/insights`)
+      .then((r) => r.json())
+      .then((j) => vivo && setInsights((j ?? {}) as RespostaInsights))
+      .catch(() => vivo && setInsights({}));
+    return () => {
+      vivo = false;
+    };
+  }, [matchId]);
 
   /* H2H resumido para o bloco: média de gols por confronto nos últimos 7.
      Cartões não vêm nesse payload — o cruzamento de cartões fica neutro. */
@@ -180,13 +195,31 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
         <span className="text-[9px] text-mut text-right leading-tight">últimos {h.averages?.jogos || 0} × {a.averages?.jogos || 0} jogos</span>
       </div>
 
+      {/* Relatório IA — acima do veredito: é o resumo do que vem abaixo. Sai do
+          mesmo cache do insights (?relatorio), custo zero. */}
+      {matchId && insights?.relatorio && (
+        <section>
+          <div className="mb-1 flex items-center gap-1.5 px-0.5">
+            <span className="text-acc">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
+                <path d="M19 15.5 20 18l2.5 1-2.5 1-1 2.5-1-2.5L15.5 19l2.5-1 1-2.5Z" />
+              </svg>
+            </span>
+            <h3 className="font-display text-[10px] font-black uppercase tracking-wide text-txt">Relatório IA</h3>
+            <span className="ml-auto text-[9px] font-bold text-mut">gerado do modelo</span>
+          </div>
+          <AiReport relatorio={insights.relatorio} />
+        </section>
+      )}
+
       {/* Veredito Estatístico (forma 70% × H2H 30%) + ladder de gols: o resumo
           do confronto vem primeiro; o detalhe vem depois. */}
       {matchId && <VereditoBlock matchId={matchId} />}
 
       {/* Fatores de xG e padrões estatísticos: cache do DumbleScore do Hub para
           este jogo, logo abaixo do veredito. Rota fina, sem fornecedor novo. */}
-      {matchId && <InsightsCache matchId={matchId} home={home.name} away={away.name} />}
+      {matchId && <InsightsCache dados={insights} home={home.name} away={away.name} />}
 
       {/* Odds multi-casa: comparativo de preço entre as casas do cache do Hub. */}
       {matchId && <OddsMultiCasaLive matchId={matchId} home={home.name} away={away.name} />}

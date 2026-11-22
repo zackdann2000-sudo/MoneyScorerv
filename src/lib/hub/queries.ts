@@ -20,6 +20,7 @@ import {
 } from "@/db/hub-schema";
 import type { TopScore } from "./model";
 import { compararCasas, SELECOES_COMPARATIVO, type ComparativoSelecao, type OddsIndex } from "./model";
+import { gerarRelatorio, type RelatorioIA } from "./aiReport";
 import { DEMO_GAMES, demoProbabilities, demoValue, type DemoGame } from "./demo";
 
 /**
@@ -278,9 +279,11 @@ export type HubInsightsCache = {
   xgFactors: HubDetail["xgFactors"];
   xg: { home: number; away: number } | null;
   analise: { tipo: "Preview" | "Final"; atualizadoEm: string } | null;
+  /** Relatório em linguagem natural montado do MESMO cache (custo zero). */
+  relatorio: RelatorioIA | null;
 };
 
-const SEM_INSIGHTS: HubInsightsCache = { fixtureId: null, labInsights: [], xgFactors: [], xg: null, analise: null };
+const SEM_INSIGHTS: HubInsightsCache = { fixtureId: null, labInsights: [], xgFactors: [], xg: null, analise: null, relatorio: null };
 
 /**
  * Ponte de identidade: id do evento na ESPN -> fixture interna do Hub.
@@ -323,26 +326,137 @@ export async function hubInsightsPorEspnId(externalId: string): Promise<HubInsig
     const analise = (await latestAnalysesFor([fixtureId])).get(fixtureId) ?? null;
     if (!analise) return { ...SEM_INSIGHTS, fixtureId };
 
-    const fatores = await db
-      .select({
-        side: hubXgFactor.side,
-        factorType: hubXgFactor.factorType,
-        impact: hubXgFactor.impact,
-        weight: hubXgFactor.weight,
-        context: hubXgFactor.context,
-      })
-      .from(hubXgFactor)
-      .where(eq(hubXgFactor.analysisId, analise.id));
+    /**
+     * Tudo o que o relatório precisa sai das tabelas que o sync já encheu: nada
+     * de fornecedor. Rodamos as leituras em paralelo para a Pré-Live não somar
+     * latência em série.
+     */
+    const [fatores, predicoes, placares, valor, fixtureRow, contexto] = await Promise.all([
+      db
+        .select({
+          side: hubXgFactor.side,
+          factorType: hubXgFactor.factorType,
+          impact: hubXgFactor.impact,
+          weight: hubXgFactor.weight,
+          context: hubXgFactor.context,
+        })
+        .from(hubXgFactor)
+        .where(eq(hubXgFactor.analysisId, analise.id)),
+      db
+        .select({ market: hubPredictionRow.market, selection: hubPredictionRow.selection, probability: hubPredictionRow.probability })
+        .from(hubPredictionRow)
+        .where(eq(hubPredictionRow.analysisId, analise.id)),
+      db
+        .select({ home: hubTopScore.home, away: hubTopScore.away, probability: hubTopScore.probability })
+        .from(hubTopScore)
+        .where(eq(hubTopScore.analysisId, analise.id))
+        .orderBy(desc(hubTopScore.probability))
+        .limit(5),
+      db.select().from(hubValueBet).where(eq(hubValueBet.analysisId, analise.id)).limit(1),
+      db
+        .select({
+          id: hubFixture.id,
+          homeTeamId: hubFixture.homeTeamId,
+          awayTeamId: hubFixture.awayTeamId,
+          kickoff: hubFixture.matchDate,
+          homeName: homeT.name,
+          awayName: awayT.name,
+        })
+        .from(hubFixture)
+        .innerJoin(homeT, eq(homeT.id, hubFixture.homeTeamId))
+        .innerJoin(awayT, eq(awayT.id, hubFixture.awayTeamId))
+        .where(eq(hubFixture.id, fixtureId))
+        .limit(1),
+      db.select({ h2h: hubFixtureContext.h2h, stats: hubFixtureContext.stats }).from(hubFixtureContext).where(eq(hubFixtureContext.fixtureId, fixtureId)).limit(1),
+    ]);
+
+    const f = fixtureRow[0] ?? null;
+    const apostaValor = valor[0] ?? null;
+    const ctxRow = contexto[0] ?? null;
+    /* xG "real" é o publicado no contexto pelo fornecedor; o do resumo é estimado
+       pelo modelo. Mesma regra da tela do Hub, para o texto não trocar a fonte. */
+    const xgCtx = xgDoContexto(ctxRow?.stats ?? null);
+    const xg = xgCtx ?? (analise.summary ? { home: analise.summary.xgHome, away: analise.summary.xgAway } : null);
+    const xgSource: "real" | "estimado" | null = xgCtx ? "real" : analise.summary ? "estimado" : null;
+
+    /* Forma recente (mesma função da tela do Hub) + casas da seleção com valor,
+       para o relatório citar o preço da Pinnacle quando ela cotou. */
+    const [forma, casasDoValor] = await Promise.all([
+      f ? formasRecentes(f.homeTeamId, f.awayTeamId, f.kickoff) : Promise.resolve(null),
+      apostaValor
+        ? db
+            .select({
+              market: hubBookmakerOdd.market,
+              selection: hubBookmakerOdd.selection,
+              odds: hubBookmakerOdd.odds,
+              bookmaker: hubBookmakerOdd.bookmaker,
+              bookmakerSlug: hubBookmakerOdd.bookmakerSlug,
+              isPick: hubBookmakerOdd.isPick,
+            })
+            .from(hubBookmakerOdd)
+            .where(
+              and(
+                eq(hubBookmakerOdd.fixtureId, fixtureId),
+                eq(hubBookmakerOdd.market, apostaValor.market),
+                eq(hubBookmakerOdd.selection, apostaValor.selection),
+              ),
+            )
+        : Promise.resolve([] as Array<{ market: string; selection: string; odds: number; bookmaker: string; bookmakerSlug: string; isPick: boolean }>),
+    ]);
+
+    const indiceValor: OddsIndex = {};
+    for (const o of casasDoValor) {
+      if (!Number.isFinite(o.odds) || o.odds <= 1.01) continue;
+      (indiceValor[`${o.market}|${o.selection}`] ??= []).push({
+        bookmaker: o.bookmaker,
+        bookmakerSlug: o.bookmakerSlug,
+        odds: o.odds,
+        isPick: o.isPick,
+      });
+    }
+
+    const relatorio =
+      f == null
+        ? null
+        : gerarRelatorio({
+            home: f.homeName,
+            away: f.awayName,
+            probabilities: probabilidades1x2(predicoes.filter((p) => p.market === "1X2")),
+            expectedGoals: analise.summary?.expectedTotalGoals ?? null,
+            xg,
+            xgSource,
+            markets: predicoes,
+            topScores: placares,
+            value: apostaValor
+              ? {
+                  market: apostaValor.market,
+                  selection: apostaValor.selection,
+                  probability: apostaValor.probability,
+                  odds: apostaValor.odds,
+                  value: apostaValor.value,
+                }
+              : null,
+            hasOdds: analise.summary?.hasOdds ?? casasDoValor.length > 0,
+            h2h: ctxRow?.h2h ?? null,
+            forma: forma ? { home: forma.home, away: forma.away } : null,
+            confidence: analise.confidence,
+            riskFactors: analise.riskFactors,
+            oddsMultiCasa: compararCasas(
+              indiceValor,
+              apostaValor ? [{ market: apostaValor.market, selection: apostaValor.selection }] : [],
+            ),
+          });
 
     return {
       fixtureId,
       labInsights: analise.labInsights ?? [],
-      xgFactors: fatores.map((f) => ({ ...f, context: (f.context ?? null) as Record<string, unknown> | null })),
-      xg: analise.summary ? { home: analise.summary.xgHome, away: analise.summary.xgAway } : null,
+      xgFactors: fatores.map((i) => ({ ...i, context: (i.context ?? null) as Record<string, unknown> | null })),
+      xg,
       analise: {
         tipo: analise.analysisType as "Preview" | "Final",
         atualizadoEm: analise.createdAt.toISOString(),
       },
+      relatorio,
     };
   } catch {
     // Banco fora não pode derrubar a Pré-Live: a tela cai no "indisponível".
