@@ -31,10 +31,10 @@ export default function Cadastro() {
       <div className="text-center mb-5">
         <img src="/icon.png" alt="GreenScore" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
         <h1 className="font-display font-bold text-3xl uppercase">Criar conta</h1>
-        <p className="text-xs text-mut">Qualquer e-mail ganha 24h. Depois, assinatura no cartão.</p>
+        <p className="text-xs text-mut">Grátis todo dia: 1 análise. O contador zera à meia-noite.</p>
       </div>
       <div className="flex items-center gap-2 rounded-xl p-3 mb-3 border bg-panel border-line">
-        <p className="text-[12px] font-semibold text-ink">Ao criar a conta você recebe 24h para ver oportunidades, dicas e estratégias. Depois disso, placares e estatísticas continuam abertos.</p>
+        <p className="text-[12px] font-semibold text-ink">Todo dia você tem 1 análise grátis para ver oportunidades, dicas e estratégias. Amanhã o contador zera. Placares e estatísticas continuam abertos sempre.</p>
       </div>
       <form onSubmit={submit} className="bg-panel border border-line rounded-2xl p-4 space-y-3">
         <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" className="w-full bg-panel2 border border-line rounded-xl px-3 py-3 text-sm" />
@@ -43,9 +43,9 @@ export default function Cadastro() {
         {err && <p className="text-xs text-danger bg-danger/10 rounded-lg p-2">{err}</p>}
         <button disabled={loading} className="w-full py-3 rounded-xl bg-acc text-black font-extrabold text-sm disabled:opacity-60">{loading ? "CRIANDO…" : "CRIAR CONTA ⚡"}</button>
         <p className="text-[11px] font-semibold text-acc text-center leading-snug">
-          Crie sua conta e ganhe 24h de acesso VIP completo a todas as estatísticas e alertas
+          Crie sua conta e veja 1 análise por dia, grátis — sem cartão
         </p>
-        <p className="text-[9px] text-mut text-center">Após as 24h, quem quiser continuar assina o VIP no cartão de crédito (mensal ou anual, cancele quando quiser). Estatísticas básicas continuam gratuitas.</p>
+        <p className="text-[9px] text-mut text-center">Quer mais que 1 por dia? Os planos liberam 6, 20 ou ilimitado, no cartão, cancele quando quiser. Estatísticas básicas continuam gratuitas.</p>
       </form>
       <p className="text-center text-xs text-mut mt-4">Já tem conta? <Link href="/login" className="text-acc font-bold">Entrar</Link></p>
     </div>

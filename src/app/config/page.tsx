@@ -123,7 +123,7 @@ export default function Config() {
         ) : (
           <div className="text-center py-2">
             <p className="font-display font-bold uppercase text-lg">Entre na sua conta</p>
-            <p className="text-[11px] text-mut">24h grátis ao criar conta. Depois, assinatura no cartão de crédito.</p>
+            <p className="text-[11px] text-mut">1 análise grátis por dia. O contador zera à meia-noite.</p>
             <div className="flex gap-2 justify-center mt-3">
               <Link href="/login" className="px-5 py-2 rounded-full bg-panel2 border border-line text-xs font-extrabold">ENTRAR</Link>
               <Link href="/cadastro" className="px-5 py-2 rounded-full bg-acc text-black text-xs font-extrabold">CRIAR CONTA</Link>
@@ -139,13 +139,12 @@ export default function Config() {
             <span className="w-9 h-9 rounded-xl bg-warn/15 border border-warn/40 text-warn flex items-center justify-center shrink-0">
               <Crown size={18} />
             </span>
-            <p className="font-display font-bold text-xl uppercase">24h grátis, depois assinatura</p>
+            <p className="font-display font-bold text-xl uppercase">Seu acesso, todo dia</p>
           </div>
           <p className="text-[12px] mt-2 text-ink">
-            Toda conta criada com e-mail recebe <strong>24 horas de acesso completo</strong>. Passado esse
-            período, quem quiser continuar usa a <strong>assinatura VIP no cartão de crédito</strong> —
-            mensal ou anual, com cancelamento quando quiser. Placares, ligas e estatísticas de partida
-            continuam gratuitos.
+            Grátis, todos os dias: <strong>1 análise por dia</strong> — o contador zera à meia-noite (horário de
+            Brasília). Quem quer mais assina no cartão: <strong>Starter 6/dia, Pro 20/dia, Expert ilimitado</strong>,
+            com cancelamento quando quiser. Placares, ligas e estatísticas de partida continuam gratuitos.
           </p>
           {user && (
             <p className={`text-[12px] mt-2 font-bold ${vip ? "text-acc" : "text-danger"}`}>

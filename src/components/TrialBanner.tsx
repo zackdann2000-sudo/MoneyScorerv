@@ -5,10 +5,12 @@ import { useApp } from "@/context/AppContext";
 import { formatarRestante, chaveToastExpiracao } from "@/lib/trialCountdown";
 
 /**
- * Banner de urgência do trial de 24h, abaixo do header.
+ * Banner do acesso com prazo (trial de 24h e assinatura), abaixo do header.
  *
  * - Ativo: contador "Acesso VIP expira em: 23h 59m" em verde neon.
- * - Expirado: "Seu período VIP expirou. Assine para continuar" + CTA.
+ * - Expirado: o acesso não fecha mais a porta — a conta cai no Free de 1
+ *   análise por dia (`planoEfetivo` rebaixa na leitura). Por isso o texto
+ *   avisa o que continua liberado e oferece mais, em vez de anunciar bloqueio.
  *
  * Não aparece para admin/dono (vitalício) nem para conta sem expiração.
  * O relógio é local (client) e recalcula a cada 15s — barato e suficiente
@@ -43,7 +45,7 @@ export default function TrialBanner() {
     }
     addToast({
       title: "⏳ Acesso VIP encerrado",
-      body: "Seu período VIP de 24h expirou. Algumas opções foram bloqueadas.",
+      body: "Seu período VIP terminou. Você continua com 1 análise grátis por dia — o contador zera à meia-noite.",
       url: "/config",
     });
   }, [user, exp, expiradoAgora, addToast]);
@@ -61,7 +63,7 @@ export default function TrialBanner() {
           className="flex items-center justify-center gap-2 rounded-xl border border-danger/50 bg-danger/10 px-3 py-2 text-[11px] font-extrabold text-danger"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
-          Seu período VIP expirou. Assine para continuar
+          Seu período VIP terminou · 1 análise grátis/dia
         </Link>
       ) : (
         <Link

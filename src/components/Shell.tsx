@@ -291,7 +291,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {/* convite de instalação: só aparece quando o navegador diz que dá para instalar */}
       <InstallApp />
 
-      {/* tutorial de 3 telas: só para conta logada que ainda não viu (localStorage) */}
+      {/* tutorial de 4 telas: só para conta logada que ainda não viu (localStorage) */}
       <Onboarding />
 
       {/* retorno do Stripe: atualiza o VIP na hora e limpa ?assinou da URL */}

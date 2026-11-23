@@ -45,6 +45,42 @@ export function planoDeQuota(plan: string | null | undefined): QuotaPlano {
   }
 }
 
+/**
+ * Plano EFETIVO para fins de quota — rebaixa na leitura, sem migration.
+ *
+ * `users.plan` guarda "vip" desde o teste de 24h e o Stripe grava "vip" em
+ * cada pagamento. Quando o acesso vence, **nada** faz UPDATE em `plan`: a
+ * linha continua "vip" para sempre. Se a quota lesse o plano cru, todo
+ * ex-trial (e todo ex-assinante) viraria `expert` — 999/dia, badge
+ * "Ilimitado" — e a regra de 1 análise grátis por dia nunca valeria justamente
+ * para quem acabou de perder o acesso. Era o furo da conversão.
+ *
+ * Regra:
+ *  - o plano PAGO/atribuído continua valendo enquanto `expiresAt` não vence;
+ *  - quando vence, o plano efetivo cai para `free` (1/dia);
+ *  - `expiresAt` ausente (undefined) ou null = acesso sem prazo (vitalício,
+ *    concessão manual do admin): não rebaixa — o gate de acesso já cuida;
+ *  - admin nunca é rebaixado aqui.
+ *
+ * O rebaixamento é só na leitura: `plan` no banco não é tocado, então
+ * reativar a assinatura volta a valer na hora, sem backfill nenhum.
+ */
+export function planoEfetivo(opts: {
+  plan: string | null | undefined;
+  /** Data de fim do acesso. `undefined` = "não julgar". */
+  expiresAt?: Date | string | null;
+  /** Injetável para teste. */
+  agora?: Date;
+}): QuotaPlano {
+  const base = planoDeQuota(opts.plan);
+  if (base === "free") return "free";
+  if (opts.expiresAt === undefined || opts.expiresAt === null) return base;
+  const fim = opts.expiresAt instanceof Date ? opts.expiresAt : new Date(opts.expiresAt);
+  if (Number.isNaN(fim.getTime())) return base;
+  const agora = opts.agora ?? new Date();
+  return fim.getTime() > agora.getTime() ? base : "free";
+}
+
 export type EstadoQuota = {
   plano: QuotaPlano;
   /** Limite do plano (999 = ilimitado na prática). */
@@ -78,8 +114,17 @@ export function estadoQuota(opts: {
   hoje: string;
   /** Admin/owner: acesso total, contador não se aplica. */
   ilimitada?: boolean;
+  /**
+   * Data de fim do acesso. Quando informada, o plano é rebaixado na leitura
+   * se já venceu (ver `planoEfetivo`). Omitir mantém o plano cru.
+   */
+  expiresAt?: Date | string | null;
+  /** Injetável para teste. */
+  agora?: Date;
 }): EstadoQuota {
-  const plano = planoDeQuota(opts.plan);
+  const plano = "expiresAt" in opts
+    ? planoEfetivo({ plan: opts.plan, expiresAt: opts.expiresAt, agora: opts.agora })
+    : planoDeQuota(opts.plan);
   const limite = Math.max(1, opts.dailyQuota ?? QUOTA_POR_PLANO[plano]);
   const ilimitada = !!opts.ilimitada || limite >= QUOTA_ILIMITADA || plano === "expert";
   const mesmoDia = (opts.dia ?? "") === opts.hoje && !!opts.dia;

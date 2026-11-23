@@ -7,7 +7,7 @@ import {
 import { eq } from "drizzle-orm";
 
 import { isLifetime, isOwnerEmail, TRIAL_DAYS } from "@/lib/appConfig";
-import { estadoQuota, hojeSp } from "@/lib/quota";
+import { estadoQuota, hojeSp, planoEfetivo } from "@/lib/quota";
 
 export const OWNER_EMAIL = "admin@greenscore.app";
 export { TRIAL_DAYS };
@@ -54,7 +54,9 @@ export async function destroySession() {
 }
 
 export type SessionUser = {
-  id: number; name: string; email: string; role: string; plan: string;
+  id: number; name: string; email: string; role: string;
+  /** Plano EFETIVO (vip/trial vencido já caiu para "free"). Ver `planoEfetivo`. */
+  plan: string;
   /** Fim do acesso (trial de 24h, assinatura ou vitalício). */
   expiresAt: string | null;
   /**
@@ -101,9 +103,19 @@ export async function getUser(): Promise<SessionUser | null> {
     const q = estadoQuota({
       plan: u.plan, dailyQuota: qd, usado: qu, dia: qdia, hoje: hojeSp(),
       ilimitada: isAdmin || active,
+      /* Aqui mora o rebaixamento na leitura: `plan` no banco fica "vip" para
+         sempre (trial de 24h e Stripe gravam "vip"), então sem isto o
+         ex-assinante seria lido como expert = ilimitado e nunca veria o Free
+         de 1/dia. A data de validade é a única fonte de verdade do acesso. */
+      expiresAt: u.expiresAt,
     });
     return {
-      id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan,
+      id: u.id, name: u.name, email: u.email, role: u.role,
+      /* Plano efetivo, não o cru: é este campo que `quotaServer` lê em
+         `/api/quota`. Se devolvêssemos "vip" vencido, o POST de consumo
+         acharia limite 999 e o paywall nunca apareceria para quem já pagou
+         no passado. */
+      plan: planoEfetivo({ plan: u.plan, expiresAt: u.expiresAt }),
       expiresAt: u.expiresAt ? u.expiresAt.toISOString() : null,
       trialEndsAt: u.expiresAt ? u.expiresAt.toISOString() : null,
       isAdmin, access: { active, daysLeft, label },

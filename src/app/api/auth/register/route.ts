@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       ? null
       : bloqueio
         ? null
-        : `Conta criada. Você tem ${TRIAL_HORAS}h de acesso às oportunidades, dicas e estratégias.`;
+        : `Conta criada. Você tem ${TRIAL_HORAS}h de acesso completo; depois disso, 1 análise grátis por dia.`;
     return NextResponse.json({ user, bonus, trialReusado: bloqueio !== null, motivo: bloqueio });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no cadastro." }, { status: 500 });

@@ -8,6 +8,7 @@ import {
   BarChart3,
   Check,
   ChevronLeft,
+  Clock,
   Radar,
   Swords,
   Target,
@@ -16,7 +17,7 @@ import {
 import { useApp } from "@/context/AppContext";
 
 /**
- * Onboarding pós-cadastro — 3 telas, uma vez por navegador.
+ * Onboarding pós-cadastro — 4 telas, uma vez por navegador.
  *
  * Por que modal e não rota:
  * o cadastro termina em `router.push("/")`, que redireciona para /jogos. Uma
@@ -26,13 +27,15 @@ import { useApp } from "@/context/AppContext";
  *
  * FLAG: `gs_onboarding_v1` no localStorage. Gravamos em "Começar a usar" E em
  * "Pular" — quem pulou também não quer ver de novo. Versione a chave (`_v1`)
- * se o conteúdo mudar de propósito, para reexibir uma vez.
+ * se o conteúdo mudar de propósito, para reexibir uma vez. Subiu de v1 para v2
+ * junto com a Tela 4: a regra de acesso mudou (trial de 24h → 1 análise grátis
+ * por dia), e quem já usava o app precisa ver a regra nova uma vez.
  *
  * Não renderiza nada até saber o resultado do localStorage: evita flash do
  * overlay para quem já viu.
  */
 
-export const ONBOARDING_KEY = "gs_onboarding_v1";
+export const ONBOARDING_KEY = "gs_onboarding_v2";
 
 /** Rotas onde o tutorial nunca deve cobrir a tela. */
 const ROTAS_IGNORADAS = ["/login", "/cadastro"];
@@ -51,7 +54,7 @@ type Tela = {
 const TELAS: Tela[] = [
   {
     icone: Target,
-    etiqueta: "Tela 1 de 3",
+    etiqueta: "Tela 1 de 4",
     titulo: "Value Bet e TRUST",
     texto:
       "Value bet é quando a odd do mercado paga mais do que a probabilidade que o modelo calculou. O app só mostra a linha quando o valor esperado (EV) é positivo.",
@@ -64,7 +67,7 @@ const TELAS: Tela[] = [
   },
   {
     icone: Radar,
-    etiqueta: "Tela 2 de 3",
+    etiqueta: "Tela 2 de 4",
     titulo: "Player Props e Duelos",
     texto:
       "Props são apostas por jogador, não pelo placar: finalizações, chutes no gol, faltas e cartões, com linha, confiança e amostra de cada atleta.",
@@ -77,7 +80,7 @@ const TELAS: Tela[] = [
   },
   {
     icone: BarChart3,
-    etiqueta: "Tela 3 de 3",
+    etiqueta: "Tela 3 de 4",
     titulo: "O cron e o Relatório IA trabalham por você",
     texto:
       "Todo dia o cron atualiza placares, classificação, cartões e probabilidades. O Relatório IA escreve a leitura do jogo em português na página da partida.",
@@ -87,6 +90,19 @@ const TELAS: Tela[] = [
       "Volte quando quiser: os dados já estão atualizados.",
     ],
     acao: { label: "Abrir o Centro de Jogos", href: "/hub" },
+  },
+  {
+    icone: Clock,
+    etiqueta: "Tela 4 de 4",
+    titulo: "Seu acesso, todo dia",
+    texto:
+      "O acesso é gratuito todos os dias, não só no começo: cada conta vê 1 análise por dia. O contador zera à meia-noite, no horário de Brasília.",
+    pontos: [
+      "Free: 1 análise por dia, sem cartão e sem prazo para acabar.",
+      "Quer ver mais no mesmo dia? Starter libera 6, Pro libera 20 e Expert é ilimitado.",
+      "Placares, ligas, classificação e estatísticas de partida continuam abertos para todo mundo.",
+    ],
+    acao: { label: "Comparar os planos", href: "/planos" },
   },
 ];
 

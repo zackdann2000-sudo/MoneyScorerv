@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 /* Landing pública — mobile-first, dark + verde neon.
-   O único caminho de conversão é o cadastro (24h VIP). */
+   O único caminho de conversão é o cadastro (Free: 1 análise grátis por dia). */
 
 const PILARES = [
   {
@@ -113,7 +113,7 @@ export default async function LandingPage() {
               href="/cadastro"
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-acc px-6 py-3.5 text-[13px] font-black text-black shadow-[0_0_28px_-6px] shadow-acc/70 transition-transform hover:scale-[1.02] sm:text-sm"
             >
-              Criar conta grátis e ganhar 24h VIP
+              Criar conta grátis e ver 1 análise por dia
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
@@ -126,7 +126,7 @@ export default async function LandingPage() {
 
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-bold text-mut">
             <span className="inline-flex items-center gap-1">
-              <Check className="h-3.5 w-3.5 text-good" /> 24h VIP sem cartão
+              <Check className="h-3.5 w-3.5 text-good" /> 1 análise grátis por dia, sem cartão
             </span>
             <span className="inline-flex items-center gap-1">
               <Check className="h-3.5 w-3.5 text-good" /> probabilidades explicadas
@@ -205,11 +205,11 @@ export default async function LandingPage() {
         />
         <div className="relative">
           <h2 className="text-xl font-black text-txt sm:text-3xl">
-            Comece com 24 horas de acesso completo
+            Comece com 1 análise grátis por dia
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-[12px] leading-relaxed text-mut sm:text-sm">
             Crie sua conta e libere IA Analista, Player Props, Duelos e o Track Record inteiro.
-            Sem cartão, sem compromisso — e sem promessa de lucro.
+            Todo dia o contador zera. Sem cartão, sem compromisso — e sem promessa de lucro.
           </p>
           <div className="mt-5 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
             <Link

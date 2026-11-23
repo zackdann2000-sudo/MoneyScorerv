@@ -37,9 +37,9 @@ export default function Login() {
         {err && <p className="text-xs text-danger bg-danger/10 rounded-lg p-2">{err}</p>}
         <button disabled={loading} className="w-full py-3 rounded-xl bg-acc text-black font-extrabold text-sm disabled:opacity-60">{loading ? "ENTRANDO…" : "ENTRAR ⚡"}</button>
       </form>
-      <p className="text-center text-xs text-mut mt-4">Não tem conta? <Link href="/cadastro" className="text-acc font-bold">Criar agora — 24h grátis, depois VIP no cartão</Link></p>
+      <p className="text-center text-xs text-mut mt-4">Não tem conta? <Link href="/cadastro" className="text-acc font-bold">Criar agora — 1 análise grátis por dia</Link></p>
       <p className="text-center text-[11px] font-semibold text-acc mt-2 leading-snug">
-        Crie sua conta e ganhe 24h de acesso VIP completo a todas as estatísticas e alertas
+        Crie sua conta e veja 1 análise por dia, grátis — o contador zera à meia-noite
       </p>
     </div>
   );

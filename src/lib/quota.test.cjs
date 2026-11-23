@@ -1,6 +1,6 @@
 /* Quota diária: limites por plano e virada de dia na leitura. */
 const assert = require("assert");
-const { estadoQuota, planoDeQuota, textoQuota, QUOTA_POR_PLANO } = require("./quota.js");
+const { estadoQuota, planoDeQuota, planoEfetivo, textoQuota, QUOTA_POR_PLANO } = require("./quota.js");
 
 const hoje = "2026-03-10";
 
@@ -54,3 +54,50 @@ assert.strictEqual(textoQuota(estadoQuota({ plan: "starter", usado: 2, dia: hoje
 assert.strictEqual(textoQuota(estadoQuota({ plan: "expert", usado: 1, dia: hoje, hoje })), "Ilimitado");
 
 console.log("quota OK");
+
+/* --------------------------------------------------------------- */
+/* Rebaixamento na leitura (planoEfetivo)                          */
+/* --------------------------------------------------------------- */
+// O furo de conversão: vip vencido no banco virava expert = ilimitado.
+assert.strictEqual(planoEfetivo({ plan: "vip", expiresAt: "2026-03-01T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z") }), "free");
+assert.strictEqual(planoEfetivo({ plan: "trial", expiresAt: "2026-03-01T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z") }), "free");
+// Vip ainda válido continua ilimitado.
+assert.strictEqual(planoEfetivo({ plan: "vip", expiresAt: "2026-03-20T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z") }), "expert");
+// Data no futuro em Date também vale.
+assert.strictEqual(planoEfetivo({ plan: "vip", expiresAt: new Date("2099-12-31T00:00:00Z") }), "expert");
+// Sem prazo (vitalício/manual) não rebaixa; undefined = não julgar.
+assert.strictEqual(planoEfetivo({ plan: "vip", expiresAt: null }), "expert");
+assert.strictEqual(planoEfetivo({ plan: "vip" }), "expert");
+// Plano barato com prazo vencido também cai (o Stripe grava tudo como "vip",
+// então starter/pro/expert são concessões manuais — com data, valem a data).
+assert.strictEqual(planoEfetivo({ plan: "starter", expiresAt: "2020-01-01T00:00:00Z" }), "free");
+assert.strictEqual(planoEfetivo({ plan: "starter", expiresAt: new Date("2099-12-31T00:00:00Z") }), "starter");
+assert.strictEqual(planoEfetivo({ plan: "free", expiresAt: null }), "free");
+assert.strictEqual(planoEfetivo({ plan: null }), "free");
+// Data inválida não derruba o usuário pagante.
+assert.strictEqual(planoEfetivo({ plan: "vip", expiresAt: "nao-e-data" }), "expert");
+
+// Via estadoQuota: ex-assinante cai em 1/dia, com contador de gente normal.
+const vencido = estadoQuota({
+  plan: "vip", usado: 0, dia: hoje, hoje,
+  expiresAt: "2026-03-01T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z"),
+});
+assert.strictEqual(vencido.plano, "free");
+assert.strictEqual(vencido.limite, 1);
+assert.strictEqual(vencido.ilimitada, false);
+assert.strictEqual(vencido.esgotada, false);
+assert.strictEqual(textoQuota(vencido), "0 de 1 hoje");
+
+// ..e o segundo card do dia é bloqueado, como em qualquer Free.
+assert.strictEqual(estadoQuota({
+  plan: "vip", usado: 1, dia: hoje, hoje,
+  expiresAt: "2026-03-01T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z"),
+}).esgotada, true);
+
+// Assinatura viva continua ilimitada mesmo com usado alto.
+assert.strictEqual(estadoQuota({
+  plan: "vip", usado: 500, dia: hoje, hoje,
+  expiresAt: "2026-04-01T00:00:00Z", agora: new Date("2026-03-10T12:00:00Z"),
+}).ilimitada, true);
+
+console.log("planoEfetivo OK");
