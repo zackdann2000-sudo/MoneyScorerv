@@ -40,10 +40,18 @@ test("resumo salvo com 0/0 é marcado como degenerado", () => {
   assert.equal(resumoDeGenerado({ sampleHome: 0, sampleAway: 0 }), true);
 });
 
-test("resumo sem marcador (análise antiga) não é regerado às cegas", () => {
-  assert.equal(resumoDeGenerado({}), false);
+test("resumo sem marcador (análise antiga) é regerado: sem isso fica eterno", () => {
+  // Antes devolvia false: o resumo placeholder gravado antes dos marcadores
+  // existirem nunca era substituído, e a liga ficava em revisao (noindex) para
+  // sempre. Regerar é seguro — `amostraUtilizavel` barra a publicação sem dado.
+  assert.equal(resumoDeGenerado({}), true);
+  assert.equal(resumoDeGenerado({ kind: "balanced", xgHome: 1.42, xgAway: 1.28 }), true);
+  assert.equal(resumoDeGenerado({ sampleHome: 4 }), true);
   assert.equal(resumoDeGenerado(null), false);
+  assert.equal(resumoDeGenerado(undefined), false);
+  // Com os dois marcadores e amostra em pelo menos um lado, está saudável.
   assert.equal(resumoDeGenerado({ sampleHome: 4, sampleAway: 0 }), false);
+  assert.equal(resumoDeGenerado({ sampleHome: 4, sampleAway: 3 }), false);
 });
 
 test("média da liga recusa amostra pequena", () => {

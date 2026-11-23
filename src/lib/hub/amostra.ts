@@ -37,9 +37,22 @@ export function amostraUtilizavel(amostra: Amostra): boolean {
   return Number(amostra.home) > 0 || Number(amostra.away) > 0;
 }
 
-/** Resumo salvo sem amostra nenhuma — marcado para ser regerado quando houver dado. */
+/**
+ * Resumo salvo sem amostra nenhuma — marcado para ser regerado quando houver dado.
+ *
+ * Três casos contam como "regerar":
+ *  1. `sampleHome/sampleAway` ambos 0 — degenerado (média da liga pura);
+ *  2. resumo SEM os marcadores — análise gerada antes de eles existirem. Não dá
+ *     para saber se tinha amostra, e antes desta correção ela ficava eterna:
+ *     `runAnalysisJob` só regera o que esta função marca, então um resumo
+ *     legado com o mesmo vetor placeholder em toda a liga nunca seria
+ *     substituído, e a liga ficava em `revisao` (noindex) para sempre.
+ *     Regerar é seguro: `generateAnalysis` passa antes por `amostraUtilizavel`
+ *     e, sem histórico, se recusa a publicar — o pior caso é um "skipped".
+ */
 export function resumoDeGenerado(resumo: { sampleHome?: number | null; sampleAway?: number | null } | null | undefined): boolean {
-  if (!resumo || resumo.sampleHome == null || resumo.sampleAway == null) return false;
+  if (!resumo) return false;
+  if (resumo.sampleHome == null || resumo.sampleAway == null) return true;
   return Number(resumo.sampleHome) <= 0 && Number(resumo.sampleAway) <= 0;
 }
 
