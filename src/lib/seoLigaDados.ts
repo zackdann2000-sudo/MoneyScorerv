@@ -25,7 +25,7 @@ import {
   hubTopScore,
   type HubAnalysisSummary,
 } from "@/db/hub-schema";
-import { analisesDegeneradas, MIN_JOGOS_INDEXAVEIS, type SeoLiga } from "@/lib/seoLigas";
+import { analisesDegeneradas, MIN_JOGOS_INDEXAVEIS, SEO_LIGAS, type SeoLiga } from "@/lib/seoLigas";
 
 /** Janela de jogos que a página mostra (passado curto + semana à frente). */
 const HORAS_ATRAS = 12;
@@ -316,4 +316,42 @@ export async function carregarLiga(liga: SeoLiga): Promise<LigaSeo> {
 /** Todos os jogos de todas as ligas — usado pelo hub /palpites. */
 export async function carregarTodas(ligas: SeoLiga[]): Promise<LigaSeo[]> {
   return await Promise.all(ligas.map((l) => carregarLiga(l)));
+}
+
+/**
+ * Última análise por liga canônica — uma query para o sitemap inteiro.
+ *
+ * `lastModified` precisa ser a data REAL do conteúdo. Sitemap que diz "tudo
+ * mudou agora" em todo deploy é ignorado pelo Google, e o sitemap atual do app
+ * fazia exatamente isso (`new Date()` em todas as rotas). Aqui a data vem de
+ * `hub_analysis.created_at`, agregada por slug do banco e dobrada no slug
+ * canônico (a Premier League tem duas linhas de `hub_league`).
+ *
+ * Devolve `{}` quando o banco falha: sitemap quebrado é pior que sitemap sem data.
+ */
+export async function ultimaAtualizacaoPorLiga(): Promise<Record<string, string>> {
+  try {
+    const { sql } = await import("drizzle-orm");
+    const linhas = await db
+      .select({ slug: hubLeague.slug, ultima: sql<Date>`max(${hubAnalysis.createdAt})` })
+      .from(hubLeague)
+      .innerJoin(hubFixture, eq(hubFixture.leagueId, hubLeague.id))
+      .innerJoin(hubAnalysis, eq(hubAnalysis.fixtureId, hubFixture.id))
+      .groupBy(hubLeague.slug);
+
+    const porSlugBanco = new Map(linhas.map((l) => [l.slug, l.ultima] as const));
+    const saida: Record<string, string> = {};
+    for (const liga of SEO_LIGAS) {
+      let maior: Date | null = null;
+      for (const h of liga.hubSlugs) {
+        const d = porSlugBanco.get(h);
+        if (d && (!maior || d > maior)) maior = d;
+      }
+      if (maior) saida[liga.slug] = new Date(maior).toISOString();
+    }
+    return saida;
+  } catch (e) {
+    console.error("[seo/sitemap]", e instanceof Error ? e.message : String(e));
+    return {};
+  }
 }
