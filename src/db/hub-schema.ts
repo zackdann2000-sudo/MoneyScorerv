@@ -564,6 +564,15 @@ export type HubAnalysisSummary = {
    * sem ter de cruzar `hub_bookmaker_odd`.
    */
   hasOdds?: boolean;
+  /**
+   * Jogos finalizados usados de cada lado quando a análise foi gerada.
+   *
+   * 0/0 = o motor não tinha histórico nenhum e a análise sairia da média da
+   * liga, igual para todo jogo da competição (análise degenerada). O job lê
+   * estes dois campos para regerar a análise quando o histórico chegar.
+   */
+  sampleHome?: number;
+  sampleAway?: number;
 };
 
 /** Confronto direto resumido, como o fornecedor entregou. */

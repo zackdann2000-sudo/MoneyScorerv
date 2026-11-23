@@ -17,6 +17,14 @@ import {
   hubValueBet,
   hubXgFactor,
 } from "@/db/hub-schema";
+import {
+  amostraUtilizavel,
+  ESTADOS_FINALIZADOS,
+  mediaLiga,
+  MEDIA_LIGA_PADRAO,
+  MEDIA_MANDANTE_PADRAO,
+  resumoDeGenerado,
+} from "./amostra";
 import { pickOpportunity, runHubModel, type MatchSample, type OddsIndex, type SquadPlayer, type TeamInput } from "./model";
 
 /**
@@ -51,9 +59,9 @@ async function recentMatches(teamId: number, before: Date, limit = 12): Promise<
     .innerJoin(awayT, eq(awayT.id, hubFixture.awayTeamId))
     .where(
       and(
-        eq(hubFixture.liveState, "FT"),
+        inArray(hubFixture.liveState, [...ESTADOS_FINALIZADOS]),
         lt(hubFixture.matchDate, before),
-        inArray(hubFixture.homeTeamId, [teamId]),
+        eq(hubFixture.homeTeamId, teamId),
       ),
     )
     .orderBy(desc(hubFixture.matchDate))
@@ -72,9 +80,9 @@ async function recentMatches(teamId: number, before: Date, limit = 12): Promise<
     .innerJoin(awayT, eq(awayT.id, hubFixture.awayTeamId))
     .where(
       and(
-        eq(hubFixture.liveState, "FT"),
+        inArray(hubFixture.liveState, [...ESTADOS_FINALIZADOS]),
         lt(hubFixture.matchDate, before),
-        inArray(hubFixture.awayTeamId, [teamId]),
+        eq(hubFixture.awayTeamId, teamId),
       ),
     )
     .orderBy(desc(hubFixture.matchDate))
@@ -141,17 +149,36 @@ async function squadFor(fixtureId: number, teamId: number, seasonId: number | nu
     });
 }
 
+/**
+ * Média de gols da liga — insumo do motor quando o time não tem histórico.
+ *
+ * Duas armadilhas que já produziram análise degenerada:
+ *  1. liga sem jogo finalizado caía no piso 0,6/0,6 e rebaixava o xG de TODO
+ *     jogo da competição ao mesmo valor (o `Math.max(0.6, ...)` antigo);
+ *  2. `live_state = 'FT'` ignorava prorrogação e pênaltis.
+ * Agora média sem amostra confiável é `null` e vira o padrão neutro.
+ */
 async function leagueGoalAvg(leagueId: number, before: Date): Promise<{ perTeam: number; homeAvg: number }> {
   const rows = await db
     .select({ homeScore: hubFixture.homeScoreFt, awayScore: hubFixture.awayScoreFt })
     .from(hubFixture)
-    .where(and(eq(hubFixture.leagueId, leagueId), lt(hubFixture.matchDate, before), eq(hubFixture.liveState, "FT")))
+    .where(
+      and(
+        eq(hubFixture.leagueId, leagueId),
+        lt(hubFixture.matchDate, before),
+        inArray(hubFixture.liveState, [...ESTADOS_FINALIZADOS]),
+      ),
+    )
     .limit(400);
-  if (!rows.length) return { perTeam: 1.35, homeAvg: 1.5 };
-  const total = rows.reduce((s, r) => s + r.homeScore + r.awayScore, 0);
-  const perTeam = total / (rows.length * 2);
-  const homeAvg = rows.reduce((s, r) => s + r.homeScore, 0) / rows.length;
-  return { perTeam: Math.max(0.6, perTeam), homeAvg: Math.max(0.6, homeAvg) };
+
+  const jogos = rows.length;
+  const totalGols = rows.reduce((s, r) => s + (r.homeScore ?? 0) + (r.awayScore ?? 0), 0);
+  const golsMandante = rows.reduce((s, r) => s + (r.homeScore ?? 0), 0);
+
+  return {
+    perTeam: mediaLiga(totalGols, jogos * 2) ?? MEDIA_LIGA_PADRAO,
+    homeAvg: mediaLiga(golsMandante, jogos) ?? MEDIA_MANDANTE_PADRAO,
+  };
 }
 
 async function oddsIndex(fixtureId: number): Promise<OddsIndex> {
@@ -251,6 +278,22 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
   }
 
   const [{ home, away, isExperimental }, odds] = await Promise.all([buildModelInputs(fixtureId), oddsIndex(fixtureId)]);
+
+  /**
+   * PORTÃO DA AMOSTRA — o bug da "análise igual para todos os jogos da liga".
+   *
+   * Sem jogo finalizado de nenhum dos dois lados, `runHubModel` devolve a média
+   * da liga pura: o MESMO vetor para todo jogo da competição. Isso não é
+   * análise, é constante — então não é publicada (o job conta como skipped e a
+   * UI mostra "em preparação" em vez de um número que não é daquele jogo).
+   */
+  const amostras = { home: home.matches.length, away: away.matches.length };
+  if (!amostraUtilizavel(amostras)) {
+    throw new Error(
+      `Sem histórico de ${home.teamName} nem de ${away.teamName}: análise não publicada (só existiria a média da liga).`,
+    );
+  }
+
   const output = runHubModel(home, away);
 
   /**
@@ -259,7 +302,9 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
    * criar e o resumo vai marcado com `hasOdds: false` para a UI esconder a tag.
    */
   const temOdds = Object.keys(odds).some((k) => (odds[k] ?? []).some((r) => r.odds > 1.01));
-  const resumo = { ...output.summary, hasOdds: temOdds };
+  /** `sampleHome/sampleAway` gravados no resumo alimentam `runAnalysisJob`: é
+   *  assim que uma análise gerada sem amostra é reconhecida e regerada depois. */
+  const resumo = { ...output.summary, hasOdds: temOdds, sampleHome: amostras.home, sampleAway: amostras.away };
   const riscos = temOdds
     ? output.riskFactors
     : [...output.riskFactors, "Sem odds no mercado para este jogo — a análise traz só probabilidade, sem valor esperado."].slice(0, 5);
@@ -353,7 +398,10 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
  * Job: gera preview para jogos das próximas 48h que ainda não têm preview, e
  * final para os que entraram na janela de 60-90 minutos com XI confirmado.
  */
-export async function runAnalysisJob(): Promise<{ previews: number; finals: number; skipped: number }> {
+export type AnalysisJobReport = { previews: number; finals: number; skipped: number; regenerated: number };
+
+export async function runAnalysisJob(options: { refreshDegenerate?: boolean } = {}): Promise<AnalysisJobReport> {
+  const refreshDegenerate = options.refreshDegenerate ?? true;
   const now = Date.now();
   const previewCutoff = new Date(now + PREVIEW_WINDOW_HOURS * 3600_000);
   const finalCutoff = new Date(now + FINAL_WINDOW_MINUTES * 60_000);
@@ -367,34 +415,70 @@ export async function runAnalysisJob(): Promise<{ previews: number; finals: numb
 
   const existing = upcoming.length
     ? await db
-        .select({ fixtureId: hubAnalysis.fixtureId, analysisType: hubAnalysis.analysisType })
+        .select({
+          fixtureId: hubAnalysis.fixtureId,
+          analysisType: hubAnalysis.analysisType,
+          version: hubAnalysis.version,
+          summary: hubAnalysis.summary,
+        })
         .from(hubAnalysis)
         .where(inArray(hubAnalysis.fixtureId, upcoming.map((f) => f.id)))
+        .orderBy(desc(hubAnalysis.version))
     : [];
-  const hasPreview = new Set(existing.filter((e) => e.analysisType === "Preview").map((e) => e.fixtureId));
-  const hasFinal = new Set(existing.filter((e) => e.analysisType === "Final").map((e) => e.fixtureId));
+
+  /**
+   * A análise escolhida por jogo — a MESMA regra da tela (maior versão, Final
+   * manda). Antes o job só olhava "existe Preview?": a análise degenerada
+   * (gerada sem amostra) ficava eterna, porque nada a substituía. Agora ela é
+   * detectada pelo `sampleHome/sampleAway` do resumo e regerada como versão
+   * nova, sem sobrescrever histórico.
+   */
+  const escolhida = new Map<number, { analysisType: string; summary: unknown }>();
+  for (const e of existing) {
+    const atual = escolhida.get(e.fixtureId);
+    if (!atual) {
+      escolhida.set(e.fixtureId, e);
+      continue;
+    }
+    if (atual.analysisType !== "Final" && e.analysisType === "Final") escolhida.set(e.fixtureId, e);
+  }
+
+  const degenerada = (fixtureId: number): boolean => {
+    if (!refreshDegenerate) return false;
+    const atual = escolhida.get(fixtureId);
+    if (!atual) return false;
+    return resumoDeGenerado(atual.summary as { sampleHome?: number; sampleAway?: number } | null);
+  };
 
   let previews = 0;
   let finals = 0;
   let skipped = 0;
+  let regenerated = 0;
 
   for (const f of upcoming) {
     try {
-      if (f.confirmed && f.matchDate <= finalCutoff && !hasFinal.has(f.id)) {
+      const atual = escolhida.get(f.id);
+      const regerar = degenerada(f.id);
+      /** Final só quando o XI está confirmado e o jogo entrou na janela. */
+      const cabeFinal = Boolean(f.confirmed) && f.matchDate <= finalCutoff;
+
+      if (cabeFinal && (!atual || atual.analysisType !== "Final" || regerar)) {
         await generateAnalysis(f.id, "Final");
         finals += 1;
+        if (regerar) regenerated += 1;
         continue;
       }
-      if (!hasPreview.has(f.id)) {
+      if (!atual || regerar) {
         await generateAnalysis(f.id, "Preview");
         previews += 1;
+        if (regerar) regenerated += 1;
       }
     } catch {
       skipped += 1;
     }
   }
 
-  return { previews, finals, skipped };
+  return { previews, finals, skipped, regenerated };
 }
 
 /** Análise mais recente por tipo, para a tela de detalhe. */

@@ -28,6 +28,15 @@ import {
 export type HubSyncOptions = {
   /** dias futuros de fixtures (0 = só hoje). */
   dates?: number;
+  /**
+   * dias PASSADOS de fixtures a ingerir (0 = nenhum).
+   *
+   * Isto é o que dá histórico ao motor: sem jogo finalizado no banco,
+   * `recentMatches` devolve lista vazia para todo time e a análise de todos os
+   * jogos da liga sai igual (média da liga pura). O sync antigo só olhava para
+   * frente (`dates`), então a base nunca acumulava resultado.
+   */
+  historyDays?: number;
   /** janela de odds em horas a partir de agora. */
   odds?: number;
   /** janela de escalações em horas a partir de agora. */
@@ -83,6 +92,7 @@ function agregar(attempts: Attempt[]): SyncProviderStats {
 
 export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<string, unknown>> {
   const dates = opts.dates ?? 1;
+  const historyDays = Math.max(0, opts.historyDays ?? 0);
   const oddsWindow = opts.odds ?? 6;
   const lineupsWindow = opts.lineups ?? 3;
   const contextWindow = opts.context ?? 24;
@@ -106,6 +116,30 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   /* ---------- 1) fixtures ---------- */
   const fixtures: Array<Record<string, unknown>> = [];
   const fixtureAttempts: Attempt[] = [];
+
+  /**
+   * HISTÓRICO PRIMEIRO. Os dias passados entram antes dos futuros porque é
+   * deles que sai o insumo do motor (placar finalizado por time). Rodar só o
+   * que está à frente é o que deixou a base sem nenhum resultado.
+   */
+  if (historyDays > 0) {
+    for (let i = historyDays; i >= 1; i -= 1) {
+      if (!podeRodar()) {
+        skipped.push("fixtures:historico");
+        fixtures.push({ date: isoDate(-i), skipped: true, reason: "orçamento de tempo esgotado" });
+        continue;
+      }
+      const day = isoDate(-i);
+      try {
+        const r = await syncFixturesCascade(day);
+        fixtureAttempts.push(...r.attempts);
+        fixtures.push({ date: day, source: r.source, fixtures: r.created, history: true, attempts: r.attempts });
+      } catch (e) {
+        fixtures.push({ date: day, history: true, error: erro(e) });
+      }
+    }
+  }
+
   for (let i = 0; i <= dates; i += 1) {
     const day = isoDate(i);
     try {
@@ -116,7 +150,7 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
       fixtures.push({ date: day, error: erro(e) });
     }
   }
-  report.fixtures = { byDate: fixtures, providers: agregar(fixtureAttempts) };
+  report.fixtures = { byDate: fixtures, historyDays, providers: agregar(fixtureAttempts) };
 
   /* ---------- 2) placar ao vivo ---------- */
   try {

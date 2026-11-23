@@ -23,6 +23,7 @@ const SEGREDO = "HUB_SYNC_SECRET";
  *
  * Query/body opcionais (todos com teto para caber no maxDuration):
  *   dates=1   dias futuros de fixtures (0 = só hoje)
+ *   history=3 dias PASSADOS de fixtures — histórico que o motor usa
  *   odds=6    janela de odds em horas
  *   lineups=3 janela de escalações em horas
  *   context=24 janela de stats/H2H em horas
@@ -56,6 +57,9 @@ function montarOpcoes(body: Record<string, unknown>, sp: URLSearchParams): HubSy
 
   return {
     dates: Math.max(0, num(pick("dates"), 1)),
+    // Dias passados: histórico que o motor precisa para não repetir a média da
+    // liga em todos os jogos. Teto baixo (7) porque cada dia é um scoreboard.
+    historyDays: Math.max(0, num(pick("history"), 3)),
     odds: Math.max(0, num(pick("odds"), 6)),
     lineups: Math.max(0, num(pick("lineups"), 3)),
     context: Math.max(0, num(pick("context"), 24)),

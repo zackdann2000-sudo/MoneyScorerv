@@ -99,6 +99,9 @@ export async function GET(req: NextRequest) {
       try {
         out.hub = await runHubSync({
           dates: 1,
+          // 3 dias passados: alimenta `recentMatches` e evita a análise igual
+          // para todos os jogos da liga (motor sem histórico).
+          historyDays: 3,
           context: 24,
           // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
           oddsEnabled: false,
