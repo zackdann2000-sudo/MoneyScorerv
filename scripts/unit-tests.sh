@@ -40,6 +40,7 @@ SUITES+=(
   "golsLadder|src/lib/golsLadder.ts src/lib/model.ts src/lib/valueBet.ts|src/lib/golsLadder.test.cjs"
   "momentum|src/lib/momentum.ts|src/lib/momentum.test.cjs"
   "trialPolicy|src/lib/trialPolicy.ts|src/lib/trialPolicy.test.cjs"
+  "quota|src/lib/quota.ts|src/lib/quota.test.cjs"
   "cronAuth|src/lib/cronAuth.ts|src/lib/cronAuth.test.cjs"
   "semana|src/lib/semana.ts|src/lib/semana.test.cjs"
   "oportunidadeFiltros|src/lib/oportunidadeFiltros.ts|src/lib/oportunidadeFiltros.test.cjs"

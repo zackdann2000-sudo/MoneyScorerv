@@ -12,7 +12,11 @@ export function useTipsAccess() {
   const { user, vip } = useApp();
   if (vip) return { ok: true as const };
   if (!user) return { ok: false as const, reason: "login" as const };
-  return { ok: false as const, reason: "expired" as const, days: user.access.daysLeft };
+  /* Logado sem assinatura entra: o freio agora é a QUOTA DIÁRIA (Free 1/dia),
+     não um bloqueio total. Quem bloqueia é o card seguinte (PaywallCard).
+     Antes, o fim do trial fechava a página inteira e o visitante ia embora
+     sem ver que existe conteúdo — a mesma perda que o modelo Scoore evita. */
+  return { ok: true as const, quota: user.quota };
 }
 
 export default function TipsGate({ children }: { children: React.ReactNode }) {

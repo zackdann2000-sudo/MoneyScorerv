@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Check, Crown, Loader2, ShieldCheck, Sparkles, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
-import { PLANOS, brl } from "@/lib/planos";
+import { PLANOS, TIERS, brl } from "@/lib/planos";
 import { sanitizeNext } from "@/lib/nextPath";
 
 /**
@@ -164,6 +164,21 @@ function PlanosInner() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Quanto cada plano libera POR DIA — a regra que substitui o trial de
+          24h. Free 1/dia mantém o hábito; quem quer mais assina. */}
+      <div className="rounded-2xl border border-line bg-panel p-3.5 space-y-2">
+        <p className="text-[10px] font-bold text-mut uppercase tracking-wide">Quanto você vê por dia</p>
+        <ul className="divide-y divide-line/60">
+          {TIERS.map((t) => (
+            <li key={t.id} className="flex items-center gap-2 py-1.5">
+              <span className={`w-14 shrink-0 text-[11px] font-extrabold ${t.id === "free" ? "text-mut" : "text-acc"}`}>{t.nome}</span>
+              <span className="min-w-0 flex-1 text-[10px] text-mut">{t.nota}</span>
+              <span className="shrink-0 text-[10px] font-extrabold tabular-nums text-ink">{t.porDia}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {!user && (

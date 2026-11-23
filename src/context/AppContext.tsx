@@ -11,6 +11,8 @@ export type User = {
   /** Alias de `expiresAt` com o nome do modelo de negócio — mesma data, zero coluna nova. */
   trialEndsAt: string | null;
   isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string };
+  /** Quota diária de análises (Free 1 / Starter 6 / Pro 20 / Expert ilimitado). */
+  quota?: { plano: string; limite: number; usado: number; restante: number; esgotada: boolean; ilimitada: boolean };
 };
 export type Toast = { id: string; title: string; body: string; url?: string };
 export type AlertFlags = { goals: boolean; redCards: boolean; yellowCards: boolean; corners: boolean; fouls: boolean; offsides: boolean; matchStart: boolean; matchEnd: boolean; substitutions: boolean; lineups: boolean; MoneyTIPS: boolean };

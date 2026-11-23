@@ -14,8 +14,17 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passHash: text("pass_hash").notNull(),
   role: text("role").notNull().default("user"), // user | admin | owner
-  plan: text("plan").notNull().default("trial"), // free | trial | vip
+  plan: text("plan").notNull().default("trial"), // free | trial | vip | starter | pro | expert
   expiresAt: timestamp("expires_at", { withTimezone: true }),
+  /**
+   * QUOTA DIÁRIA. `plan` diz *o que* a pessoa pode ver, `dailyQuota` diz
+   * *quanto por dia*: free 1, starter 6, pro 20, expert 999.
+   * `quotaUsed` zera quando `quotaDay` deixa de ser hoje — a virada é
+   * detectada na leitura (sem cron e sem job de reset).
+   */
+  dailyQuota: integer("daily_quota").notNull().default(1),
+  quotaUsed: integer("quota_used").notNull().default(0),
+  quotaDay: text("quota_day").notNull().default(""),
   /** UUID do dispositivo (localStorage) — base do anti-fraude do trial. */
   deviceId: text("device_id"),
   /** IP de origem do cadastro — segunda barreira do anti-fraude. */
@@ -29,7 +38,8 @@ export const users = pgTable("users", {
   index("users_device_idx").on(t.deviceId),
   index("users_ip_idx").on(t.registrationIp),
   // M4/D3 — os valores reais usados no código (trialPolicy.ts, admin/users, stripe).
-  check("users_plan_chk", sql`${t.plan} in ('free', 'trial', 'vip')`),
+  check("users_plan_chk", sql`${t.plan} in ('free', 'trial', 'vip', 'starter', 'pro', 'expert')`),
+  index("users_quota_day_idx").on(t.quotaDay),
   check("users_role_chk", sql`${t.role} in ('user', 'admin', 'owner')`),
 ]);
 

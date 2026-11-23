@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
 import MatchClient from "@/components/match/MatchClient";
+import QuotaConsumo from "@/components/QuotaConsumo";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ league?: string }> };
 
@@ -22,6 +23,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const { league } = await searchParams;
   return (
     <Suspense fallback={<div className="space-y-2"><div className="skeleton h-40" /><div className="skeleton h-10" /><div className="skeleton h-64" /></div>}>
+      <QuotaConsumo id={id} />
       <MatchClient id={id} league={league || "bra.1"} />
     </Suspense>
   );

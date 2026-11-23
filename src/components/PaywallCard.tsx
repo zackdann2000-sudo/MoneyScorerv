@@ -24,7 +24,7 @@ export default function PaywallCard({
   descricao,
   compacto = false,
 }: {
-  reason?: "login" | "expired";
+  reason?: "login" | "expired" | "quota";
   titulo?: string;
   descricao?: string;
   compacto?: boolean;
@@ -44,12 +44,19 @@ export default function PaywallCard({
   const motivo = reason ?? (user && !vip ? "expired" : "login");
 
   const tituloFinal =
-    titulo ?? (motivo === "login" ? "Libere as análises completas" : "Seu acesso VIP terminou");
+    titulo ??
+    (motivo === "quota"
+      ? "Você usou as análises de hoje"
+      : motivo === "login"
+        ? "Libere as análises completas"
+        : "Seu acesso VIP terminou");
   const descricaoFinal =
     descricao ??
-    (motivo === "login"
-      ? "Crie sua conta grátis e use 24 horas de acesso completo. Depois, se quiser continuar, assine o VIP no cartão — cancele quando quiser."
-      : "Assine o VIP e volte a ver oportunidades, props e relatórios agora. Acesso imediato após o pagamento, cancele quando quiser.");
+    (motivo === "quota"
+      ? `Seu plano ${(user?.quota?.plano ?? "free").toUpperCase()} libera ${user?.quota?.limite ?? 1} análise(s) por dia e o contador zera à meia-noite. Assine para ver agora: Starter 6/dia, Pro 20/dia, Expert ilimitado.`
+      : motivo === "login"
+        ? "Crie sua conta grátis e veja 1 análise completa por dia, sem cartão. Para ver mais, assine no cartão — cancele quando quiser."
+        : "Assine e volte a ver oportunidades, props e relatórios agora. Acesso imediato após o pagamento, cancele quando quiser.");
 
   return (
     <div className={`rounded-2xl border border-acc/35 bg-gradient-to-br from-acc/10 via-panel to-panel ${compacto ? "p-4" : "p-5"}`}>

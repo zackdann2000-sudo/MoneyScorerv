@@ -53,3 +53,19 @@ export function planoPorId(id: string): Plano | undefined {
 export function brl(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+/**
+ * TIERS de acesso — o que cada plano libera POR DIA.
+ *
+ * Separado de `PLANOS` (preço/período) de propósito: preço muda em promoção,
+ * limite diário é regra de produto. O Stripe vende período; o tier define
+ * quantas análises abrem por dia (ver `lib/quota.ts`).
+ */
+export type TierId = "free" | "starter" | "pro" | "expert";
+
+export const TIERS: readonly { id: TierId; nome: string; porDia: string; precoMes: number | null; nota: string }[] = [
+  { id: "free", nome: "Free", porDia: "1 análise por dia", precoMes: 0, nota: "Sem cartão. Contador zera à meia-noite." },
+  { id: "starter", nome: "Starter", porDia: "6 análises por dia", precoMes: 14.9, nota: "Mercados principais e value bets." },
+  { id: "pro", nome: "Pro", porDia: "20 análises por dia", precoMes: 29.9, nota: "Todos os mercados e props." },
+  { id: "expert", nome: "Expert", porDia: "Ilimitado", precoMes: 49.9, nota: "Tudo, sem contador." },
+];

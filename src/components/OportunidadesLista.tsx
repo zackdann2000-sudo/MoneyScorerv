@@ -8,6 +8,9 @@
  * cliente — nenhuma requisição extra. Os rótulos vêm prontos do motor.
  */
 import { useMemo, useState } from "react";
+import { Lock } from "lucide-react";
+import { useApp } from "@/context/AppContext";
+import PaywallCard from "@/components/PaywallCard";
 import FiltrosOportunidades, { useFiltroOportunidades } from "@/components/FiltrosOportunidades";
 import { PorqueValor } from "@/components/ValorEsperado";
 import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
@@ -27,15 +30,25 @@ function categoria(mercado: string): Categoria {
 
 export default function OportunidadesLista({ oportunidades }: { oportunidades: OportunidadeValor[] }) {
   const [filtro, setFiltro] = useState<Filtro>("tudo");
+  /* QUOTA DIÁRIA: a lista libera só o que o plano do dia permite. O card
+     seguinte não some — ele aparece bloqueado com o paywall, que é onde a
+     conversão acontece (o usuário vê que existe valor ali). */
+  const { user } = useApp();
+  const quota = user?.quota;
+  const liberado = !quota || quota.ilimitada ? Infinity : quota.restante;
   // Piso de 75% + chips da nata antes do filtro de mercado.
   const { filtradas, ocultasPeloPiso, contagem, mostrarAbaixoDe70, setMostrarAbaixoDe70, chips, toggleChip } =
     useFiltroOportunidades(oportunidades);
 
   const conta = (c: Categoria) => filtradas.filter((o) => categoria(o.mercado) === c).length;
-  const lista = useMemo(
+  const listaCompleta = useMemo(
     () => (filtro === "tudo" ? filtradas : filtradas.filter((o) => categoria(o.mercado) === filtro)),
     [filtro, filtradas],
   );
+  /* Corta no limite do plano: o resto vira um único card de paywall (não N
+     cadeados repetidos, que só empurram a lista para baixo). */
+  const lista = Number.isFinite(liberado) ? listaCompleta.slice(0, liberado) : listaCompleta;
+  const bloqueadas = Number.isFinite(liberado) ? listaCompleta.length - lista.length : 0;
 
   const chipsMercado: [Filtro, string, number][] = [
     ["tudo", "Tudo", filtradas.length],
@@ -117,6 +130,26 @@ export default function OportunidadesLista({ oportunidades }: { oportunidades: O
             </li>
           ))}
         </ul>
+      )}
+
+      {bloqueadas > 0 && (
+        <div className="mt-1.5 space-y-2">
+          {/* Teaser borrado: mostra que existe conteúdo, sem entregar o pick. */}
+          <div className="rounded-xl border border-line bg-panel2/50 px-2.5 py-2 blur-[3px] select-none" aria-hidden>
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2/5 rounded bg-line" />
+              <span className="ml-auto h-2.5 w-10 rounded bg-line" />
+            </div>
+            <div className="mt-1.5 flex gap-1.5">
+              <span className="h-2 w-14 rounded-full bg-line" />
+              <span className="h-2 w-10 rounded-full bg-line" />
+            </div>
+          </div>
+          <p className="flex items-center justify-center gap-1 text-[10px] font-bold text-mut">
+            <Lock size={11} /> Mais {bloqueadas} análise(s) bloqueada(s) pela quota de hoje
+          </p>
+          <PaywallCard reason="quota" compacto />
+        </div>
       )}
 
       <p className="text-[8px] text-mut leading-snug">

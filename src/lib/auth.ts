@@ -7,6 +7,7 @@ import {
 import { eq } from "drizzle-orm";
 
 import { isLifetime, isOwnerEmail, TRIAL_DAYS } from "@/lib/appConfig";
+import { estadoQuota, hojeSp } from "@/lib/quota";
 
 export const OWNER_EMAIL = "admin@greenscore.app";
 export { TRIAL_DAYS };
@@ -64,6 +65,8 @@ export type SessionUser = {
    */
   trialEndsAt: string | null;
   isAdmin: boolean; access: { active: boolean; daysLeft: number; label: string };
+  /** Quota diária (Free 1 / Starter 6 / Pro 20 / Expert ilimitado). */
+  quota: { plano: string; limite: number; usado: number; restante: number; esgotada: boolean; ilimitada: boolean };
 };
 
 export async function getUser(): Promise<SessionUser | null> {
@@ -81,11 +84,30 @@ export async function getUser(): Promise<SessionUser | null> {
     const active = isAdmin || lifetime || ((u.plan === "vip" || u.plan === "trial") && !!u.expiresAt && u.expiresAt > new Date());
     const daysLeft = u.expiresAt ? Math.max(0, Math.ceil((u.expiresAt.getTime() - Date.now()) / 864e5)) : 0;
     const label = isAdmin ? "Administrador vitalício" : active ? `Acesso · ${daysLeft} dia${daysLeft === 1 ? "" : "s"}` : "Acesso encerrado";
+    /* QUOTA: lida em SELECT separado e protegido. Se a migração 0010 ainda não
+       rodou em algum ambiente, o login continua funcionando e a pessoa cai no
+       Free (1/dia) em vez de ser deslogada por coluna inexistente. */
+    let qd: number | null = null;
+    let qu: number | null = null;
+    let qdia: string | null = null;
+    try {
+      const [r] = await db
+        .select({ d: users.dailyQuota, u: users.quotaUsed, dia: users.quotaDay })
+        .from(users)
+        .where(eq(users.id, u.id))
+        .limit(1);
+      qd = r?.d ?? null; qu = r?.u ?? null; qdia = r?.dia ?? null;
+    } catch {}
+    const q = estadoQuota({
+      plan: u.plan, dailyQuota: qd, usado: qu, dia: qdia, hoje: hojeSp(),
+      ilimitada: isAdmin || active,
+    });
     return {
       id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan,
       expiresAt: u.expiresAt ? u.expiresAt.toISOString() : null,
       trialEndsAt: u.expiresAt ? u.expiresAt.toISOString() : null,
       isAdmin, access: { active, daysLeft, label },
+      quota: { plano: q.plano, limite: q.limite, usado: q.usado, restante: q.restante, esgotada: q.esgotada, ilimitada: q.ilimitada },
     };
   } catch { return null; }
 }

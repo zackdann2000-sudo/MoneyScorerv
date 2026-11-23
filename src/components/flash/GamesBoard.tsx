@@ -356,14 +356,26 @@ function MatchRow({ m, sport, starred, onStar, box }: { m: Row; sport: string; s
         {score(m.home, homeWin)}
         {score(m.away, awayWin)}
       </Link>
-      <div className="w-16 shrink-0 flex flex-col items-end justify-center pr-2 gap-0.5">
+      <div className="w-[74px] shrink-0 flex flex-col items-end justify-center pr-2 gap-0.5">
+        {/* Tag de mercado + TRUST sem clique: o card responde "o que apostar" e
+            "quanta confiança" antes de abrir a análise (padrão que converte). */}
         {m.strategy ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-ink">
-            {m.strategy.label}
-            <span className="text-mut tabular-nums">{m.strategy.confidence.toFixed(1)}</span>
-            {m.strategy.result === "green" && <span className="text-acc" aria-label="Acertou">✓</span>}
-            {m.strategy.result === "red" && <span className="text-danger" aria-label="Errou">✗</span>}
-          </span>
+          <>
+            <span
+              title={`Mercado sugerido pela tabela da liga · acerto histórico ${m.strategy.pct}%`}
+              className="inline-flex items-center rounded-md border border-acc/40 bg-acc/10 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-acc"
+            >
+              {m.strategy.label}
+            </span>
+            <span
+              title={`TRUST ${m.strategy.confidence.toFixed(1)}/10 — probabilidade do modelo para este mercado`}
+              className="inline-flex items-center gap-1 text-[9px] font-bold text-mut"
+            >
+              TRUST <span className="text-ink tabular-nums">{m.strategy.confidence.toFixed(1)}</span>
+              {m.strategy.result === "green" && <span className="text-acc" aria-label="Acertou">✓</span>}
+              {m.strategy.result === "red" && <span className="text-danger" aria-label="Errou">✗</span>}
+            </span>
+          </>
         ) : <span className="text-[9px] text-mut">sem amostra</span>}
         {m.prices?.home != null && <span className="text-[9px] text-mut tabular-nums">{m.prices.home}</span>}
       </div>

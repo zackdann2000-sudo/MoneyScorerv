@@ -9,6 +9,8 @@ export type MatchLite = {
   home: { id: string; name: string; short: string; logo: string; score: number | null; winner?: boolean };
   away: { id: string; name: string; short: string; logo: string; score: number | null; winner?: boolean };
   odds?: { details?: string; ou?: number } | null;
+  /** Palpite da tabela (mercado + probabilidade) — vem de `/api/matches`. */
+  strategy?: { code: string; label: string; pct: number; confidence: number; result: "green" | "red" | null } | null;
 };
 
 export default function MatchCard({ m }: { m: MatchLite }) {
@@ -36,6 +38,29 @@ export default function MatchCard({ m }: { m: MatchLite }) {
       <Link href={href} className="flex-1 min-w-0 py-2 px-3 space-y-1.5">
         {row(m.home)}
         {row(m.away)}
+        {/* Tag de mercado + TRUST sem clique (padrão Scoore): o card já diz
+            "o que" e "quão confiável" antes da pessoa abrir a análise. */}
+        {m.strategy && (
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <span
+              title={`Mercado sugerido pela tabela da liga · acerto histórico ${m.strategy.pct}%`}
+              className="inline-flex items-center rounded-md border border-acc/40 bg-acc/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-acc"
+            >
+              {m.strategy.label}
+            </span>
+            <span
+              title={`TRUST ${m.strategy.confidence.toFixed(1)}/10 — probabilidade do modelo para este mercado`}
+              className="inline-flex items-center gap-0.5 rounded-md border border-line bg-panel2 px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums text-ink"
+            >
+              <Sparkles size={9} className="text-acc" /> {m.strategy.confidence.toFixed(1)}
+            </span>
+            {m.strategy.result && (
+              <span className={`text-[9px] font-extrabold ${m.strategy.result === "green" ? "text-acc" : "text-danger"}`}>
+                {m.strategy.result === "green" ? "GREEN" : "RED"}
+              </span>
+            )}
+          </div>
+        )}
       </Link>
       <div className="flex flex-col items-center justify-center gap-1.5 pr-2 py-2">
         <FavStar team={{ id: m.home.id, name: m.home.name, league: m.league, logo: m.home.logo }} size={14} />
