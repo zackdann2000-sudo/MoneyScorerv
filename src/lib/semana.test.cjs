@@ -1,5 +1,5 @@
 /* Suíte: barra de 7 dias (Segunda → Domingo). */
-const { diasDaSemana, shiftYmd, indiceDaSemana, rotuloData, mesmaJanela } = require("./semana.js");
+const { diasDaSemana, shiftYmd, indiceDaSemana, rotuloData, mesmaJanela, diasCandidatos } = require("./semana.js");
 
 let falhas = 0;
 function ok(nome, cond, extra) {
@@ -33,6 +33,11 @@ ok("segunda abre a semana", segunda[0].ymd === "2026-11-16", segunda[0].ymd);
 ok("vira o mês", shiftYmd("2026-11-30", 1) === "2026-12-01", shiftYmd("2026-11-30", 1));
 ok("vira o ano", shiftYmd("2026-12-31", 1) === "2027-01-01", shiftYmd("2026-12-31", 1));
 ok("volta o mês", shiftYmd("2026-12-01", -1) === "2026-11-30", shiftYmd("2026-12-01", -1));
+
+// Liquidação do track record: o jogo pode estar no feed do dia anterior/posterior.
+ok("dias candidatos = dia + vizinhos", diasCandidatos("2026-11-22").join(",") === "2026-11-22,2026-11-21,2026-11-23", diasCandidatos("2026-11-22"));
+ok("vizinhança cruza o mês", diasCandidatos("2026-12-01").join(",") === "2026-12-01,2026-11-30,2026-12-02", diasCandidatos("2026-12-01"));
+ok("data inválida não explode", diasCandidatos("").join(",") === ",,", diasCandidatos(""));
 
 ok("índice segunda = 0", indiceDaSemana("2026-11-16") === 0, indiceDaSemana("2026-11-16"));
 ok("índice domingo = 6", indiceDaSemana("2026-11-22") === 6, indiceDaSemana("2026-11-22"));

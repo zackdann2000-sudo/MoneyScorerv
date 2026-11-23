@@ -45,6 +45,17 @@ export function shiftYmd(ymd: string, dias: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/**
+ * Dias em que um jogo pode aparecer no feed: o dia gravado e os vizinhos.
+ *
+ * O horário local (America/Sao_Paulo) e o fuso do provedor discordam com
+ * frequência: um jogo das 21h de sábado aparece no feed de domingo. Buscar só
+ * o dia exato deixava a pick pendente para sempre.
+ */
+export function diasCandidatos(ymd: string): string[] {
+  return [ymd, shiftYmd(ymd, -1), shiftYmd(ymd, 1)];
+}
+
 /** 0 = segunda … 6 = domingo (o getUTCDay devolve 0 no domingo). */
 export function indiceDaSemana(ymd: string): number {
   const [y, m, d] = ymd.split("-").map(Number);

@@ -15,6 +15,7 @@ import { eq, and, inArray, desc } from "drizzle-orm";
 import { getAllMatches, getSummaryRaw, normStats, type Match } from "./espn";
 import { analisarOportunidades } from "./opportunitiesEngine";
 import { calcularStats, type TrackStats } from "./trackStats";
+import { diasCandidatos } from "./semana";
 import { montarSeries, serieDoPalpite, rotuloSerie, type SerieAcertos } from "./acertosRecentes";
 
 export type { TrackStats, SerieAcertos };
@@ -122,25 +123,47 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
   const avisos: string[] = [];
   const resumo = { green: 0, red: 0 };
 
-  for (const [data, rows] of porData) {
-    let jogos: Match[] = [];
-    try {
-      jogos = await getAllMatches(data);
-    } catch (e) {
-      // Antes: `continue` calado. Uma fonte fora do ar fazia o dia inteiro
-      // parecer "nada a liquidar", e os palpites ficavam pendentes para sempre.
-      const msg = e instanceof Error ? e.message : String(e);
-      avisos.push(`fonte falhou em ${data}: ${msg}`);
-      console.error(`[track-record] getAllMatches(${data}) falhou:`, msg);
-      continue;
+  // Jogos por dia, buscados no máximo uma vez cada. `null` = a fonte falhou.
+  const jogosCache = new Map<string, Match[] | null>();
+  async function jogosDoDia(ymd: string): Promise<Match[] | null> {
+    if (!jogosCache.has(ymd)) {
+      try {
+        jogosCache.set(ymd, await getAllMatches(ymd));
+      } catch (e) {
+        // Antes: `continue` calado. Uma fonte fora do ar fazia o dia inteiro
+        // parecer "nada a liquidar", e os palpites ficavam pendentes para sempre.
+        const msg = e instanceof Error ? e.message : String(e);
+        avisos.push(`fonte falhou em ${ymd}: ${msg}`);
+        console.error(`[track-record] getAllMatches(${ymd}) falhou:`, msg);
+        jogosCache.set(ymd, null);
+      }
     }
-    const porId = new Map(jogos.map((m) => [m.id, m]));
+    return jogosCache.get(ymd) ?? null;
+  }
 
+  /**
+   * O `match_date` gravado no registro nem sempre é o dia em que a fonte lista
+   * o jogo: o horário local (America/Sao_Paulo) e o fuso do provedor discordam,
+   * e um jogo que começa 21h de sábado aparece no feed de domingo (ou vice-versa).
+   * Sem o fallback nos dias vizinhos, a pick ficava "pendente" para sempre —
+   * justamente o caso do Tigres UANL x América (match_date 11-22, feed 11-21).
+   */
+  async function acharJogo(matchId: string, data: string): Promise<Match | undefined> {
+    for (const ymd of diasCandidatos(data)) {
+      const jogos = await jogosDoDia(ymd);
+      if (!jogos) continue;
+      const m = jogos.find((j) => j.id === matchId);
+      if (m) return m;
+    }
+    return undefined;
+  }
+
+  for (const [data, rows] of porData) {
     // cache de estatísticas por matchId (cartões/escanteios exigem summary)
     const statsCache = new Map<string, { cartoes: number; escanteios: number } | null>();
 
     for (const row of rows) {
-      const m = porId.get(row.matchId);
+      const m = row.matchId ? await acharJogo(row.matchId, data) : undefined;
       if (!m || m.state !== "post" || m.home.score == null || m.away.score == null) continue;
 
       const golsCasa = m.home.score, golsFora = m.away.score;
@@ -170,8 +193,7 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
 
       const status = resultadoDoMercado(row.mercado, row.linha, {
         gols: golsCasa + golsFora, golsCasa, golsFora, cartoes, escanteios,
-      });
-      if (!status) continue;
+      });      if (!status) continue;
 
       try {
         await db.update(valueBetHistory).set({
