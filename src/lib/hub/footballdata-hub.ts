@@ -1,6 +1,35 @@
 import { cached } from "@/lib/cache";
 import { fdFetch } from "@/lib/providers";
+import {
+  FOOTBALLDATA_REQUEST_PAUSE_MS,
+  isMainLeagueCode,
+} from "@/lib/mainLeagues";
 import type { RawFixture } from "./types";
+
+/**
+ * COTA do Football-Data.org — 10 requisições por minuto no plano free.
+ *
+ * As requisições por competição (classificação) saíam em rajada quando o sync
+ * varria vários jogos do mesmo dia: seis ligas = seis chamadas em segundos, e
+ * o fornecedor devolvia 429 para TODAS — inclusive para o job de fixtures.
+ *
+ * Esta fila serializa as chamadas das seis ligas que o FD cobre (PL, PD, SA,
+ * BL1, FL1, BSA) e mantém ≥ 6 s entre uma e a seguinte, o que dá ~10 req/min.
+ */
+let filaFd: Promise<void> = Promise.resolve();
+let ultimaRequisicaoFd = 0;
+
+/** Espera a vez na fila e respeita a pausa mínima antes de devolver. */
+export function aguardarCotaFootballData(): Promise<void> {
+  const vez = filaFd.then(async () => {
+    const espera = FOOTBALLDATA_REQUEST_PAUSE_MS - (Date.now() - ultimaRequisicaoFd);
+    if (espera > 0) await new Promise((r) => setTimeout(r, espera));
+    ultimaRequisicaoFd = Date.now();
+  });
+  // A fila nunca rejeita: uma falha de um não pode travar os seguintes.
+  filaFd = vez.catch(() => undefined);
+  return vez;
+}
 
 /**
  * Adaptador Football-Data.org para o Hub — FALLBACK de fixtures.
@@ -89,6 +118,9 @@ export async function fdFixturesForDate(dateIso: string): Promise<RawFixture[]> 
 export async function fdTablePositions(competitionCode: string): Promise<Record<string, number>> {
   return cached(`hub:fd:standings:${competitionCode}`, 900_000, async () => {
     const out: Record<string, number> = {};
+    // Só as 6 ligas cobertas pelo FD entram na fila da cota; um código fora
+    // delas (que já seria vetado antes de chegar aqui) não precisa atrasar.
+    if (isMainLeagueCode("footballdata", competitionCode)) await aguardarCotaFootballData();
     try {
       const d = await fdFetch(`/competitions/${competitionCode}/standings`, 900_000);
       const tabelas: any[] = Array.isArray(d?.standings) ? d.standings : [];

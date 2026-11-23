@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllMatches, todayYmd, type Match } from "@/lib/espn";
+import { isMainLeague, isMainLeagueCode } from "@/lib/mainLeagues";
 import { scanLiveAlertaSafe } from "@/lib/alertScan";
 import { attachStrategies } from "@/lib/listStrategy";
 
@@ -46,7 +47,15 @@ export async function GET(req: NextRequest) {
     (a, b) => a.date.localeCompare(b.date),
   );
 
-  const withTips = await attachStrategies(raw).catch(() => raw.map((m) => ({ ...m, strategy: null })));
+  /* LISTA FECHADA nas 16. A ESPN devolve 24 ligas — Bolívia, México, Chile,
+     Colômbia, 2. Bundesliga, Liga Portugal... Nenhuma pode chegar à tela de
+     Ligas nem ao feed de jogos. O casamento é por código ESPN ("eng.1") e, se
+     o código for desconhecido, pelo nome + país (fonte que só dá nome). */
+  const principais = raw.filter(
+    (m) => isMainLeagueCode("espn", m.league) || isMainLeague(m.leagueName, m.country),
+  );
+
+  const withTips = await attachStrategies(principais).catch(() => principais.map((m) => ({ ...m, strategy: null })));
   if (liveOnly || withTips.some((m) => m.live)) scanLiveAlertaSafe();
   const matches = liveOnly ? withTips.filter((m) => m.live) : withTips;
   return NextResponse.json({

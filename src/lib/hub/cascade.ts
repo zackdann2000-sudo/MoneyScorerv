@@ -23,6 +23,7 @@ import { bzFindEventId, bzH2HForEvent, bzLineupsForEvent, bzOddsForEvent, bzStat
 import { smFixturesForDate, smLineupsForFixture, smOddsForFixture, smRefreshLive } from "./sportmonks";
 import type { ContextPayload, LineupPayload, OddsWrite, RawFixture } from "./types";
 import { extrairCartoes } from "./cartoes";
+import { isMainLeague } from "@/lib/mainLeagues";
 
 /**
  * SISTEMA DE CASCATA do módulo Hub.
@@ -55,6 +56,8 @@ export type FixtureSyncReport = {
   date: string;
   seen: number;
   created: number;
+  /** Jogos recebidos do fornecedor e DESCARTADOS por não serem das 16 ligas. */
+  discarded: number;
   attempts: Attempt[];
   source: string;
 };
@@ -110,8 +113,23 @@ async function resolveTeamId(input: {
   });
 }
 
-/** Grava uma fixture crua de qualquer fornecedor e devolve o id interno. */
-export async function persistFixture(raw: RawFixture): Promise<number> {
+/** Grava uma fixture crua de qualquer fornecedor e devolve o id interno.
+ *
+ * PORTA DE ENTRADA DO `hub_fixture`: nenhuma linha nasce sem passar por aqui.
+ * Por isso o filtro de ligas vive AQUI e não em cada fornecedor — ESPN,
+ * Football-Data, Sportmonks e Bzzoiro são todos podados no mesmo ponto.
+ *
+ * Devolve `null` quando a liga não é uma das 16 permitidas: o jogo é descartado
+ * antes de existir time, liga ou partida no banco (não sobra lixo de Bolívia,
+ * liga de base ou copa regional na base). Chamar de qualquer job (cron, rota
+ * manual ou CLI, todos via `sync-runner`) passa pelo mesmo veto.
+ */
+export async function persistFixture(raw: RawFixture): Promise<number | null> {
+  // Etapa 0 — VETO DE LIGA. Roda antes de qualquer escrita.
+  if (!isMainLeague(raw.league.name, raw.league.countryName ?? raw.league.countryIso2 ?? null)) {
+    return null;
+  }
+
   const leagueId = await upsertLeague({
     source: raw.source,
     externalRef: raw.league.externalId,
@@ -232,20 +250,25 @@ async function applyTablePositions(raw: RawFixture, fixtureId: number): Promise<
 export async function syncFixturesCascade(dateIso: string): Promise<FixtureSyncReport> {
   const attempts: Attempt[] = [];
   let total = 0;
+  let discarded = 0;
   let lastSource = "indisponível";
 
   const gravar = async (rows: RawFixture[], provider: string) => {
     let created = 0;
+    let descartados = 0;
     for (const raw of rows) {
       try {
         if (Number.isNaN(raw.kickoff.getTime())) continue;
         const id = await persistFixture(raw);
+        // `null` = jogo de liga fora das 16: não é erro, é veto.
+        if (id == null) { descartados += 1; continue; }
         await applyTablePositions(raw, id);
         created += 1;
       } catch (e) {
         attempts.push({ provider, ok: false, reason: `falha ao gravar ${raw.home.name} x ${raw.away.name}: ${motivo(e)}` });
       }
     }
+    discarded += descartados;
     return created;
   };
 
@@ -294,7 +317,7 @@ export async function syncFixturesCascade(dateIso: string): Promise<FixtureSyncR
     }
   }
 
-  return { date: dateIso, seen: total, created: total, attempts, source: lastSource };
+  return { date: dateIso, seen: total + discarded, created: total, discarded, attempts, source: lastSource };
 }
 
 /** Atualiza placar/estado dos jogos de hoje que já estão no banco. */
@@ -308,7 +331,8 @@ export async function refreshLiveCascade(): Promise<{ date: string; touched: num
     const aoVivo = rows.filter((r) => r.liveState !== "NS" || (r.homeScore ?? 0) + (r.awayScore ?? 0) > 0);
     for (const raw of aoVivo) {
       try {
-        await persistFixture(raw);
+        const id = await persistFixture(raw);
+        if (id == null) continue; // liga fora das 16 — não existe no banco
         touched += 1;
       } catch (e) {
         attempts.push({ provider: "espn", ok: false, reason: motivo(e) });

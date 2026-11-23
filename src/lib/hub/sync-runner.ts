@@ -116,6 +116,8 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   /* ---------- 1) fixtures ---------- */
   const fixtures: Array<Record<string, unknown>> = [];
   const fixtureAttempts: Attempt[] = [];
+  /** Jogos que o fornecedor mandou e a porta do `hub_fixture` vetou (ligas fora das 16). */
+  let descartadosPorLiga = 0;
 
   /**
    * HISTÓRICO PRIMEIRO. Os dias passados entram antes dos futuros porque é
@@ -133,7 +135,8 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
       try {
         const r = await syncFixturesCascade(day);
         fixtureAttempts.push(...r.attempts);
-        fixtures.push({ date: day, source: r.source, fixtures: r.created, history: true, attempts: r.attempts });
+        descartadosPorLiga += r.discarded;
+        fixtures.push({ date: day, source: r.source, fixtures: r.created, discarded: r.discarded, history: true, attempts: r.attempts });
       } catch (e) {
         fixtures.push({ date: day, history: true, error: erro(e) });
       }
@@ -145,12 +148,13 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
     try {
       const r = await syncFixturesCascade(day);
       fixtureAttempts.push(...r.attempts);
-      fixtures.push({ date: day, source: r.source, fixtures: r.created, attempts: r.attempts });
+      descartadosPorLiga += r.discarded;
+      fixtures.push({ date: day, source: r.source, fixtures: r.created, discarded: r.discarded, attempts: r.attempts });
     } catch (e) {
       fixtures.push({ date: day, error: erro(e) });
     }
   }
-  report.fixtures = { byDate: fixtures, historyDays, providers: agregar(fixtureAttempts) };
+  report.fixtures = { byDate: fixtures, historyDays, discardedNonMainLeague: descartadosPorLiga, providers: agregar(fixtureAttempts) };
 
   /* ---------- 2) placar ao vivo ---------- */
   try {

@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import { Star } from "lucide-react";
 
 /**
- * Alternância entre "Principais Ligas" (padrão) e "Todas as Ligas".
+ * Selo "Principais Ligas" — lista FECHADA nas 16 competições permitidas.
  *
- * O estado vive em cada tela, com padrão LIGADO. Não persistimos em localStorage
- * de propósito: manter o padrão previsível evita que um usuário que desligou uma
- * vez fique sem entender por que a lista veio "vazia" noutra sessão. Se um dia
- * for persistir, faça com useSyncExternalStore — useState+useEffect para ler
- * storage quebra a hidratação e a regra react-hooks/set-state-in-effect.
+ * Não existe mais alternância para "Todas as Ligas": o produto só publica as
+ * 16 (ver `src/lib/mainLeagues.ts`), então um botão para mostrar o resto só
+ * servia para revelar ligas obscuras (Bolívia, divisões inferiores, copas
+ * regionais). O filtro agora é fixo e o selo apenas confirma isso ao usuário.
+ *
+ * O hook mantém a assinatura `[boolean, setter]` de propósito: as telas já o
+ * consomem e continuam aplicando `isMainLeague(...)` quando o valor é `true`.
+ * O setter é no-op porque não há estado a mudar.
  */
+const semEfeito = () => {};
+
 export function usePrincipaisLigas(): [boolean, (v: boolean) => void] {
-  const [principais, setPrincipais] = useState(true);
-  return [principais, setPrincipais];
+  return [true, semEfeito];
 }
 
 export default function LeagueFilterPill({
@@ -36,21 +39,10 @@ export default function LeagueFilterPill({
         type="button"
         onClick={() => onChange(true)}
         aria-pressed={principais}
-        className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold transition-colors ${
-          principais ? "bg-acc text-bg" : "text-mut hover:text-ink"
-        }`}
+        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold bg-acc text-bg"
+        title="Só as 16 principais ligas"
       >
         <Star size={11} /> Principais Ligas
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(false)}
-        aria-pressed={!principais}
-        className={`h-7 px-2.5 rounded-full text-[11px] font-bold transition-colors ${
-          !principais ? "bg-acc text-bg" : "text-mut hover:text-ink"
-        }`}
-      >
-        Todas as Ligas
       </button>
     </div>
   );

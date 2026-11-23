@@ -1,11 +1,15 @@
 /**
  * Catálogo único de "principais ligas" usado por todas as telas.
  *
- * Cada fonte (ESPN, API-Football, 5Dollar, KingStats, apitou, NerdyTips) batiza
- * a mesma competição de um jeito: a Serie A italiana chega como "Italy Serie A",
+ * Cada fonte (ESPN, Football-Data.org, Sportmonks, Bzzoiro) batiza a mesma
+ * competição de um jeito: a Serie A italiana chega como "Italy Serie A",
  * "Serie A" ou "Serie A TIM"; o Brasileirão como "Brazil Serie A",
  * "Brasileirão" ou "Serie A Betano". Este arquivo centraliza o mapa
- * canônico → apelidos para o filtro funcionar em qualquer fonte.
+ * canônico → apelidos (e códigos por fonte) para o filtro funcionar em
+ * qualquer fonte.
+ *
+ * A lista é FECHADA em 16 competições. Não existe "todas as ligas": o produto
+ * só publica estas. Qualquer outra é descartada antes de virar linha no banco.
  *
  * Ordem da decisão (importante):
  *   1. normaliza (minúsculas, sem acento, pontuação vira espaço);
@@ -14,20 +18,30 @@
  *   3. só então procura um apelido das 16 ligas permitidas;
  *   4. `exclude` por liga desempata nomes genéricos que existem em vários
  *      países ("Premier League" da Armênia, "Serie A" do Equador, "Champions
- *      League" da CONCACAF).
+ *      League" da CONCACAF);
+ *   5. `pais` confirma o país/região que qualifica o nome genérico.
  *
  * Regra de ouro: falso positivo (mostrar liga menor como principal) é pior que
  * falso negativo. Por isso o veto vem primeiro e todo apelido genérico tem
- * `exclude`.
+ * `exclude` e/ou `pais`.
  */
+
+/** Fontes de dados integradas no Hub. */
+export type MainLeagueSource = "espn" | "footballdata" | "sportmonks" | "bzzoiro";
 
 export type MainLeague = {
   /** Chave canônica, estável, usada em código. */
   id: string;
   /** Nome de exibição. */
   name: string;
-  /** Formas como a liga aparece nas APIs. */
+  /** Formas como a liga aparece nas APIs (todas as fontes). */
   aliases: string[];
+  /**
+   * Códigos exatos de cada fonte. Onde a fonte identifica a liga por código
+   * (ESPN: "eng.1", Football-Data: "PL") este é o casamento mais seguro —
+   * independe do nome que o fornecedor devolveu no dia.
+   */
+  codes?: Partial<Record<MainLeagueSource, string[]>>;
   /** Tokens que, presentes no nome, desqualificam o casamento. */
   exclude?: string[];
   /**
@@ -37,17 +51,30 @@ export type MainLeague = {
    * essa exigência o filtro deixaria passar as três (falso positivo real visto
    * em produção). O nome exato continua valendo: "Premier League" sozinho, sem
    * país, é a inglesa.
+   *
+   * As fontes escrevem o país em inglês ("Spain") e em português ("Espanha"),
+   * então cada lista de países carrega as duas grafias.
    */
   pais?: string[];
 };
 
-/** As 16 ligas permitidas, na ordem em que são testadas. */
+/**
+ * As 16 ligas permitidas, na ordem em que são testadas.
+ *
+ * A ordem NÃO é alfabética de propósito: ligas cujo nome de uma é prefixo do
+ * nome de outra vêm da mais específica para a mais genérica (Série B antes da
+ * Série A, Conference antes da Europa League).
+ */
 export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "premier_league",
     name: "Premier League",
-    pais: ["england", "english", "epl"],
-    aliases: ["Premier League", "English Premier League", "England Premier League", "EPL"],
+    pais: ["england", "english", "inglaterra", "epl"],
+    aliases: [
+      "Premier League", "English Premier League", "England Premier League",
+      "English Premier", "Barclays Premier League", "EPL",
+    ],
+    codes: { espn: ["eng.1"], footballdata: ["PL"] },
     exclude: [
       "2", "u19", "u21", "u23", "cup", "women", "international", "reserve",
       "division", "armenia", "russia", "ukraine", "israel", "egypt", "nigeria",
@@ -60,23 +87,68 @@ export const MAIN_LEAGUES: MainLeague[] = [
   {
     id: "la_liga",
     name: "La Liga",
-    pais: ["spain", "spanish", "laliga", "la liga"],
-    aliases: ["La Liga", "LaLiga", "Spanish La Liga", "Spain La Liga", "Spanish Primera Division"],
+    pais: ["spain", "spanish", "espanha", "laliga", "la liga"],
+    aliases: [
+      "La Liga", "LaLiga", "Spanish La Liga", "Spain La Liga",
+      "Spanish Primera Division", "Spain Primera Division", "Liga BBVA",
+      "Liga Santander", "Primera Division Spain",
+    ],
+    codes: { espn: ["esp.1"], footballdata: ["PD"] },
     exclude: [
       "2", "rfef", "segunda", "women", "u19", "u21", "cup", "copa", "regional",
       "tercera", "youth", "mx", "mexico", "expansion", "hypermotion",
     ],
   },
   {
+    id: "serie_a",
+    name: "Serie A",
+    pais: ["italy", "italian", "italia", "serie a tim"],
+    aliases: [
+      "Serie A", "Italian Serie A", "Italy Serie A", "Serie A TIM",
+      "Serie A Italy", "Serie A Italiana",
+    ],
+    codes: { espn: ["ita.1"], footballdata: ["SA"] },
+    exclude: [
+      "women", "u17", "u19", "u20", "u21", "u23", "primavera", "coppa", "cup",
+      "serie d", "2", "brasil", "brazil", "brasileirao", "betano", "argentina",
+      "colombia", "chile", "peru", "uruguay", "paraguay", "bolivia", "venezuela",
+      "ecuador",
+    ],
+  },
+  {
+    // "Bundesliga" é nome único; a austríaca sai pelo `exclude` (austria/2).
+    id: "bundesliga",
+    name: "Bundesliga",
+    aliases: [
+      "Bundesliga", "German Bundesliga", "Germany Bundesliga",
+      "1. Bundesliga", "Bundesliga Germany", "Fussball Bundesliga",
+    ],
+    codes: { espn: ["ger.1"], footballdata: ["BL1"] },
+    exclude: [
+      "2", "u19", "u21", "u23", "women", "cup", "regionalliga", "oberliga",
+      "austria", "reserve",
+    ],
+  },
+  {
+    id: "ligue_1",
+    name: "Ligue 1",
+    pais: ["french", "france", "franca"],
+    aliases: ["Ligue 1", "French Ligue 1", "France Ligue 1", "Ligue 1 Conforama", "Ligue 1 France"],
+    codes: { espn: ["fra.1"], footballdata: ["FL1"] },
+    exclude: ["2", "women", "u19", "u21", "cup", "coupe"],
+  },
+  {
     // Antes do Brasileirão Série A: "Brasileirão Série B" também contém "Brasileirão".
     id: "brasileirao_b",
     name: "Brasileirão Série B",
-    pais: ["brazil", "brazilian", "brasil", "brasileirao", "brasileiro"],
+    pais: ["brazil", "brazilian", "brasil", "brasileirao", "brasileiro", "serie b"],
     aliases: [
       "Brasileirão Série B", "Brasileirão B", "Brazil Serie B", "Brasil Serie B",
-      "Brazilian Serie B", "Campeonato Brasileiro Série B", "Brasileirao Serie B",
+      "Brazilian Serie B", "Campeonato Brasileiro Série B",
+      "Brasileirao Serie B", "Serie B Brazil", "Serie B Brasil", "Serie B Betano",
     ],
-    exclude: ["women", "u20", "u19", "u23", "cup", "copa", "reserve"],
+    codes: { espn: ["bra.2"] },
+    exclude: ["women", "feminino", "u20", "u19", "u23", "cup", "copa", "reserve"],
   },
   {
     // Antes da Serie A italiana: "Serie A Betano" é o Brasileirão, não a Itália.
@@ -89,10 +161,11 @@ export const MAIN_LEAGUES: MainLeague[] = [
       "Campeonato Brasileiro Série A", "Serie A Brasil", "Serie A Brazil",
       "Serie A Betano",
     ],
+    codes: { espn: ["bra.1"], footballdata: ["BSA"] },
     exclude: [
-      "women", "u20", "u19", "u23", "cup", "copa", "reserve", "carioca",
-      "paulista", "gaucho", "cearense", "potiguar", "paraibano", "fares",
-      "paraiba", "a2", "a3", "2",
+      "women", "feminino", "u20", "u19", "u23", "cup", "copa", "reserve",
+      "carioca", "paulista", "gaucho", "cearense", "potiguar", "paraibano",
+      "fares", "paraiba", "a2", "a3", "serie b", "2",
     ],
   },
   {
@@ -100,10 +173,12 @@ export const MAIN_LEAGUES: MainLeague[] = [
     name: "Liga Argentina",
     pais: ["argentina", "argentine", "liga profesional", "torneo betano"],
     aliases: [
-      "Liga Argentina", "Liga Profesional", "Argentina Liga Profesional",
-      "Argentine Liga Profesional", "Primera División Argentina",
-      "Argentina Primera Division", "Argentina Primera", "Torneo Betano",
+      "Liga Argentina", "Liga Profesional", "Liga Profesional Argentina",
+      "Argentina Liga Profesional", "Argentine Liga Profesional",
+      "Primera División Argentina", "Argentina Primera Division",
+      "Argentina Primera", "Torneo Betano", "Liga Profesional de Futbol",
     ],
+    codes: { espn: ["arg.1"] },
     exclude: [
       "reserve", "reserves", "women", "u19", "u20", "u21", "youth",
       "championship", "primera b", "primera c", "torneo a", "torneo regional",
@@ -111,92 +186,85 @@ export const MAIN_LEAGUES: MainLeague[] = [
     ],
   },
   {
-    id: "serie_a",
-    name: "Serie A",
-    pais: ["italy", "italian", "serie a tim"],
-    aliases: ["Serie A", "Italian Serie A", "Italy Serie A", "Serie A TIM"],
-    exclude: [
-      "women", "u17", "u19", "u20", "u21", "u23", "primavera", "coppa", "cup",
-      "serie d", "2", "brasil", "brazil", "brasileirao", "betano", "argentina",
-      "colombia", "chile", "peru", "uruguay", "paraguay", "bolivia", "venezuela",
-      "ecuador",
-    ],
-  },
-  {
-    id: "bundesliga",
-    name: "Bundesliga",
-        aliases: ["Bundesliga", "German Bundesliga", "Germany Bundesliga", "1. Bundesliga"],
-    exclude: ["2", "u19", "u21", "u23", "women", "cup", "regionalliga", "oberliga", "austria", "reserve"],
-  },
-  {
-    id: "ligue_1",
-    name: "Ligue 1",
-    pais: ["french", "france"],
-    aliases: ["Ligue 1", "French Ligue 1", "France Ligue 1", "Ligue 1 Conforama"],
-    exclude: ["2", "women", "u19", "u21", "cup", "coupe"],
-  },
-  {
     id: "mls",
     name: "MLS",
-    pais: ["usa", "us", "united states", "major league soccer", "mls"],
-    aliases: ["MLS", "Major League Soccer", "USA MLS", "US MLS", "United States MLS"],
+    pais: ["usa", "us", "united states", "eua", "major league soccer", "mls"],
+    aliases: ["MLS", "Major League Soccer", "USA MLS", "US MLS", "United States MLS", "MLS USA"],
+    codes: { espn: ["usa.1"] },
     exclude: ["next", "women", "u19", "u21", "reserve", "canada"],
   },
   {
     id: "saudi_pro_league",
     name: "Saudi Pro League",
-    pais: ["saudi"],
+    pais: ["saudi", "arabia saudita"],
     aliases: [
       "Saudi Pro League", "Saudi Professional League", "Saudi Premier League",
-      "Saudi Arabia Pro League",
+      "Saudi Arabia Pro League", "Saudi League", "Roshn Saudi League",
+      "Saudi Arabia Saudi League",
     ],
+    codes: { espn: ["ksa.1"] },
     exclude: ["division", "2", "u19", "u21", "women", "cup"],
   },
   {
     id: "champions_league",
     name: "Champions League",
-    pais: ["uefa", "liga dos campeoes"],
-    aliases: ["UEFA Champions League", "Champions League", "Liga dos Campeões", "UCL"],
+    pais: ["uefa", "europe", "europa", "liga dos campeoes"],
+    aliases: [
+      "UEFA Champions League", "Champions League", "Liga dos Campeões",
+      "UCL", "European Champions League",
+    ],
+    codes: { espn: ["uefa.champions"], footballdata: ["CL"] },
     exclude: ["women", "u19", "u21", "youth", "afa", "afc", "caf", "concacaf", "elite", "two"],
   },
   {
     // Antes da Europa League: "Europa Conference League" não é a Europa League.
     id: "conference_league",
     name: "Conference League",
-    pais: ["uefa", "liga conferencia"],
+    pais: ["uefa", "europe", "europa", "liga conferencia"],
     aliases: [
-      "UEFA Conference League", "Conference League", "UEFA Europa Conference League",
-      "Liga Conferência",
+      "UEFA Conference League", "Conference League",
+      "UEFA Europa Conference League", "Liga Conferência", "UECL",
+      "Europa Conference League",
     ],
+    codes: { espn: ["uefa.europa.conf"], footballdata: ["ECL"] },
     exclude: ["women", "u19", "u21", "youth"],
   },
   {
     id: "europa_league",
     name: "Europa League",
-    pais: ["uefa", "liga europa"],
+    pais: ["uefa", "europe", "europa", "liga europa"],
     aliases: ["UEFA Europa League", "Europa League", "Liga Europa", "UEL"],
+    codes: { espn: ["uefa.europa"], footballdata: ["EL"] },
     exclude: ["conference", "women", "u19", "u21", "youth"],
   },
   {
+    // Nome próprio: não existe "Libertadores" de outro continente.
     id: "libertadores",
     name: "Libertadores",
-    aliases: ["Copa Libertadores", "Libertadores", "CONMEBOL Libertadores"],
-    exclude: ["women", "u20", "u19", "sub 20", "sub 19", "youth", "feminina"],
+    aliases: [
+      "Copa Libertadores", "Libertadores", "CONMEBOL Libertadores",
+      "Copa Libertadores de America", "Copa Libertadores da America",
+    ],
+    codes: { espn: ["conmebol.libertadores"] },
+    exclude: ["women", "feminina", "feminino", "u20", "u19", "sub 20", "sub 19", "youth"],
   },
   {
+    // Nome próprio: "Sul-Americana" não colide com liga nacional.
     id: "sudamericana",
     name: "Sul-Americana",
     aliases: [
       "Copa Sudamericana", "Sudamericana", "Sul-Americana", "Sulamericana",
-      "CONMEBOL Sudamericana",
+      "CONMEBOL Sudamericana", "Copa Sul-Americana",
     ],
-    exclude: ["women", "u20", "u19", "sub 20", "sub 19", "youth", "feminina"],
+    codes: { espn: ["conmebol.sudamericana"] },
+    exclude: ["women", "feminina", "feminino", "u20", "u19", "sub 20", "sub 19", "youth"],
   },
   {
     id: "nations_league",
     name: "Liga das Nações",
-    pais: ["uefa", "liga das nacoes"],
+    pais: ["uefa", "europe", "europa", "liga das nacoes", "nations"],
     aliases: ["UEFA Nations League", "Liga das Nações", "Nations League"],
+    codes: { espn: ["uefa.nations"] },
     exclude: ["concacaf", "women", "u19", "u21", "youth"],
   },
 ];
@@ -208,13 +276,13 @@ export const MAIN_LEAGUES: MainLeague[] = [
  * `u21`/`u23` entram junto de `u17`/`u19`/`u20` porque as fontes usam todos.
  */
 const BLACKLIST: string[] = [
-  "women", "feminin", "feminina", "u17", "u19", "u20", "u21", "u23", "youth",
-  "reserve", "tercera", "segunda", "primera b", "amateur", "cup",
+  "women", "feminin", "feminina", "feminino", "u17", "u19", "u20", "u21",
+  "u23", "youth", "reserve", "tercera", "segunda", "primera b", "amateur", "cup",
 ];
 
 /** Termos que "salvam" o token `cup` do veto (copas continentais que valem). */
 const EXCECOES_COPA: string[] = [
-  "champions", "europa", "libertadores", "sul americana", "conference",
+  "champions", "europa", "libertadores", "sul americana", "sudamericana", "conference",
 ];
 
 /** Minúsculas, sem acento, pontuação vira espaço e espaços colapsados. */
@@ -232,6 +300,13 @@ export function normalizar(valor: string): string {
 function contemAlias(nome: string, apelido: string): boolean {
   if (!apelido) return false;
   return ` ${nome} `.includes(` ${apelido} `);
+}
+
+/** Token (já normalizado) presente inteiro no nome, inclusive números ("2"). */
+function contemToken(nome: string, token: string): boolean {
+  const t = normalizar(token);
+  if (!t) return false;
+  return ` ${nome} `.includes(` ${t} `);
 }
 
 /**
@@ -290,13 +365,6 @@ export function leagueOf(
   return null;
 }
 
-/** Token (já normalizado) presente inteiro no nome, inclusive números ("2"). */
-function contemToken(nome: string, token: string): boolean {
-  const t = normalizar(token);
-  if (!t) return false;
-  return ` ${nome} `.includes(` ${t} `);
-}
-
 /**
  * `true` se a liga informada é uma das 16 principais.
  *
@@ -308,6 +376,7 @@ function contemToken(nome: string, token: string): boolean {
  * isMainLeague("Serie A")                  // false (genérico sem país)
  * isMainLeague("Italy Serie A Women")      // false (veto de feminino)
  * isMainLeague("Spain Copa del Rey")       // false (copa nacional)
+ * isMainLeague("Bolivia Primera Division") // false (fora das 16)
  * ```
  */
 export function isMainLeague(
@@ -334,6 +403,86 @@ export function isMainLeagueId(id: string | null | undefined): boolean {
 /** Nome de exibição a partir da chave canônica. */
 export function mainLeagueName(id: string | null | undefined): string | null {
   return MAIN_LEAGUES.find((l) => l.id === id)?.name ?? null;
+}
+
+/* ===================== CODES POR FONTE (casamento exato) ===================== */
+
+/**
+ * Índice `fonte/código` → chave canônica.
+ *
+ * É o caminho preferido quando a fonte informa um código estável (ESPN "eng.1",
+ * Football-Data "PL"): não depende de como o fornecedor escreveu o nome no dia.
+ */
+const CODE_INDEX: Record<string, string> = (() => {
+  const out: Record<string, string> = {};
+  for (const liga of MAIN_LEAGUES) {
+    for (const [fonte, codigos] of Object.entries(liga.codes ?? {})) {
+      for (const codigo of codigos ?? []) {
+        if (!codigo) continue;
+        out[`${fonte}:${normalizar(codigo)}`] = liga.id;
+      }
+    }
+  }
+  return out;
+})();
+
+/** Liga canônica a partir do código de uma fonte (ou `null`). */
+export function leagueOfCode(source: MainLeagueSource, code: string | null | undefined): MainLeague | null {
+  if (!code) return null;
+  const id = CODE_INDEX[`${source}:${normalizar(code)}`];
+  return id ? MAIN_LEAGUES.find((l) => l.id === id) ?? null : null;
+}
+
+/** `true` se `code` é uma das 16 ligas naquela fonte. */
+export function isMainLeagueCode(source: MainLeagueSource, code: string | null | undefined): boolean {
+  return leagueOfCode(source, code) !== null;
+}
+
+/** Código ESPN ("eng.1") → chave canônica. */
+export function mainLeagueIdFromEspnCode(code: string | null | undefined): string | null {
+  return leagueOfCode("espn", code)?.id ?? null;
+}
+
+/** Código Football-Data ("PL") → chave canônica. */
+export function mainLeagueIdFromFootballDataCode(code: string | null | undefined): string | null {
+  return leagueOfCode("footballdata", code)?.id ?? null;
+}
+
+/**
+ * Códigos que o plano free do Football-Data.org cobre entre as nossas 16.
+ *
+ * São exatamente SEIS: PL, PD, SA, BL1, FL1 e BSA. O resto das nossas ligas
+ * (Libertadores, MLS, Saudi, Conference, Nations League, Série B) o FD não
+ * entrega nas contas gratuitas. Este array é a fonte da verdade para o
+ * escalonamento de requisições em `footballdata-hub.ts` — se um dia o plano
+ * mudar, muda aqui e o throttle acompanha.
+ */
+export const FOOTBALLDATA_MAIN_CODES = ["PL", "PD", "SA", "BL1", "FL1", "BSA"] as const;
+
+/** Pausa entre requisições consecutivas ao Football-Data (ms) — 10 req/min. */
+export const FOOTBALLDATA_REQUEST_PAUSE_MS = 6_000;
+
+/** Códigos ESPN das 16 ligas — usado para filtrar listas que chegam por código. */
+export const ESPN_MAIN_CODES: string[] = MAIN_LEAGUES.flatMap((l) => l.codes?.espn ?? []);
+
+/**
+ * Filtra uma lista qualquer mantendo só o que é liga principal.
+ *
+ * `key` diz como extrair nome e código do item; devolve a lista filtrada
+ * preservando a ordem. Serve tanto para fixtures cruas quanto para as linhas
+ * que a ESPN devolve para a tela.
+ */
+export function filterMainLeagues<T>(
+  items: readonly T[],
+  get: (item: T) => { name?: string | null; country?: string | null; source?: MainLeagueSource; code?: string | null },
+): T[] {
+  const out: T[] = [];
+  for (const item of items) {
+    const { name, country, source, code } = get(item);
+    const porCodigo = source && code ? isMainLeagueCode(source, code) : false;
+    if (porCodigo || isMainLeague(name, country)) out.push(item);
+  }
+  return out;
 }
 
 /**
