@@ -1,7 +1,7 @@
 /**
  * Job de sincronização do módulo Hub (CLI) — SISTEMA DE CASCATA.
  *
- *   npx tsx scripts/hub-sync.ts --dates=2 --history=10 --odds=6 --lineups=3 --analyze --settle
+ *   npx tsx scripts/hub-sync.ts --dates=3 --history=10 --odds=6 --lineups=3 --analyze --settle
  *
  * `--history=N` ingere os N dias PASSADOS (placar finalizado). Sem isso o banco
  * não acumula resultado e o motor publica a média da liga para todo jogo — a
@@ -38,7 +38,7 @@ const num = (v: string | undefined, def: number) => {
 
 async function main() {
   const report = await runHubSync({
-    dates: num(arg("dates"), 1),
+    dates: num(arg("dates"), 3),
     historyDays: num(arg("history"), 7),
     odds: num(arg("odds"), 6),
     lineups: num(arg("lineups"), 3),

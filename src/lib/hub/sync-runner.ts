@@ -91,7 +91,7 @@ function agregar(attempts: Attempt[]): SyncProviderStats {
 }
 
 export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<string, unknown>> {
-  const dates = opts.dates ?? 1;
+  const dates = opts.dates ?? 3;
   const historyDays = Math.max(0, opts.historyDays ?? 0);
   const oddsWindow = opts.odds ?? 6;
   const lineupsWindow = opts.lineups ?? 3;

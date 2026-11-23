@@ -114,7 +114,10 @@ export async function GET(req: NextRequest) {
       const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : budgetHub;
       try {
         out.hub = await runHubSync({
-          dates: 1,
+          // Hoje, amanhã e depois de amanhã: sem isto a base só tinha o dia
+          // corrente e uma liga de elite sem jogo hoje (Champions, Europa
+          // League) ficava ausente do hub mesmo com partidas marcadas.
+          dates: 3,
           // 3 dias passados: alimenta `recentMatches` e evita a análise igual
           // para todos os jogos da liga (motor sem histórico).
           historyDays: 3,

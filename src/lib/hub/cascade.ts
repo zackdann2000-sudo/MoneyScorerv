@@ -261,7 +261,17 @@ export async function syncFixturesCascade(dateIso: string): Promise<FixtureSyncR
         if (Number.isNaN(raw.kickoff.getTime())) continue;
         const id = await persistFixture(raw);
         // `null` = jogo de liga fora das 16: não é erro, é veto.
-        if (id == null) { descartados += 1; continue; }
+        if (id == null) {
+          // TODO(debug temporário): remover quando a ingestão de Champions/
+          // Europa League estiver validada. Mostra exatamente o que o filtro
+          // barrou, para separar "liga não mapeada" de "sem jogo no range".
+          console.log(
+            `[sync][descartado] ${raw.league.name} (${raw.league.countryName ?? raw.league.countryIso2 ?? "?"}) ` +
+              `· ${raw.source} · ${raw.home.name} x ${raw.away.name}`,
+          );
+          descartados += 1;
+          continue;
+        }
         await applyTablePositions(raw, id);
         created += 1;
       } catch (e) {
