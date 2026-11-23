@@ -14,7 +14,7 @@
  * Segurança:
  *   - nunca imprime a senha nem o hash;
  *   - é idempotente: rodar de novo só reescreve o hash/role/plano;
- *   - `expires_at` fica em 2999-12-31 (vitalício) e o email está em OWNER_EMAILS,
+ *   - `expires_at` fica em 2099-12-31 (vitalício) e o email está em OWNER_EMAILS,
  *     então getUser() marca isAdmin=true e o paywall libera (vip=true no app).
  */
 import { createRequire } from "node:module";
@@ -32,7 +32,7 @@ const PADRAO = {
   role: "owner",
   plan: "vip",
   /** Vitalício. isLifetime() considera ano >= 2090. */
-  expira: "2999-12-31T23:59:59.000Z",
+  expira: "2099-12-31T23:59:59.000Z",
 };
 
 function arg(nome, fallback) {

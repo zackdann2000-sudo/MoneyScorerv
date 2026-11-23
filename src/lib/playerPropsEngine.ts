@@ -59,15 +59,21 @@ export type Mercado = {
   ordem: number;
 };
 
+/**
+ * Mercados do Top 3 de Player Props.
+ *
+ * Só estes seis: Assistências, Gols, Finalizações, Cartões, Defesas de Goleiro
+ * e Chutes ao Alvo. Faltas (sofridas/cometidas) saíram do card por decisão de
+ * produto: poluíam o Top 3 sem aumentar a taxa de acerto. O motor continua
+ * sabendo calcular faltas (`StatKey`), só não as publica aqui.
+ */
 export const MERCADOS: Mercado[] = [
-  { id: "cartoes", rotulo: "Cartões", stat: "cartoes", linha: 0.5, ordem: 1 },
-  { id: "finalizacoes", rotulo: "Finalizações", stat: "finalizacoes", linha: 1.5, ordem: 2 },
-  { id: "chutes_no_gol", rotulo: "Chutes no gol", stat: "chutesNoGol", linha: 0.5, ordem: 3 },
-  { id: "faltas_sofridas", rotulo: "Faltas sofridas", stat: "faltasSofridas", linha: 1.5, ordem: 4 },
-  { id: "faltas_cometidas", rotulo: "Faltas cometidas", stat: "faltasCometidas", linha: 1.5, ordem: 5 },
-  { id: "gols", rotulo: "Gols", stat: "gols", linha: 0.5, ordem: 6 },
-  { id: "assistencias", rotulo: "Assistências", stat: "assistencias", linha: 0.5, ordem: 7 },
-  { id: "defesas", rotulo: "Defesas (goleiro)", stat: "defesas", linha: 2.5, posicoes: ["G"], ordem: 8 },
+  { id: "assistencias", rotulo: "Assistências", stat: "assistencias", linha: 0.5, ordem: 1 },
+  { id: "gols", rotulo: "Gols", stat: "gols", linha: 0.5, ordem: 2 },
+  { id: "finalizacoes", rotulo: "Finalizações", stat: "finalizacoes", linha: 1.5, ordem: 3 },
+  { id: "cartoes", rotulo: "Cartões", stat: "cartoes", linha: 0.5, ordem: 4 },
+  { id: "defesas", rotulo: "Defesas (goleiro)", stat: "defesas", linha: 2.5, posicoes: ["G"], ordem: 5 },
+  { id: "chutes_no_gol", rotulo: "Chutes ao alvo", stat: "chutesNoGol", linha: 0.5, ordem: 6 },
 ];
 
 /** Pesos lineares crescentes (1..n): o jogo mais recente pesa `n` vezes o 1º. */

@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import { resumoH2H, MAX_H2H, MIN_JOGOS, type H2HJogo } from "@/lib/h2hPalpite";
+import { palpitesH2H, resumoH2H, MAX_H2H, MIN_JOGOS, type H2HJogo } from "@/lib/h2hPalpite";
 
 /**
  * Card "Palpite fixo" do H2H.
@@ -24,6 +24,12 @@ export default function H2HPalpiteCard({
   if (resumo.total < MIN_JOGOS) return null;
 
   const { principal, secundario, total, mediaGols } = resumo;
+  /* Over 1.5 e BTTS são os dois mercados que o pedido cita no texto fixo.
+     Saem da MESMA janela de 7 confrontos já usada no restante do card —
+     nenhuma chamada nova e nenhum número inventado. */
+  const ranking = palpitesH2H((jogos ?? []).slice(0, MAX_H2H));
+  const over15 = ranking.find((p) => p.id === "over15");
+  const btts = ranking.find((p) => p.id === "btts");
   const corForca =
     principal?.forca === "forte"
       ? "bg-acc/20 text-acc border-acc/50"
@@ -48,9 +54,27 @@ export default function H2HPalpiteCard({
 
       {principal ? (
         <>
+          <p className="text-[10px] text-mut leading-snug">
+            O que mais acontece quando essas equipes se enfrentam?
+          </p>
           <p className="text-[13px] leading-snug font-extrabold text-ink">
             {principal.texto}
           </p>
+          {(over15 || btts) && (
+            <p className="text-[10px] font-bold text-ink leading-snug tabular-nums">
+              {over15 && (
+                <>
+                  Over 1.5 gols bateu em <span className="text-acc">{over15.pct}%</span> ({over15.acertos}/{over15.total})
+                </>
+              )}
+              {over15 && btts ? " · " : null}
+              {btts && (
+                <>
+                  BTTS em <span className="text-acc">{btts.pct}%</span> ({btts.acertos}/{btts.total})
+                </>
+              )}
+            </p>
+          )}
           <p className="text-[10px] text-mut leading-snug">
             Nos últimos <span className="font-bold text-ink">{total}</span> confrontos diretos, é o que
             mais aconteceu{secundario ? (

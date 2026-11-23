@@ -6,7 +6,7 @@ import { ArrowLeft, Star, RefreshCw, ChevronDown, Search } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import DateStrip7 from "@/components/DateStrip7";
 import { hojeYmd } from "@/lib/semana";
-import { isMainLeague } from "@/lib/mainLeagues";
+import { isMainLeague, isMainLeagueCode } from "@/lib/mainLeagues";
 import LeagueFilterPill, { usePrincipaisLigas } from "@/components/LeagueFilter";
 
 type Row = {
@@ -156,9 +156,13 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
       const ids = new Set(favorites.map((f) => f.id));
       list = list.filter((m) => ids.has(m.home.id) || ids.has(m.away.id));
     }
-    // Padrão: só as 16 principais ligas. Filtro no cliente — a API segue
-    // entregando o painel completo e o cache não muda.
-    if (soPrincipais) list = list.filter((m) => isMainLeague(m.leagueName));
+    // Padrão: só as ligas de elite. O casamento tenta PRIMEIRO o código ESPN
+    // ("eng.1"): nome genérico como "Premier League" ou "Serie A" sozinho é
+    // rejeitado pelo filtro (precisa do país), e era exatamente por isso que o
+    // cliente escondia Premier League, Serie A e Ligue 1 mesmo com a API já as
+    // entregando. Filtro no cliente — o cache da API não muda.
+    if (soPrincipais)
+      list = list.filter((m) => isMainLeagueCode("espn", m.league) || isMainLeague(m.leagueName, m.country));
     if (q.trim()) {
       const s = q.toLowerCase();
       list = list.filter((m) => `${m.home.name} ${m.away.name} ${m.leagueName} ${m.country}`.toLowerCase().includes(s));

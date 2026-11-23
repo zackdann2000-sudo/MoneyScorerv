@@ -149,9 +149,13 @@ export default function BlocoAnalises({
 }) {
   const itens = useMemo(() => blocoAnalises(casa, fora, h2h), [casa, fora, h2h]);
   const comDados = itens.filter((i) => !i.semDados).length;
-  /* Piso de 75% também aqui: probabilidade abaixo do limite só aparece se o
-     usuário pedir. O botão vive no cartão do bloco, junto de onde o dado some. */
-  const [mostrarAbaixo, setMostrarAbaixo] = useState(false);
+  /* Cada linha do bloco SEMPRE mostra a probabilidade (Poisson) calculada
+     sobre os últimos 10 jogos dos dois times. O piso de 75% deixou de ser o
+     padrão: o usuário pode OCULTAR as linhas abaixo dele, mas o número vem
+     visível por padrão — é o dado pedido na tela.
+     1.5, 1.0 e 0.5 nos últimos 10 — e a linha é a mais alta que ainda fica
+     com ~80% no total. */
+  const [mostrarAbaixo, setMostrarAbaixo] = useState(true);
   const ocultos = itens.filter((i) => i.prob != null && i.prob < PISO_PCT).length;
 
   return (

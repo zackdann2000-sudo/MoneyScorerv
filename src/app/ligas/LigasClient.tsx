@@ -1,30 +1,45 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import DateStrip7 from "@/components/DateStrip7";
+import { hojeYmd } from "@/lib/semana";
 
 type Linha = { code: string; name: string; country: string; n: number; live: number };
 
 /**
  * Lista de ligas com a contagem de jogos do dia escolhido.
  *
- * Antes a tela travava em "hoje"; Champions e outras ligas de elite com jogo
- * em 2-3 dias não apareciam. Agora a data segue a barra de dias: quem abre a
- * partir da tela de Jogos já cai no mesmo dia; aqui dá para trocar.
+ * A data vive na URL (`?data=YYYY-MM-DD`), exatamente como na tela de Jogos:
+ *  - clicar num dia troca o estado E escreve na URL (`router.replace`);
+ *  - voltar/avançar do browser (ou link colado) reflete no estado;
+ *  - abrir uma liga leva para `/jogos?liga=..&data=..` — a tela que realmente
+ *    lista os jogos daquele dia (antes o link ia para `/`, a landing pública,
+ *    que ignorava os parâmetros e o usuário "não via os jogos atualizarem").
  *
  * O estado de carregamento é DERIVADO (`loadedDate !== date`) em vez de
  * `setRows(null)` dentro do efeito — a regra `react-hooks/set-state-in-effect`
- * proíbe mutação síncrona de estado no corpo de um efeito.
+ * proíbe mutação síncrona de estado no corpo de um efeito. O `fetch` usa
+ * `no-store` para o navegador nunca devolver a contagem de outro dia.
  */
+const dataValida = (v: string | null | undefined): v is string =>
+  !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
 export default function LigasClient({ initialDate }: { initialDate: string }) {
-  const [date, setDate] = useState(initialDate);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlData = searchParams.get("data");
+
+  const [date, setDate] = useState(dataValida(initialDate) ? initialDate : hojeYmd());
   const [rows, setRows] = useState<Linha[] | null>(null);
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/matches?date=${date}`)
+    setErr("");
+    fetch(`/api/matches?date=${date}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
@@ -49,14 +64,21 @@ export default function LigasClient({ initialDate }: { initialDate: string }) {
     };
   }, [date]);
 
-  const mudarDia = useCallback((ymd: string) => {
-    setErr("");
-    setDate(ymd);
-    // Mantém a URL compartilhável e igual à da tela de Jogos.
-    const url = new URL(window.location.href);
-    url.searchParams.set("data", ymd);
-    window.history.replaceState(null, "", url);
-  }, []);
+  /* URL mudou (browser voltar/avançar ou link colado) -> reflete no estado. */
+  useEffect(() => {
+    if (dataValida(urlData) && urlData !== date) setDate(urlData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlData]);
+
+  const mudarDia = useCallback(
+    (ymd: string) => {
+      setErr("");
+      setDate(ymd);
+      // Mesma convenção da tela de Jogos: replace (não empilha histórico).
+      router.replace(`${pathname}?data=${ymd}`, { scroll: false });
+    },
+    [router, pathname],
+  );
 
   const carregando = loadedDate !== date;
   const [, mm, dd] = date.split("-");
@@ -74,7 +96,7 @@ export default function LigasClient({ initialDate }: { initialDate: string }) {
       )}
       {err && <p className="text-sm text-danger">{err}</p>}
       {!carregando && (rows || []).map((l) => (
-        <Link key={l.code} href={`/?liga=${l.code}&data=${date}`} className="flex items-center gap-3 h-14 border-b border-line">
+        <Link key={l.code} href={`/jogos?liga=${encodeURIComponent(l.code)}&data=${date}`} className="flex items-center gap-3 h-14 border-b border-line">
           <span className="w-8 text-[10px] font-bold text-mut">{l.country.slice(0, 2).toUpperCase()}</span>
           <span className="flex-1 min-w-0"><span className="block text-[10px] uppercase text-mut">{l.country}</span><span className="block text-sm font-bold truncate">{l.name}</span></span>
           {l.live > 0 && <span className="min-w-6 h-5 px-1 rounded-full bg-live text-white text-[11px] font-bold flex items-center justify-center">{l.live}</span>}

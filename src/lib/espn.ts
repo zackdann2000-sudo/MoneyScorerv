@@ -14,6 +14,11 @@ export const LEAGUES = [
   { code: "conmebol.sudamericana", name: "Sudamericana", country: "América do Sul", flag: "🌎", priority: 10 },
   { code: "por.1", name: "Liga Portugal", country: "Portugal", flag: "🇵", priority: 11 },
   { code: "ned.1", name: "Eredivisie", country: "Holanda", flag: "🇳🇱", priority: 12 },
+  /* Eerste Divisie e Allsvenskan entram no feed porque o produto passou a
+     publicá-las como ligas de elite (ver mainLeagues.ts). Sem o código aqui a
+     ESPN nunca era consultada e os jogos não apareciam em tela nenhuma. */
+  { code: "ned.2", name: "Eerste Divisie", country: "Holanda", flag: "🇳🇱", priority: 12.5 },
+  { code: "swe.1", name: "Allsvenskan", country: "Suécia", flag: "🇸🇪", priority: 12.8 },
   { code: "arg.1", name: "Liga Profissional", country: "Argentina", flag: "🇦🇷", priority: 13 },
   { code: "bra.2", name: "Brasileirão Série B", country: "Brasil", flag: "🇧", priority: 14 },
   { code: "mex.1", name: "Liga MX", country: "México", flag: "🇲🇽", priority: 15 },

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * TESTE DE FUMAÇA — as 16 ligas de elite (e só elas) na tela de Ligas.
+ * TESTE DE FUMAÇA — as ligas de elite (e só elas) na tela de Ligas.
  *
  * Confirma, contra uma instância no ar, que o feed que alimenta `/ligas`
  * (`GET /api/matches`) não devolve ligas obscuras. É a verificação do bug
@@ -29,6 +29,7 @@ const BASE = (process.argv[2] || process.env.BASE_URL || "http://localhost:3000"
 const PERMITIDAS = new Set([
   "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
   "bra.1", "bra.2", "arg.1", "usa.1", "ksa.1",
+  "ned.2", "swe.1",
   "uefa.champions", "uefa.europa", "uefa.europa.conf",
   "conmebol.libertadores", "conmebol.sudamericana", "uefa.nations",
 ]);

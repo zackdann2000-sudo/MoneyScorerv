@@ -79,6 +79,12 @@ const DEVE_CASAR = [
   ["Brasil Serie A", "brasileirao_a"],
   ["Brazil Serie B", "brasileirao_b"],
   ["Brasileirao Serie B", "brasileirao_b"],
+  // ligas de elite adicionadas depois (Holanda 2ª / Suécia 1ª)
+  ["Eerste Divisie", "eerste_divisie"],
+  ["Netherlands Eerste Divisie", "eerste_divisie"],
+  ["Keuken Kampioen Divisie", "eerste_divisie"],
+  ["Allsvenskan", "allsvenskan"],
+  ["Sweden Allsvenskan", "allsvenskan"],
 ];
 
 // nomes que NÃO podem entrar (base, feminino, copas, outros países/confederações)
@@ -213,7 +219,7 @@ check("SPAIN LA LIGA → La Liga", mainLeagueLabel("SPAIN LA LIGA"), "La Liga");
 check("ITALY SERIE A → Serie A", mainLeagueLabel("ITALY SERIE A"), "Serie A");
 check("ENGLAND PREMIER LEAGUE", mainLeagueLabel("ENGLAND PREMIER LEAGUE"), "Premier League");
 check("GERMANY BUNDESLIGA", mainLeagueLabel("GERMANY BUNDESLIGA"), "Bundesliga");
-check("liga fora das 16 volta crua", mainLeagueLabel("CHILE PRIMERA DIVISION"), "CHILE PRIMERA DIVISION");
+check("liga fora das 18 volta crua", mainLeagueLabel("CHILE PRIMERA DIVISION"), "CHILE PRIMERA DIVISION");
 check("espaço extra é limpo", mainLeagueLabel("  Chile   Primera  "), "Chile Primera");
 check("vazio vira Outras competições", mainLeagueLabel(""), "Outras competições");
 check("null vira Outras competições", mainLeagueLabel(null), "Outras competições");
@@ -222,7 +228,7 @@ check("mainLeagueName usa a chave", mainLeagueName("brasileirao_a"), "Brasileir�
 check("mainLeagueName de id inválido", mainLeagueName("nao_existe"), null);
 
 console.log("\n=== contagem ===");
-check("16 ligas na lista", TOTAL_LIGAS_PRINCIPAIS, 16);
+check("18 ligas na lista", TOTAL_LIGAS_PRINCIPAIS, 18);
 check("isMainLeague('') ", isMainLeague(""), false);
 
 console.log(`\n${falhas === 0 ? "✅ TODOS OS TESTES PASSARAM" : `❌ ${falhas} FALHA(S)`}`);

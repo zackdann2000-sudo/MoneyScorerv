@@ -8,8 +8,10 @@
  * canônico → apelidos (e códigos por fonte) para o filtro funcionar em
  * qualquer fonte.
  *
- * A lista é FECHADA em 16 competições. Não existe "todas as ligas": o produto
- * só publica estas. Qualquer outra é descartada antes de virar linha no banco.
+ * A lista é FECHADA nas competições abaixo. Não existe "todas as ligas": o
+ * produto só publica estas. Qualquer outra é descartada antes de virar linha no
+ * banco. A lista cresceu de 16 para 18 quando Eerste Divisie (Holanda) e
+ * Allsvenskan (Suécia) entraram no catálogo de elite.
  *
  * Ordem da decisão (importante):
  *   1. normaliza (minúsculas, sem acento, pontuação vira espaço);
@@ -184,6 +186,32 @@ export const MAIN_LEAGUES: MainLeague[] = [
       "championship", "primera b", "primera c", "torneo a", "torneo regional",
       "nacional b", "amateur",
     ],
+  },
+  {
+    // Holanda, 2ª divisão. Nome próprio, mas carrega o país para desempatar
+    // qualquer fonte que escreva só "Eerste Divisie" de outro lugar.
+    id: "eerste_divisie",
+    name: "Eerste Divisie",
+    pais: ["netherlands", "holanda", "holland", "dutch", "eerste divisie", "keuken kampioen"],
+    aliases: [
+      "Eerste Divisie", "Netherlands Eerste Divisie", "Holland Eerste Divisie",
+      "Dutch Eerste Divisie", "Eerste Divisie Netherlands", "Keuken Kampioen Divisie",
+    ],
+    codes: { espn: ["ned.2"] },
+    exclude: ["women", "u19", "u21", "u23", "youth", "reserve", "cup"],
+  },
+  {
+    // Suécia, 1ª divisão. "Allsvenskan" sozinho já basta; a lista de países
+    // aceita o próprio nome para o caso de fonte que manda só o país.
+    id: "allsvenskan",
+    name: "Allsvenskan",
+    pais: ["sweden", "suecia", "swedish", "allsvenskan"],
+    aliases: [
+      "Allsvenskan", "Sweden Allsvenskan", "Swedish Allsvenskan",
+      "Fotbollsallsvenskan", "Allsvenskan Sweden",
+    ],
+    codes: { espn: ["swe.1"] },
+    exclude: ["women", "damallsvenskan", "u19", "u21", "u23", "youth", "superettan"],
   },
   {
     id: "mls",
@@ -370,6 +398,8 @@ export function leagueOf(
  *
  * ```ts
  * isMainLeague("Brasileirão Série A")      // true
+ * isMainLeague("Eerste Divisie", "Holanda") // true
+ * isMainLeague("Allsvenskan", "Suécia")     // true
  * isMainLeague("Brazil Serie A")           // true
  * isMainLeague("Ligue 1", "France")        // true
  * isMainLeague("Ligue 1", "Algeria")       // false (não é a francesa)
