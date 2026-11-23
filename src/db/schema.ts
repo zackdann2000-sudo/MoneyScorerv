@@ -48,7 +48,12 @@ export const sessions = pgTable("sessions", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // A PK é o token: sem este índice, login/logout e o cascade de users ->
+  // sessions varrem a tabela inteira (o Postgres precisa de userId à esquerda).
+  index("sessions_user_idx").on(t.userId),
+  index("sessions_expires_idx").on(t.expiresAt),
+]);
 
 export const apiKeys = pgTable("api_keys", {
   provider: text("provider").primaryKey(), // espn | footballdata | sportmonks | bzzoiro | onesignal_rest

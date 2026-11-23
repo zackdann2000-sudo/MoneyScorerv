@@ -54,6 +54,9 @@ SUITES+=(
   "tiebreak|src/lib/hub/tiebreak.test.cjs"
   "amostra|src/lib/hub/amostra.test.cjs"
   "seoLigas|src/lib/seoLigas.test.cjs"
+  "apitou-fonte|src/lib/apitou/fonte.test.cjs"
+  "apitou-analises|src/lib/apitou/analises.test.cjs"
+  "nerdytips-fonte|src/lib/nerdytips/fonte.test.cjs"
 )
 
 # --- 1. Seleciona as suítes -------------------------------------------------
@@ -105,6 +108,9 @@ for i in "${!SELECIONADAS[@]}"; do
   destino="$BUILD/$(dirname "$rel")"
   mkdir -p "$destino"
   cp "$teste" "$destino/"
+  # testes que leem fixtures: o teste usa __dirname, então a pasta viaja junto
+  fixdir="$(dirname "$teste")/__fixtures__"
+  if [ -d "$fixdir" ]; then cp -r "$fixdir" "$destino/"; fi
 done
 
 # --- 4. Roda em paralelo, guardando saída e código de cada suíte ------------
