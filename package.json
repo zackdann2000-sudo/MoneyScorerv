@@ -10,6 +10,7 @@
     "test:unit": "./scripts/unit-tests.sh",
     "check:tz": "node scripts/check-timestamptz.mjs",
     "seo:check": "tsx scripts/seo-check.ts",
+    "hub:status": "tsx scripts/hub-status.ts",
     "db:precheck-tz": "node scripts/precheck-tz.mjs",
     "db:audit-tz": "node scripts/audit-tz.mjs",
     "db:clean-tz": "node scripts/db-clean-tz.mjs",

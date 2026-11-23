@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/diario",
-      "schedule": "0 9 * * *"
+      "path": "/api/cron/diario?acao=apitou",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/diario?acao=hub",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/diario?acao=rankings",
+      "schedule": "0 5 * * *"
     },
     {
       "path": "/api/track-record/run",

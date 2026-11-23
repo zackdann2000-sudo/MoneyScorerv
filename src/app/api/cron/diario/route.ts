@@ -1,15 +1,25 @@
 /**
- * Cron diário (06:00 BRT = 09:00 UTC).
+ * Cron diário — separado em 3 invocações por causa do TEMPO, não da cota.
  *
- * Faz as duas tarefas de manhã em uma invocação só, porque o plano Hobby da
- * Vercel aceita no máximo 2 cron jobs — e as outras duas rotas já ocupavam a
- * cota quando este job entrou (o track record continua às 13:00 UTC).
+ * Histórico: esta rota já fez apitou + rankings + Hub numa invocação só, porque
+ * o plano Hobby tinha cota de 2 cron jobs. Isso deixou de existir: desde jan/2026
+ * todo plano aceita 100 crons por projeto (o Hobby só exige que cada um rode no
+ * máximo 1x por dia). O efeito colateral da versão antiga era grave: apitou
+ * (~36s) + rankings (~50s) + Hub (orçamento 120s) encostavam no teto de 300s e
+ * o Hub era o primeiro a ser PULADO pelo `budgetMs` — o banco ficou 41h sem
+ * fixture nova e ninguém viu, porque etapa pulada não é erro.
  *
- *   1. sincroniza as fontes do apitou  (`sincronizarEGravar`)
- *   2. pré-aquece os rankings das 6 ligas e grava no Neon (`aquecerRankings`)
- *   3. sincroniza o Hub (`runHubSync`): fixtures + context, sem odds
+ * Agora cada etapa tem a sua invocação e o seu orçamento inteiro:
+ *   03:00 UTC  ?acao=apitou    → fontes do apitou (`sincronizarEGravar`)
+ *   04:00 UTC  ?acao=hub       → Hub: fixtures (histórico primeiro), context, análise, liquidação
+ *   05:00 UTC  ?acao=rankings  → pré-aquece os rankings das 6 ligas e grava no Neon
+ *   13:00 UTC  /api/track-record/run → ledger de picks de valor
  *
- * Regras: uma etapa que falha não impede a outra; todas são idempotentes.
+ * Atenção (Hobby): o cron roda 1x por dia dentro da hora escolhida (±59 min),
+ * então a ORDEM vem da distância de 1h entre os horários, não do minuto. Como
+ * cada etapa é idempotente, uma ordem trocada não corrompe nada — só atrasa.
+ *
+ * `?acao=tudo` continua funcionando para rodar as três de uma vez na mão.
  *
  * Sobre o Hub: função serverless NÃO continua rodando depois de responder, então
  * "background" aqui é um orçamento de tempo (`budgetMs`) dentro do maxDuration —
@@ -22,6 +32,10 @@
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
  *   - Manual: header `x-cron-secret: <PUSH_CRON_SECRET>` ou `?secret=`
  *   - Fail-closed: sem nenhum segredo configurado → 503.
+ *
+ * Saúde do sync: `npm run hub:status` (última escrita por liga, fixtures
+ * finalizadas, análises degeneradas). Uma etapa pulada por tempo NÃO aparece
+ * como erro em lugar nenhum — esse script é o que mostra.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -31,8 +45,8 @@ import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
 import { runHubSync } from "@/lib/hub/sync-runner";
 
 export const dynamic = "force-dynamic";
-// 300s = teto do Hobby (Fluid Compute). Apitou (~36s) + rankings (~50s) +
-// Hub com orçamento de 120s cabem com folga; o orçamento protege o pior caso.
+// 300s = maxDuration padrão do Fluid Compute em todos os planos (doc Vercel,
+// 2026). Cada cron agora roda UMA etapa, então o teto é usado por inteiro.
 export const maxDuration = 300;
 
 const erro = (e: any) => String(e?.message || e || "falha").slice(0, 200);
@@ -91,11 +105,13 @@ export async function GET(req: NextRequest) {
     if (!hubAtivo) {
       out.hub = { skipped: true, reason: "desligado por ?hub=0" };
     } else {
-      // 120s de Hub + apitou (~36s) + rankings (~50s) cabe nos 300s do Hobby.
-      // Se os dois primeiros consumirem mais, o orçamento corta as etapas do
-      // Hub em vez de a função morrer no teto da Vercel.
+      /* Orçamento por invocação: `?acao=hub` roda sozinho e pode usar quase todo
+         o teto. Em `?acao=tudo` (manual) apitou e rankings já consumiram tempo,
+         então o Hub fica com o pedaço menor. Era exatamente esse teto apertado
+         que fazia o Hub ser pulado todo dia sem erro visível. */
+      const budgetHub = (acao === "hub" ? 240 : 120) * 1000;
       const budgetParam = Number(req.nextUrl.searchParams.get("hubBudget"));
-      const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : 120_000;
+      const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : budgetHub;
       try {
         out.hub = await runHubSync({
           dates: 1,
