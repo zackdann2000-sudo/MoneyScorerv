@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gera os ícones do PWA (Money Sênior) sem depender de PIL/ImageMagick.
+Gera os ícones do PWA (GreenScore IA) sem depender de PIL/ImageMagick.
 
 Desenho: bola de futebol geométrica (aro + pentágono + 5 raios) em verde neon
 sobre o fundo do app (#001e28). Antialias por supersampling.

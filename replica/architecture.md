@@ -1,4 +1,4 @@
-# Architecture: Money Sênior (rebuild do core do Gol Sinyali)
+# Architecture: GreenScore IA (rebuild do core do Gol Sinyali)
 
 > **Status:** plano de convergência escrito em 2026-11-21, depois de auditar o
 > código existente. Este documento **não** é um plano greenfield: o app já roda
