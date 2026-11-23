@@ -49,6 +49,7 @@ SUITES+=(
   "idadeDado|src/lib/idadeDado.ts|src/lib/idadeDado.test.cjs"
   "particoes|src/lib/apitou/particoes.ts src/lib/apitou/analise.ts src/lib/apitou/engine.ts src/lib/apitou/fonte.ts src/lib/formaRecente.ts|src/lib/apitou/particoes.test.cjs"
   "tiebreak|src/lib/hub/tiebreak.ts|src/lib/hub/tiebreak.test.cjs"
+  "seoLigas|src/lib/seoLigas.ts src/lib/mainLeagues.ts|src/lib/seoLigas.test.cjs"
 )
 
 for suite in "${SUITES[@]}"; do
