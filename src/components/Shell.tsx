@@ -21,6 +21,7 @@ import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
 import InstallApp from "@/components/InstallApp";
 import Onboarding from "@/components/Onboarding";
+import StripeReturn from "@/components/StripeReturn";
 import ExploreSheet from "@/components/ExploreSheet";
 import {
   GRUPOS,
@@ -292,6 +293,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       {/* tutorial de 3 telas: só para conta logada que ainda não viu (localStorage) */}
       <Onboarding />
+
+      {/* retorno do Stripe: atualiza o VIP na hora e limpa ?assinou da URL */}
+      <StripeReturn />
     </div>
   );
 }

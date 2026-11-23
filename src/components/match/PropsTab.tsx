@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { PropCalculada, Mercado } from "@/lib/playerPropsEngine";
+import PaywallCard from "@/components/PaywallCard";
 
 type Card = { mercado: Mercado; top: PropCalculada[] };
 type H2H = {
@@ -16,6 +17,8 @@ type Resposta = {
   fontes?: { casa: string | null; fora: string | null };
   semDados?: boolean;
   desativado?: boolean;
+  /** 402/403 do servidor: conta sem VIP ou anônima. */
+  locked?: boolean;
   erro?: string;
   error?: string;
 };
@@ -81,6 +84,12 @@ export default function PropsTab({ matchId, league, home, away }: { matchId: str
     if (!h2h || !h2h.jogos) return null;
     return `Nos últimos ${h2h.jogos} confrontos, houve ${h2h.cartoes.mandante} cartões para o time mandante e ${h2h.finalizacoes.visitante} finalizações para o time visitante.`;
   }, [h2h]);
+
+  // Gate VIP: antes caía no ramo de erro e mostrava a string do servidor numa
+  // caixa vermelha, sem próximo passo. Agora é o mesmo paywall do resto do app.
+  if (data?.locked) {
+    return <PaywallCard reason="expired" titulo="Player Props é VIP" compacto />;
+  }
 
   if (erro || data?.error || data?.erro) {
     return <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-[11px] text-danger">{erro || data?.error || data?.erro}</div>;

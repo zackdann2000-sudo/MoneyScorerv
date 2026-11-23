@@ -6,6 +6,7 @@ import { Check, Crown, Loader2, ShieldCheck, Sparkles, AlertCircle, ArrowLeft } 
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { PLANOS, brl } from "@/lib/planos";
+import { sanitizeNext } from "@/lib/nextPath";
 
 /**
  * Página de planos (/planos).
@@ -29,6 +30,8 @@ function PlanosInner() {
   const { user, vip } = useApp();
   const params = useSearchParams();
   const status = params.get("status");
+  /* Página de origem que pediu o VIP. O Stripe devolve o cliente exatamente lá. */
+  const next = sanitizeNext(params.get("next"));
 
   const [carregando, setCarregando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -40,7 +43,7 @@ function PlanosInner() {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plano: planoId }),
+        body: JSON.stringify({ plano: planoId, next }),
       });
       const json = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !json.url) throw new Error(json.error ?? `HTTP ${res.status}`);
@@ -50,12 +53,12 @@ function PlanosInner() {
       setErro(e instanceof Error ? e.message : "Não foi possível abrir o checkout");
       setCarregando(null);
     }
-  }, []);
+  }, [next]);
 
   return (
     <div className="max-w-2xl mx-auto px-3 py-4 space-y-4">
       <Link
-        href="/"
+        href={next}
         className="inline-flex items-center gap-1.5 text-[11px] font-bold text-mut hover:text-ink"
       >
         <ArrowLeft size={13} /> Voltar
@@ -78,8 +81,8 @@ function PlanosInner() {
           <div className="text-xs">
             <p className="font-bold text-acc">Pagamento confirmado!</p>
             <p className="text-mut mt-0.5">
-              A liberação é automática pelo webhook. Se ainda aparecer bloqueado, recarregue em
-              alguns segundos.
+              O Stripe libera o acesso automaticamente. Você volta para a página onde pediu o VIP
+              com tudo já desbloqueado.
             </p>
           </div>
         </div>

@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import { getStripe, planos, stripeConfigurado, type PlanoId } from "@/lib/stripe";
+import { sanitizeNext, comParametro } from "@/lib/nextPath";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,16 @@ export async function POST(req: NextRequest) {
   }
 
   let planoId: PlanoId = "mensal";
+  /* Para onde o Stripe devolve o cliente: a página onde ele bateu no paywall.
+     Default seguro é /jogos (nunca a tela de planos, para não parecer loop). */
+  let nextDestino = "/jogos";
   try {
-    const body = (await req.json()) as { plano?: string };
+    const body = (await req.json()) as { plano?: string; next?: string };
     if (body?.plano === "anual") planoId = "anual";
     else if (body?.plano && body.plano !== "mensal") {
       return NextResponse.json({ error: "plano inválido" }, { status: 400 });
     }
+    nextDestino = sanitizeNext(body?.next);
   } catch {
     // Corpo vazio: assume o mensal, que é o padrão do botão principal.
   }
@@ -81,14 +86,15 @@ export async function POST(req: NextRequest) {
         userId: String(user.id),
         email: user.email,
         plano: planoId,
+        next: nextDestino,
       },
       // Repetimos no nível da assinatura: eventos de fatura futura não trazem
       // o metadata da sessão, e podemos precisar identificar o dono.
       subscription_data: {
         metadata: { userId: String(user.id), plano: planoId },
       },
-      success_url: `${base}/planos?status=sucesso&sessao={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${base}/planos?status=cancelado`,
+      success_url: `${base}${comParametro(nextDestino, "assinou", "1")}`,
+      cancel_url: `${base}${comParametro(nextDestino, "assinatura", "cancelada")}`,
     });
 
     if (!sessao.url) {
