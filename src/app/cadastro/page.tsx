@@ -22,6 +22,12 @@ export default function Cadastro() {
       if (j.error) { setErr(j.error); setLoading(false); return; }
       await refreshUser();
       if (j.bonus) addToast({ title: "🎁 Bônus ativado!", body: j.bonus });
+      else if (j.trialReusado)
+        addToast({
+          title: "Conta criada",
+          body: "O bônus de 24h já foi usado neste aparelho ou rede. Você segue com 1 análise grátis por dia — o contador zera à meia-noite e os placares continuam abertos.",
+          url: "/planos",
+        });
       router.push("/");
     } catch { setErr("Falha de conexão."); setLoading(false); }
   };

@@ -41,6 +41,7 @@ const ROTAS: Rota[] = [
   { caminho: "/ligas", prioridade: 0.6, freq: "weekly" },
   { caminho: "/rankings", prioridade: 0.5, freq: "weekly" },
   { caminho: "/palpites-ia", prioridade: 0.6, freq: "daily" },
+  { caminho: "/apitou", prioridade: 0.8, freq: "daily" },
   { caminho: "/palpites", prioridade: 0.9, freq: "daily" },
   { caminho: "/ev", prioridade: 0.6, freq: "daily" },
   { caminho: "/edge", prioridade: 0.5, freq: "daily" },

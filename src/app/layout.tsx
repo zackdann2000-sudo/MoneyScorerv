@@ -20,14 +20,29 @@ const SITE_URL = (() => {
 })();
 
 const DESCRICAO =
-  "Probabilidade de modelo próprio, xG, props por jogador e histórico aberto de acertos. Análise pré-jogo explicada — sem promessa de lucro.";
+  "Análise esportiva quantitativa com modelo próprio: probabilidades, xG, props por jogador, combinada com EV e alertas de gol ao vivo. Números explicados — sem promessa de lucro.";
+
+const TITULO = "GreenScore · Análise Esportiva Quantitativa e Alertas ao Vivo";
 
 export const metadata: Metadata = {
   metadataBase: SITE_URL,
-  title: { default: "GreenScore · Análises Esportivas PRO", template: "%s | GreenScore" },
+  title: { default: TITULO, template: "%s | GreenScore" },
   description: DESCRICAO,
   applicationName: "GreenScore",
+  keywords: [
+    "análise esportiva",
+    "probabilidades futebol",
+    "xG",
+    "player props",
+    "combinada",
+    "EV",
+    "palpites com probabilidade",
+    "alertas de gol",
+    "ao vivo",
+  ],
   manifest: "/manifest.json",
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
   appleWebApp: { capable: true, title: "GreenScore", statusBarStyle: "black-translucent" },
   icons: {
     icon: [
@@ -41,13 +56,13 @@ export const metadata: Metadata = {
     siteName: "GreenScore",
     locale: "pt_BR",
     url: "/",
-    title: "GreenScore · Análises Esportivas PRO",
+    title: TITULO,
     description: DESCRICAO,
     images: [{ url: "/icon-512x512.png", width: 512, height: 512, alt: "GreenScore" }],
   },
   twitter: {
     card: "summary",
-    title: "GreenScore · Análises Esportivas PRO",
+    title: TITULO,
     description: DESCRICAO,
     images: ["/icon-512x512.png"],
   },

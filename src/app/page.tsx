@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getUser } from "@/lib/auth";
 import {
   Sparkles,
@@ -12,6 +13,9 @@ import {
   Zap,
   BarChart3,
   Clock,
+  Activity,
+  Layers,
+  Bell,
 } from "lucide-react";
 
 /* Landing pública — mobile-first, dark + verde neon.
@@ -70,6 +74,45 @@ const PASSOS = [
   },
 ];
 
+/* Recursos que só existem com o jogo rolando (ou logo antes do apito).
+   Cada card diz também o que o produto NÃO faz — a honestidade é o argumento. */
+const AO_VIVO = [
+  {
+    icon: Activity,
+    titulo: "Win-Prob ao vivo",
+    texto:
+      "Probabilidade de vitória, empate e derrota recalculada minuto a minuto com o placar real e o ímpeto de cada time. A curva só aparece quando há lance suficiente para sustentá-la.",
+    href: "/ao-vivo",
+    cta: "Ver placares ao vivo",
+    selo: "tempo real",
+  },
+  {
+    icon: Layers,
+    titulo: "Combo IA",
+    texto:
+      "Monta a combinada em três perfis — Seguro, Equilibrado e Ousado — com odd, probabilidade e EV calculado em cima da odd da Pinnacle. Pernas correlacionadas aparecem sem EV, nunca com EV inflado.",
+    href: "/apitou",
+    cta: "Montar uma combinada",
+    selo: "novo",
+  },
+  {
+    icon: Bell,
+    titulo: "Alertas de gol e kickoff",
+    texto:
+      "Push no celular quando sai gol e 15 minutos antes do apito inicial. Só para quem escolheu aquele time e aquele tipo de alerta — nada de notificação em massa.",
+    href: "/config",
+    cta: "Escolher meus alertas",
+    selo: "novo",
+  },
+];
+
+export const metadata: Metadata = {
+  title: "Análise esportiva quantitativa e alertas ao vivo",
+  description:
+    "Modelo Poisson próprio com xG, props por jogador, combinada com EV em odd da Pinnacle e alertas de gol no celular. Probabilidade, amostra e motivo à vista — sem promessa de lucro.",
+  alternates: { canonical: "/" },
+};
+
 export default async function LandingPage() {
   /* A landing é só para visitante. Quem já tem sessão cai direto na aba Jogos. */
   const user = await getUser().catch(() => null);
@@ -91,7 +134,7 @@ export default async function LandingPage() {
 
         <div className="relative">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-acc/40 bg-acc/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-acc">
-            <Sparkles className="h-3 w-3" /> análise pré-jogo com IA
+            <Sparkles className="h-3 w-3" /> análise quantitativa · pré-jogo e ao vivo
           </span>
 
           <h1 className="mt-4 text-3xl font-black leading-[1.05] text-txt sm:text-5xl">
@@ -103,8 +146,8 @@ export default async function LandingPage() {
           </h1>
 
           <p className="mt-4 max-w-xl text-[13px] leading-relaxed text-mut sm:text-base">
-            Modelo estatístico próprio, xG, props por jogador e histórico público de acertos.
-            Você vê o número, a amostra e o motivo — antes de qualquer aposta.{" "}
+            Modelo estatístico próprio, xG, props por jogador, combinada com EV e alertas de gol no
+            seu celular. Você vê o número, a amostra e o motivo — antes e durante o jogo.{" "}
             <span className="font-bold text-txt">Sem promessa de lucro, sem palpite sem base.</span>
           </p>
 
@@ -130,6 +173,9 @@ export default async function LandingPage() {
             </span>
             <span className="inline-flex items-center gap-1">
               <Check className="h-3.5 w-3.5 text-good" /> probabilidades explicadas
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Check className="h-3.5 w-3.5 text-good" /> alertas de gol ao vivo
             </span>
             <span className="inline-flex items-center gap-1">
               <Check className="h-3.5 w-3.5 text-good" /> histórico aberto
@@ -170,6 +216,48 @@ export default async function LandingPage() {
                   className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-black text-acc group-hover:gap-1.5"
                 >
                   {p.cta} <ArrowRight className="h-3 w-3" />
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ---------- AO VIVO ---------- */}
+      <section className="mt-10">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-black text-txt sm:text-2xl">Do apito ao apito</h2>
+            <p className="mt-1 text-[12px] text-mut">
+              Três recursos que só fazem sentido com o jogo rolando — e que mostram quando
+              não têm dado para opinar.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {AO_VIVO.map((r) => {
+            const Icon = r.icon;
+            return (
+              <article
+                key={r.titulo}
+                className="group flex flex-col rounded-2xl border border-acc/25 bg-gradient-to-b from-acc/[0.06] to-panel p-4 transition-colors hover:border-acc/50"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="grid h-9 w-9 place-items-center rounded-xl border border-acc/30 bg-acc/10 text-acc">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <h3 className="text-[14px] font-black text-txt">{r.titulo}</h3>
+                </div>
+                <span className="mt-2 w-fit rounded-full border border-acc/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-acc">
+                  {r.selo}
+                </span>
+                <p className="mt-2 flex-1 text-[12px] leading-relaxed text-mut">{r.texto}</p>
+                <Link
+                  href={r.href}
+                  className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-black text-acc group-hover:gap-1.5"
+                >
+                  {r.cta} <ArrowRight className="h-3 w-3" />
                 </Link>
               </article>
             );

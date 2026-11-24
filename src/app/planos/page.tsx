@@ -38,6 +38,12 @@ function PlanosInner() {
 
   const assinar = useCallback(async (planoId: string) => {
     setErro(null);
+    // Sem sessão o checkout responde 401: mandar para o login com retorno é
+    // melhor do que deixar o botão apagado sem explicação.
+    if (!user) {
+      window.location.href = "/login?next=/planos";
+      return;
+    }
     setCarregando(planoId);
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -46,14 +52,23 @@ function PlanosInner() {
         body: JSON.stringify({ plano: planoId, next }),
       });
       const json = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !json.url) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !json.url) {
+        const cru = json.error ?? `HTTP ${res.status}`;
+        throw new Error(
+          res.status === 503
+            ? "O pagamento ainda não está ativo nesta conta. Tente novamente mais tarde ou fale com o suporte."
+            : res.status === 401
+              ? "Sua sessão expirou. Entre novamente para assinar."
+              : cru,
+        );
+      }
       // Sai da SPA para o Stripe.
       window.location.href = json.url;
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível abrir o checkout");
       setCarregando(null);
     }
-  }, [next]);
+  }, [next, user]);
 
   return (
     <div className="max-w-2xl mx-auto px-3 py-4 space-y-4">
@@ -114,6 +129,24 @@ function PlanosInner() {
         </div>
       )}
 
+      {/* Caminho de conversão quando ainda não há sessão */}
+      {!user && (
+        <div className="rounded-2xl border border-acc/40 bg-acc/10 p-3 text-xs">
+          <p className="font-bold text-ink">Falta um passo: entrar na conta</p>
+          <p className="mt-0.5 leading-relaxed text-mut">
+            O acesso VIP fica preso ao seu login.{" "}
+            <Link href="/login?next=/planos" className="font-bold text-acc underline">
+              Entrar
+            </Link>{" "}
+            ou{" "}
+            <Link href="/cadastro" className="font-bold text-acc underline">
+              criar conta grátis
+            </Link>{" "}
+            e voltar aqui.
+          </p>
+        </div>
+      )}
+
       {/* Planos */}
       <div className="grid gap-2.5">
         {PLANOS.map((p) => (
@@ -147,7 +180,7 @@ function PlanosInner() {
 
             <button
               onClick={() => assinar(p.id)}
-              disabled={carregando !== null || !user}
+              disabled={carregando !== null}
               className={`w-full h-10 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-50 ${
                 p.destaque ? "bg-acc text-bg" : "bg-panel2 text-ink border border-line"
               }`}
@@ -180,15 +213,6 @@ function PlanosInner() {
           ))}
         </ul>
       </div>
-
-      {!user && (
-        <div className="rounded-2xl border border-line bg-panel p-3 text-center text-xs text-mut">
-          <Link href="/login" className="text-acc font-bold underline">
-            Entre na sua conta
-          </Link>{" "}
-          para assinar.
-        </div>
-      )}
 
       {/* Benefícios */}
       <div className="rounded-2xl border border-line bg-panel p-3.5 space-y-2">
