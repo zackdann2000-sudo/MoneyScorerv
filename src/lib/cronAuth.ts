@@ -1,7 +1,8 @@
 /**
  * Autorização única para rotas chamadas por cron (Vercel Cron ou curl).
  *
- * FONTE ÚNICA DE VERDADE: `process.env.CRON_SECRET`. Um só nome, em todas as
+ * FONTE ÚNICA DE VERDADE: `process.env.CRON_SECRET_V2`, com `CRON_SECRET` como
+ * fallback. Um só lugar, em todas as
  * rotas. Antes cada rota tinha um segundo nome de variável (PUSH_CRON_SECRET,
  * HUB_SYNC_SECRET, LIVE_CRON_SECRET) usado como alternativa, e isso criou um
  * modo de falha silencioso: com a env principal ausente no runtime, a rota
@@ -25,7 +26,7 @@ export const ENV_CRON_SECRET = "CRON_SECRET";
 
 /** Mensagem padrão de 503 (falha fechada) com a instrução de conserto. */
 export const MSG_SEM_SEGREDO =
-  "nenhum segredo configurado: defina CRON_SECRET nas envs da Vercel (escopo Production) e faça Redeploy.";
+  "nenhum segredo configurado: defina CRON_SECRET_V2 (ou CRON_SECRET) nas envs da Vercel (escopo Production) e faça Redeploy.";
 
 /** Comparação em tempo constante (não vaza prefixo por diferença de tempo). */
 export function iguaisSeguro(a: string, b: string): boolean {
@@ -37,9 +38,16 @@ export function iguaisSeguro(a: string, b: string): boolean {
 
 export type MotivoCron = "cron" | "segredo";
 
-/** Segredo configurado, lido de um único lugar. */
+/**
+ * Segredo configurado, lido de um único lugar.
+ *
+ * CRON_SECRET_V2 tem precedência e CRON_SECRET fica como fallback: assim é
+ * possível trocar o valor sem depender do cache de env do runtime da Vercel
+ * ter propagado a atualização de CRON_SECRET. Se V2 existir e estiver vazia
+ * (""), o fallback assume — por isso o `||` e não o `??`.
+ */
 function segredoConfigurado(): string {
-  return (process.env.CRON_SECRET ?? "").trim();
+  return (process.env.CRON_SECRET_V2 || process.env.CRON_SECRET || "").trim();
 }
 
 /**

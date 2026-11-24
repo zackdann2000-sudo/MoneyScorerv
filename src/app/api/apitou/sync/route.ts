@@ -46,8 +46,8 @@ function iguaisSeguro(a: string, b: string): boolean {
 
 /** Motivo da autorização, ou null se não autorizado. */
 function motivoAutorizado(req: NextRequest): "cron" | "chave" | null {
-  // 1) Vercel Cron com CRON_SECRET configurada.
-  const cronSecret = process.env.CRON_SECRET;
+  // 1) Vercel Cron com CRON_SECRET configurada (V2 tem precedência).
+  const cronSecret = process.env.CRON_SECRET_V2 || process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.get("authorization") ?? "";
     if (auth.startsWith("Bearer ") && iguaisSeguro(auth.slice(7), cronSecret)) return "cron";
@@ -66,7 +66,8 @@ async function executarSync(req: NextRequest) {
 
   // Falha fechada: sem nenhum segredo configurado, ninguém dispara download.
   if (!motivo) {
-    const nadaConfigurado = !process.env.CRON_SECRET && !process.env.APITOU_SYNC_KEY;
+    const nadaConfigurado =
+      !process.env.CRON_SECRET_V2 && !process.env.CRON_SECRET && !process.env.APITOU_SYNC_KEY;
     return NextResponse.json(
       nadaConfigurado
         ? { error: "nenhum segredo configurado (CRON_SECRET ou APITOU_SYNC_KEY)" }
