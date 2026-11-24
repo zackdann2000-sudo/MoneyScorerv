@@ -37,6 +37,7 @@ import {
   registrarEvento,
   diasDoPrice,
 } from "@/lib/stripe";
+import { decidirAcao } from "@/lib/stripePolicy";
 
 export const dynamic = "force-dynamic";
 // Webhook é rápido (2 queries); 60s é folga mais que suficiente.
@@ -111,6 +112,16 @@ async function revogar(alvo: Alvo, origem: string) {
 /* Handler                                                            */
 /* ------------------------------------------------------------------ */
 
+/** Price do evento — muda de lugar conforme o objeto do Stripe. */
+function priceIdDoEvento(tipo: string, obj: Record<string, unknown>): string | undefined {
+  if (tipo === "checkout.session.completed") {
+    const li = (obj as { line_items?: { data?: { price?: { id?: string } }[] } }).line_items;
+    return li?.data?.[0]?.price?.id;
+  }
+  const linhas = (obj.lines as { data?: { price?: { id?: string } }[] } | undefined)?.data ?? [];
+  return linhas[0]?.price?.id;
+}
+
 export async function POST(req: NextRequest) {
   const segredo = process.env.STRIPE_WEBHOOK_SECRET;
   if (!segredo) {
@@ -146,71 +157,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    switch (evento.type) {
-      case "checkout.session.completed": {
-        const s = evento.data.object as Stripe.Checkout.Session;
-        // Só liberamos se o pagamento está de fato pago (ou é assinatura, que
-        // pode chegar como "no_payment_required" em períodos de teste).
-        if (s.payment_status !== "paid" && s.payment_status !== "no_payment_required") {
-          console.log(`[stripe/webhook] sessão ${s.id} não paga (${s.payment_status}); ignorando`);
-          break;
-        }
-        const dias = await diasDoPrice(
-          (s as unknown as { line_items?: { data?: { price?: { id?: string } }[] } })
-            .line_items?.data?.[0]?.price?.id,
-        );
-        const r = await conceder(identidade(s as unknown as Record<string, unknown>), dias, "checkout");
-        if (!r.ok) console.error("[stripe/webhook] checkout:", r.motivo);
-        break;
-      }
+    /* A decisão é PURA e vive em @/lib/stripePolicy (com teste próprio):
+       falha de pagamento nunca revoga, só `subscription.deleted` e
+       `charge.refunded` revogam. Aqui só executamos a ação decidida. */
+    const obj = (evento.data.object || {}) as unknown as Record<string, unknown>;
+    const acao = decidirAcao({
+      type: evento.type,
+      paymentStatus: typeof obj.payment_status === "string" ? obj.payment_status : null,
+      billingReason: typeof obj.billing_reason === "string" ? obj.billing_reason : null,
+    });
 
-      case "invoice.paid": {
-        // Renovação mensal/anual: cada fatura paga estende o acesso.
-        const inv = evento.data.object as unknown as Record<string, unknown>;
-        const linhas = (inv.lines as { data?: { price?: { id?: string } }[] } | undefined)?.data ?? [];
-        const dias = await diasDoPrice(linhas[0]?.price?.id);
-        // billing_reason "subscription_create" já foi tratado no checkout;
-        // processar aqui também somaria duas vezes no primeiro pagamento.
-        if (inv.billing_reason === "subscription_create") {
-          console.log("[stripe/webhook] invoice.paid inicial; já tratado no checkout");
-          break;
-        }
-        const r = await conceder(identidade(inv), dias, "renovação");
-        if (!r.ok) console.error("[stripe/webhook] renovação:", r.motivo);
-        break;
-      }
-
-      case "invoice.payment_failed": {
-        // Cartão recusado. NÃO revogamos aqui: o Stripe faz novas tentativas
-        // (Smart Retries) antes de cancelar, e o cliente pode trocar o cartão
-        // no Portal. O acesso cai só quando o Stripe emitir
-        // `customer.subscription.deleted`.
-        const inv = evento.data.object as unknown as Record<string, unknown>;
-        const tentativa = typeof inv.attempt_count === "number" ? inv.attempt_count : 0;
-        const proxima = typeof inv.next_payment_attempt === "number"
-          ? new Date(inv.next_payment_attempt * 1000).toISOString()
+    if (acao.tipo === "ignorar") {
+      if (evento.type === "invoice.payment_failed") {
+        const tentativa = typeof obj.attempt_count === "number" ? obj.attempt_count : 0;
+        const proxima = typeof obj.next_payment_attempt === "number"
+          ? new Date(obj.next_payment_attempt * 1000).toISOString()
           : "sem nova tentativa agendada";
         console.warn(
           `[stripe/webhook] pagamento falhou (tentativa ${tentativa}); próxima: ${proxima}. Acesso mantido.`,
         );
-        break;
+      } else {
+        console.log(`[stripe/webhook] ${evento.type} ignorado: ${acao.motivo}`);
       }
-
-      case "customer.subscription.deleted": {
-        const sub = evento.data.object as unknown as Record<string, unknown>;
-        await revogar(identidade(sub), "cancelamento");
-        break;
-      }
-
-      case "charge.refunded": {
-        const ch = evento.data.object as unknown as Record<string, unknown>;
-        await revogar(identidade(ch), "reembolso");
-        break;
-      }
-
-      default:
-        // Outros eventos são aceitos e ignorados — responder 2xx evita retries.
-        break;
+    } else if (acao.tipo === "revogar") {
+      await revogar(identidade(obj), acao.origem);
+    } else {
+      const dias = await diasDoPrice(priceIdDoEvento(evento.type, obj));
+      const r = await conceder(identidade(obj), dias, acao.origem);
+      if (!r.ok) console.error(`[stripe/webhook] ${acao.origem}:`, r.motivo);
     }
 
     await registrarEvento(evento.id, evento.type);
