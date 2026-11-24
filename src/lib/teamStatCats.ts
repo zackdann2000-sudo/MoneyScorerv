@@ -9,6 +9,7 @@
 export type MetricKey =
   | "ball_possession"
   | "expected_goals"
+  | "goals"
   | "total_shots"
   | "shots_on_goal"
   | "shots_off_goal"
@@ -52,6 +53,7 @@ export type FiltroId = (typeof FILTROS)[number]["id"];
  */
 export const CATEGORIAS: Record<Exclude<FiltroId, "todas">, MetricKey[]> = {
   principais: [
+    "goals",
     "ball_possession",
     "expected_goals",
     "total_shots",
@@ -62,6 +64,7 @@ export const CATEGORIAS: Record<Exclude<FiltroId, "todas">, MetricKey[]> = {
     "goalkeeper_saves",
   ],
   ataque: [
+    "goals",
     "total_shots",
     "shots_on_goal",
     "shots_off_goal",

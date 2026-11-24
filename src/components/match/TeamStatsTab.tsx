@@ -78,6 +78,85 @@ function StatBar({
 }
 
 /* =======================================================================
+   COLUNAS 1T × 2T — comparação lado a lado dos dois tempos
+   Mostra o par mandante–visitante em cada tempo, na mesma linha da métrica.
+   Só recebe o que a fonte publicou de fato: métrica ausente em um dos tempos
+   aparece como "—" (nunca 0, que seria um número inventado).
+   ======================================================================= */
+function SplitTempos({
+  primeiro,
+  segundo,
+  casa,
+  fora,
+}: {
+  primeiro: TeamStatMetric[];
+  segundo: TeamStatMetric[];
+  casa: string;
+  fora: string;
+}) {
+  const linhas = (() => {
+    const porChave = new Map<string, { label: string; percent?: boolean; t1?: TeamStatMetric; t2?: TeamStatMetric }>();
+    for (const m of primeiro) {
+      porChave.set(m.key, { label: m.label, percent: m.percent, t1: m });
+    }
+    for (const m of segundo) {
+      const atual = porChave.get(m.key);
+      if (atual) atual.t2 = m;
+      else porChave.set(m.key, { label: m.label, percent: m.percent, t2: m });
+    }
+    return [...porChave.entries()].map(([key, v]) => ({ key, ...v }));
+  })();
+
+  if (!linhas.length) {
+    return (
+      <p className="text-[11px] text-mut text-center py-4">
+        A fonte ainda não publicou o recorte por tempo desta partida.
+      </p>
+    );
+  }
+
+  const fmt = (v: number, percent?: boolean) =>
+    percent ? `${Math.round(v)}%` : Number.isInteger(v) ? String(v) : v.toFixed(2);
+
+  const celula = (m?: TeamStatMetric, percent?: boolean) => {
+    if (!m) return <span className="text-mut/50">—</span>;
+    return (
+      <span className="tabular-nums">
+        <span className="text-acc font-bold">{fmt(m.home, percent)}</span>
+        <span className="text-mut/60 px-0.5">–</span>
+        <span className="text-ink/80 font-bold">{fmt(m.away, percent)}</span>
+      </span>
+    );
+  };
+
+  return (
+    <div className="bg-panel border border-line rounded-2xl px-3 py-2">
+      <p className="text-[9px] font-extrabold text-mut uppercase tracking-wide mb-1">
+        Por tempo · {casa} – {fora}
+      </p>
+      <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center">
+        <span className="text-[9px] font-bold text-mut uppercase" />
+        <span className="text-[9px] font-extrabold text-acc uppercase text-right">1º T</span>
+        <span className="text-[9px] font-extrabold text-acc uppercase text-right">2º T</span>
+        {linhas.map((l) => (
+          <div key={l.key} className="contents">
+            <span className="text-[11px] font-bold text-ink/80 py-1 border-t border-line/50 truncate">
+              {l.label}
+            </span>
+            <span className="text-[11px] text-right py-1 border-t border-line/50 tabular-nums">
+              {celula(l.t1, l.percent)}
+            </span>
+            <span className="text-[11px] text-right py-1 border-t border-line/50 tabular-nums">
+              {celula(l.t2, l.percent)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* =======================================================================
    ABA ESTATÍSTICAS COMPARATIVAS DO TIME
    ======================================================================= */
 export default function TeamStatsTab({
@@ -122,6 +201,16 @@ export default function TeamStatsTab({
   }, [data, filtro, busca, modo, tempo, temSplits]);
 
   const loading = !data && !erro;
+
+  /* Séries por tempo, já normalizadas pela fonte (SportMonks periods.statistics
+     ou 5Dollar). Vazias quando ninguém publicou o recorte. */
+  const [serie1, serie2] = useMemo(
+    () =>
+      temSplits
+        ? [data?.primeiroTempo || [], data?.segundoTempo || []]
+        : [[], []],
+    [data, temSplits]
+  );
 
   if (erro) {
     return <p className="text-xs text-mut text-center py-8">{erro}</p>;
@@ -271,6 +360,12 @@ export default function TeamStatsTab({
             <StatBar key={m.key} metric={m} homeColor="var(--acc)" awayColor="#4a5a66" />
           ))}
         </div>
+      )}
+
+      {/* Colunas de 1º × 2º tempo: visão lado a lado, na aba "Total".
+          Nas abas 1t/2t o detalhe já é a lista abaixo. */}
+      {!loading && temSplits && tempo === "total" && (
+        <SplitTempos primeiro={serie1} segundo={serie2} casa={home.name} fora={away.name} />
       )}
 
       {data?.source && (

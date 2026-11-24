@@ -5,6 +5,7 @@ import { matchTeamStatsCache } from "@/db/schema";
 import { getSummaryRaw, matchFromSummary, normStats } from "@/lib/espn";
 import { getKey } from "@/lib/keys";
 import { afTeamStats, afFindFixtureId, afFixtureFinished, type TeamStatMetric } from "@/lib/providers";
+import { smFindFixtureId, smTeamStats } from "@/lib/providers";
 import { fiveDollarFindFixture, fiveDollarTeamStats, MAPEAMENTO_LIGAS } from "@/lib/fiveDollar";
 import { goalApiFetch } from "@/lib/goalApi";
 import { cached } from "@/lib/cache";
@@ -77,13 +78,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       if (row) {
         const idade = Date.now() - new Date(row.updatedAt).getTime();
         const vale = idade < (row.finalizada ? TTL_ENCERRADA : TTL_AO_VIVO);
-        if (vale) {
-          /* O payload pode ser a lista de métricas ou o envelope { metrics, splits }. */
-          const bruto = row.payload as any;
-          const pMetrics: TeamStatMetric[] = Array.isArray(bruto) ? bruto : bruto?.metrics || [];
-          const pSplits = Array.isArray(bruto) ? null : bruto?.splits || null;
-          const p1 = pSplits?.primeiroTempo || [];
-          const p2 = pSplits?.segundoTempo || [];
+        /* O payload pode ser a lista de métricas ou o envelope { metrics, splits }. */
+        const bruto = row.payload as any;
+        const pMetrics: TeamStatMetric[] = Array.isArray(bruto) ? bruto : bruto?.metrics || [];
+        const pSplits = Array.isArray(bruto) ? null : bruto?.splits || null;
+        const p1 = pSplits?.primeiroTempo || [];
+        const p2 = pSplits?.segundoTempo || [];
+        const temSplitNoCache = p1.length > 0 && p2.length > 0;
+        /* Cache sem split continua sendo cache: devolvemos, mas só depois de
+           tentar o SportMonks (a cascata abaixo). Sem isso, uma linha gravada
+           antes do split existir esconderia 1º/2º tempo por 24h. */
+        if (vale && (temSplitNoCache || !match.finished)) {
           return NextResponse.json({
             metrics: pMetrics,
             source: row.source,
@@ -92,10 +97,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
             updatedAt: row.updatedAt,
             primeiroTempo: p1,
             segundoTempo: p2,
-            temSplits: p1.length > 0 && p2.length > 0,
+            temSplits: temSplitNoCache,
           });
         }
-        cacheMotivo = "expirado";
+        cacheMotivo = vale ? "hit-sem-split" : "expirado";
       }
     } catch {
       cacheMotivo = "banco-indisponivel";
@@ -178,7 +183,46 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       }
     }
 
-    /* ---------- 5) GOAL API (fallback para xG e estatísticas) ---------- */
+    /* ---------- 5) SportMonks — split de 1º/2º tempo (periods.statistics) ----------
+       Entra quando falta o comparativo OU quando falta o split: é a única fonte
+       que publica estatística por período. Não existe parâmetro `current_half`
+       na API v3; o recorte vem de `include=periods.statistics` (type_id 1 e 2). */
+    if (!metrics.length || !(primeiroTempo.length && segundoTempo.length)) {
+      const smKey = await getKey("sportmonks").catch(() => "");
+      if (smKey) {
+        try {
+          const smId = await cached(
+            `smfx:${id}:${match.date}`,
+            24 * 60 * 60 * 1000,
+            () => smFindFixtureId(match.home.name, match.away.name, match.date)
+          );
+          if (smId) {
+            const rsm = await smTeamStats(smId);
+            if (rsm.metrics.length) {
+              /* O comparativo da SportMonks cobre só uma parte das métricas:
+                 completa o que já veio de outra fonte em vez de trocar tudo. */
+              if (!metrics.length) {
+                metrics = rsm.metrics;
+                fonte = "Sportmonks";
+                fixtureIdUsado = String(smId);
+              } else {
+                const existentes = new Set(metrics.map((m) => m.key));
+                metrics = [...metrics, ...rsm.metrics.filter((m) => !existentes.has(m.key))];
+              }
+              if (!(primeiroTempo.length && segundoTempo.length)) {
+                primeiroTempo = rsm.primeiroTempo;
+                segundoTempo = rsm.segundoTempo;
+              }
+              fim = fim || rsm.finalizada;
+            }
+          }
+        } catch {
+          /* sem split: os toggles de tempo ficam travados na UI */
+        }
+      }
+    }
+
+    /* ---------- 6) GOAL API (fallback para xG e estatísticas) ---------- */
     if (!metrics.length) {
       try {
         const g = await goalApiFetch<any>(`/fixtures/${fixtureIdUsado || id}/statistics`);
@@ -222,7 +266,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       }
     }
 
-    /* ---------- 6) Nada encontrado ---------- */
+    /* ---------- 7) Nada encontrado ---------- */
     if (!metrics.length) {
       return NextResponse.json({
         metrics: [],
@@ -232,7 +276,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       });
     }
 
-    /* ---------- 7) Grava no banco (mesma tabela, mesma regra de TTL) ---------- */
+    /* ---------- 8) Grava no banco (mesma tabela, mesma regra de TTL) ---------- */
     try {
       await db
         .insert(matchTeamStatsCache)

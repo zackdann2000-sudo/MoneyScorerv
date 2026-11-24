@@ -64,6 +64,7 @@ SUITES+=(
   "apitou-fonte|src/lib/apitou/fonte.test.cjs"
   "apitou-analises|src/lib/apitou/analises.test.cjs"
   "nerdytips-fonte|src/lib/nerdytips/fonte.test.cjs"
+  "smTempos|src/lib/smTempos.test.cjs"
 )
 
 # --- 1. Seleciona as suítes -------------------------------------------------

@@ -1,5 +1,6 @@
 import { fetchJson } from "./cache";
 import { getKey } from "./keys";
+import { chaveStatSM, splitDoFixture, type SplitTempos } from "./smTempos";
 
 /* =======================================================================
    NAVOR DE RESILIÊNCIA — toda cascata registra quem respondeu e por quê
@@ -70,6 +71,48 @@ export async function smFixtureStats(fixtureId: string | number) {
     cornersHome: find(["corners"], "home"), cornersAway: find(["corners"], "away"),
     dangerousHome: find(["dangerous attack"], "home"), dangerousAway: find(["dangerous attack"], "away"),
   };
+}
+
+/* =======================================================================
+   SportMonks — busca do fixture e do comparativo com split por tempo.
+   -----------------------------------------------------------------------
+   O parse (periods.statistics / scores -> metricas) e PURO e mora em
+   `src/lib/smTempos.ts`; aqui so ha rede + cache. Nao existe parametro
+   `current_half` na API v3: o recorte de 1o/2o tempo vem do include
+   `periods.statistics` (type_id 1 e 2). Ver o cabecalho de smTempos.ts.
+   ======================================================================= */
+
+/**
+ * Resolve o fixture do SportMonks por nome dos times + data (YYYY-MM-DD).
+ * A API nao aceita busca por dois nomes; a listagem do dia e filtrada aqui.
+ */
+export async function smFindFixtureId(
+  homeName: string,
+  awayName: string,
+  isoDate: string,
+): Promise<number | null> {
+  const dia = String(isoDate || "").slice(0, 10);
+  if (!dia) return null;
+  const d = await smFetch(`/fixtures/date/${dia}?include=participants`, 24 * 60 * 60 * 1000);
+  const home = chaveStatSM(homeName);
+  const away = chaveStatSM(awayName);
+  if (!home || !away) return null;
+  for (const f of d?.data || []) {
+    const nomes: string[] = (f?.participants || []).map((p: any) => chaveStatSM(p?.name));
+    if (nomes.some((n) => n.includes(home)) && nomes.some((n) => n.includes(away))) {
+      return Number(f?.id) || null;
+    }
+  }
+  return null;
+}
+
+/** Estatisticas comparativas do SportMonks: total + 1o e 2o tempo. */
+export async function smTeamStats(fixtureId: string | number): Promise<SplitTempos> {
+  const d = await smFetch(
+    `/fixtures/${fixtureId}?include=participants;statistics.type;scores;periods.statistics.type;state`,
+    30_000,
+  );
+  return splitDoFixture(d?.data);
 }
 
 /* ===== Bzzoiro (fallback de probabilidades) ===== */
