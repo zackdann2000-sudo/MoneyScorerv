@@ -87,6 +87,32 @@ grátis por dia (`quota.ts`, contador zera à meia-noite de Brasília).
   checkout). Ao reativar, restaurar o `trackOnce("purchase", ...)` na tela de
   sucesso — senão o funil para em `begin_checkout` para sempre.
 
+### 2.5 Pipeline de dados: por que o app pode abrir sem jogos
+
+Duas coisas separadas, e é importante não confundir:
+
+| Tela | De onde vem | Se falhar |
+|---|---|---|
+| `/jogos`, `/ao-vivo` | **ESPN ao vivo** (`api/matches` → `lib/espn.ts`), sem banco no meio | fonte fora ⇒ lista vazia; a rota devolve `error`/`degradado` e a tela mostra “Buscando jogos do dia…” com retry e polling de 30s |
+| Hub (`/ev`, `/edge`, `/hub`, análise) | **Neon**, preenchido pelo cron diário | cron não rodou ⇒ tabelas vazias ⇒ páginas com empty state |
+
+O Hub roda em **3 fases** (orçamento 45s cada): `fase=fixtures` (04h UTC) →
+`fase=context` (06h) → `fase=analyze` (07h). Foi dividido porque a função pode ser
+morta no meio de uma escrita quando o Hub inteiro roda numa invocação — e o
+sintoma é exatamente “abriu vazio”.
+
+Quem agenda é um **agendador externo** (cron-job.org, grátis), não a Vercel: o
+plano Hobby aceita poucos cron jobs por projeto, então `vercel.json` mantém apenas
+`?acao=apitou` (03h) e `/api/track-record/run` (13h). As fases, os rankings, a
+sonda e o watcher de gol rodam de fora — a rota não depende de quem a chama.
+Configuração: `docs/DEPLOY_CHECKLIST.md` §5.1.
+
+Sonda, sem escrever nada: `GET /api/cron/diario?acao=pipeline` (com
+`Authorization: Bearer $CRON_SECRET`). Devolve `cobertura` (`ok` / `magra` /
+`vazia`), fixtures por dia, `comOdd`, `ultimaEscrita` e quais chaves de fonte
+existem. `&ping=1` faz **uma** chamada à ESPN para provar que a fonte responde.
+Se `cobertura: "vazia"`, o `/jogos` vai abrir sem partidas — esse é o alarme.
+
 ## 3. Regras de negócio inegociáveis
 
 | Regra | Onde está travada |

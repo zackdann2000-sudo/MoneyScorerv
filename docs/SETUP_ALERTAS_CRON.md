@@ -1,10 +1,10 @@
 # Alertas ao vivo — como ligar o cron de 1 minuto
 
 A rota **`GET /api/cron/live`** é o watcher de gol e de kickoff. Ela foi escrita para
-rodar **a cada minuto**, mas o Vercel Cron do plano **Hobby só aceita 1 execução por
-dia** — por isso a entrada `* * * * *` foi removida do `vercel.json` (manter ali
-quebraria o deploy). No plano Pro basta recriar a entrada. No Hobby, use um agendador
-externo, como o cron-job.org.
+rodar **a cada minuto**, mas o Vercel Cron do plano **Hobby não aceita esse intervalo**
+(e o limite de cron jobs do projeto é pequeno) — por isso a entrada `* * * * *` foi
+removida do `vercel.json` (manter ali quebraria o deploy). O agendamento vem do
+cron-job.org, que também hospeda as fases do Hub: `docs/DEPLOY_CHECKLIST.md` §5.1.
 
 ---
 
@@ -15,7 +15,7 @@ externo, como o cron-job.org.
 | `LIVE_CRON_SECRET` | Segredo da rota. Sem ele a rota responde **503** de propósito (falha fechada). |
 | `CRON_SECRET` | Só necessário se você usar o Vercel Cron (Pro). |
 | `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | Push do app Android via Firebase. |
-| `VAPID_PUBLIC`, `VAPID_PRIVATE` | Push do navegador (PWA). |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Push do navegador (PWA). Os dois primeiros são um par: misturar chaves de origens diferentes faz todo push falhar em silêncio. |
 
 Gere o segredo:
 

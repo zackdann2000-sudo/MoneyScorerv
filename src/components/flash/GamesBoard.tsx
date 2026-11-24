@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Star, RefreshCw, ChevronDown, Search } from "lucide-react";
+import { ArrowLeft, Star, RefreshCw, ChevronDown, Loader2, Search } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import DateStrip7 from "@/components/DateStrip7";
 import { hojeYmd } from "@/lib/semana";
@@ -44,6 +44,8 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
   const [sport, setSport] = useState("football");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState("");
+  /** A fonte respondeu parcialmente (uma das chamadas caiu): avisa sem bloquear. */
+  const [degradado, setDegradado] = useState(false);
   const [updated, setUpdated] = useState<number>(0);
   const [filter, setFilter] = useState<"all" | "live" | "post" | "pre" | "tip">(mode === "live" ? "live" : "all");
   const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
@@ -69,6 +71,7 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
       }));
       setRows(list);
       setUpdated(Date.now());
+      setDegradado(Boolean(j.degradado));
       if (j.error && !list.length) setErr(j.error);
     } catch {
       setErr("Falha ao carregar os jogos. Tente de novo.");
@@ -90,6 +93,8 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
           home: c.home, away: c.away, prices: null, strategy: null,
         })));
         setUpdated(Date.now());
+        if (j.error) setErr(String(j.error));
+        if (j.degradado) setDegradado(true);
       } catch {
         if (!cancelled) { setErr("Falha ao carregar os jogos. Tente de novo."); setRows([]); }
       }
@@ -261,7 +266,48 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
           <button onClick={() => load()} className="mt-3 h-11 px-4 rounded-full bg-live text-white text-sm font-bold">Tentar de novo</button>
         </div>
       )}
-      {rows && visiveis.length === 0 && !err && (
+      {/* Base VAZIA (nada para o dia, sem erro): não é "nenhum jogo neste
+          filtro" — é a fonte/base ainda sem dados. Mantém a tela viva com
+          spinner, explicação honesta e o polling de 30s que já existe. */}
+      {rows?.length === 0 && !err && (
+        <div className="rounded-2xl border border-line bg-panel px-4 py-8 text-center">
+          <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-acc/30 bg-acc/10 text-acc">
+            <Loader2 size={18} className="animate-spin" />
+          </span>
+          <p className="mt-3 font-bold text-ink">Buscando jogos do dia…</p>
+          <p className="mx-auto mt-1 max-w-xs break-words text-[12px] leading-relaxed text-mut">
+            A fonte ainda não devolveu partidas para esta data. A lista se atualiza sozinha a cada
+            30 segundos — não precisa recarregar a página.
+          </p>
+          <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+            <button
+              onClick={() => load()}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-acc px-4 text-[12px] font-black text-black"
+            >
+              <RefreshCw size={13} /> Tentar agora
+            </button>
+            <Link
+              href="/ao-vivo"
+              className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-panel2 px-4 text-[12px] font-bold text-ink"
+            >
+              Ver placares ao vivo
+            </Link>
+          </div>
+          <p className="mt-3 text-[10px] leading-relaxed text-mut">
+            Se persistir por muito tempo, a fonte pública pode estar fora —{" "}
+            <Link href="/fontes" className="font-bold text-acc hover:underline">
+              ver saúde das fontes
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+      {degradado && (rows?.length ?? 0) > 0 && (
+        <p className="mb-2 text-[10px] font-semibold text-warn">
+          Fonte instável: a lista pode estar incompleta e se corrige na próxima atualização.
+        </p>
+      )}
+      {rows && rows.length > 0 && visiveis.length === 0 && !err && (
         <div className="text-center py-12 px-4">
           {mode === "favorites" ? (
             <>

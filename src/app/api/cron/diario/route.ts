@@ -2,18 +2,40 @@
  * Cron diário — separado em 3 invocações por causa do TEMPO, não da cota.
  *
  * Histórico: esta rota já fez apitou + rankings + Hub numa invocação só, porque
- * o plano Hobby tinha cota de 2 cron jobs. Isso deixou de existir: desde jan/2026
- * todo plano aceita 100 crons por projeto (o Hobby só exige que cada um rode no
- * máximo 1x por dia). O efeito colateral da versão antiga era grave: apitou
- * (~36s) + rankings (~50s) + Hub (orçamento 120s) encostavam no teto de 300s e
- * o Hub era o primeiro a ser PULADO pelo `budgetMs` — o banco ficou 41h sem
- * fixture nova e ninguém viu, porque etapa pulada não é erro.
+ * o plano Hobby limita os cron jobs do projeto. Juntar tudo tinha efeito
+ * colateral grave: apitou (~36s) + rankings (~50s) + Hub (orçamento 120s)
+ * encostavam no teto de execução e o Hub era o primeiro a ser PULADO pelo
+ * `budgetMs` — o banco chegou a ficar 41h sem fixture nova e ninguém viu,
+ * porque etapa pulada não é erro.
  *
- * Agora cada etapa tem a sua invocação e o seu orçamento inteiro:
- *   03:00 UTC  ?acao=apitou    → fontes do apitou (`sincronizarEGravar`)
- *   04:00 UTC  ?acao=hub       → Hub: fixtures (histórico primeiro), context, análise, liquidação
- *   05:00 UTC  ?acao=rankings  → pré-aquece os rankings das 6 ligas e grava no Neon
- *   13:00 UTC  /api/track-record/run → ledger de picks de valor
+ * DESENHO ATUAL — a rota sabe fazer cada etapa sozinha, mas quem chama é que
+ * decide. A Vercel fica com 2 crons (o limite do Hobby que adotamos como teto),
+ * e o resto vai de agendador externo gratuito (cron-job.org), que não tem esse
+ * limite. Passo a passo: `docs/DEPLOY_CHECKLIST.md` §5.1.
+ *
+ *   Na Vercel (vercel.json):
+ *     03:00 UTC  ?acao=apitou        → fontes do apitou (`sincronizarEGravar`)
+ *     13:00 UTC  /api/track-record/run → ledger de picks de valor
+ *
+ *   No cron-job.org (ou qualquer agendador externo):
+ *     04:00 UTC  ?acao=hub&fase=fixtures → Hub: fixtures (histórico primeiro)
+ *     05:00 UTC  ?acao=rankings          → rankings das 6 ligas no Neon
+ *     06:00 UTC  ?acao=hub&fase=context  → stats, H2H e contexto do dia
+ *     07:00 UTC  ?acao=hub&fase=analyze  → análise + liquidação
+ *     09:00 UTC  ?acao=pipeline          → sonda: "o app vai abrir vazio?"
+ *     a cada 1 min  /api/cron/live       → alertas de gol e kickoff
+ *
+ * Nenhuma etapa depende de estar na Vercel: todas exigem só o segredo e a URL.
+ *
+ * POR QUE AS FASES: o teto de execução de uma função no Hobby é curto e o Hub
+ * inteiro (fixtures + contexto + análise + liquidação) é longo. Rodando tudo
+ * numa invocação, a função pode ser morta NO MEIO de uma escrita — e o sintoma
+ * é exatamente "o app abriu vazio". Dividido em três, cada invocação faz uma
+ * coisa, com orçamento de 45s, e cada uma é idempotente: se cair, roda de novo.
+ *
+ * SONDA: `?acao=pipeline` lê só o banco (e a fonte, com `&ping=1`) e diz se há
+ * fixture para hoje/amanhã — é como saber se a tela vai abrir vazia antes do
+ * usuário reclamar.
  *
  * Atenção (Hobby): o cron roda 1x por dia dentro da hora escolhida (±59 min),
  * então a ORDEM vem da distância de 1h entre os horários, não do minuto. Como
@@ -43,6 +65,7 @@ import { cronConfigurado, motivoCronAutorizado } from "@/lib/cronAuth";
 import { aquecerRankings } from "@/lib/rankingsWarm";
 import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
 import { runHubSync } from "@/lib/hub/sync-runner";
+import { diagnosticarPipeline } from "@/lib/pipelineHealth";
 
 export const dynamic = "force-dynamic";
 // 300s = maxDuration padrão do Fluid Compute em todos os planos (doc Vercel,
@@ -70,6 +93,18 @@ export async function GET(req: NextRequest) {
   if (acao === "estado") {
     out.apitou = await lerResumo().catch(() => null);
     return NextResponse.json(out);
+  }
+
+  /* Sonda de dados: "vai abrir vazio?" — não escreve nada. `&ping=1` faz UMA
+     chamada à ESPN (contagem + latência) e só deve ser usada na mão. */
+  if (acao === "pipeline") {
+    const ping = req.nextUrl.searchParams.get("ping") === "1";
+    try {
+      out.pipeline = await diagnosticarPipeline({ ping });
+    } catch (e) {
+      out.pipeline = { ok: false, erro: erro(e) };
+    }
+    return NextResponse.json(out, { status: 200 });
   }
 
   if (acao === "tudo" || acao === "apitou") {
@@ -105,33 +140,77 @@ export async function GET(req: NextRequest) {
     if (!hubAtivo) {
       out.hub = { skipped: true, reason: "desligado por ?hub=0" };
     } else {
-      /* Orçamento por invocação: `?acao=hub` roda sozinho e pode usar quase todo
-         o teto. Em `?acao=tudo` (manual) apitou e rankings já consumiram tempo,
-         então o Hub fica com o pedaço menor. Era exatamente esse teto apertado
-         que fazia o Hub ser pulado todo dia sem erro visível. */
-      const budgetHub = (acao === "hub" ? 240 : 120) * 1000;
-      const budgetParam = Number(req.nextUrl.searchParams.get("hubBudget"));
-      const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : budgetHub;
-      try {
-        out.hub = await runHubSync({
-          // Hoje, amanhã e depois de amanhã: sem isto a base só tinha o dia
-          // corrente e uma liga de elite sem jogo hoje (Champions, Europa
-          // League) ficava ausente do hub mesmo com partidas marcadas.
+      /* Fases: cada uma cabe num teto curto de execução. Sem `fase`, roda o
+         Hub inteiro (manual / Fluid Compute, orçamento maior). Com `fase`, o
+         orçamento cai para 45s — folga para a função não ser morta no meio de
+         uma escrita, que é o que produz "app abrindo vazio". */
+      const fase = (req.nextUrl.searchParams.get("fase") || "").trim().toLowerCase();
+
+      /** Opções parciais por fase; o resto vem do padrão abaixo. */
+      const FASES: Record<string, Partial<Parameters<typeof runHubSync>[0]>> = {
+        // 3 dias passados (histórico do motor) + hoje, amanhã e depois.
+        fixtures: {
           dates: 3,
-          // 3 dias passados: alimenta `recentMatches` e evita a análise igual
-          // para todos os jogos da liga (motor sem histórico).
           historyDays: 3,
+          contextEnabled: false,
+          oddsEnabled: false,
+          lineupsEnabled: false,
+          analyze: false,
+          settle: false,
+        },
+        // Só o contexto do dia: stats, H2H e classificação usados na análise.
+        context: {
+          dates: 0,
+          historyDays: 0,
+          contextEnabled: true,
           context: 24,
-          // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
+          maxContext: 20,
+          oddsEnabled: false,
+          lineupsEnabled: false,
+          analyze: false,
+          settle: false,
+        },
+        // Análise + liquidação: o que precisa do contexto já gravado.
+        analyze: {
+          dates: 0,
+          historyDays: 0,
+          contextEnabled: false,
           oddsEnabled: false,
           lineupsEnabled: false,
           analyze: true,
           settle: true,
-          maxContext: 20,
-          budgetMs,
-        });
-      } catch (e) {
-        out.hub = { ok: false, erro: erro(e) };
+        },
+      };
+
+      if (fase && !FASES[fase]) {
+        out.hub = { ok: false, erro: `fase desconhecida: ${fase} (use fixtures, context ou analyze)` };
+      } else {
+        const budgetHub = (fase ? 45 : acao === "hub" ? 240 : 120) * 1000;
+        const budgetParam = Number(req.nextUrl.searchParams.get("hubBudget"));
+        const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : budgetHub;
+        if (fase) out.fase = fase;
+
+        try {
+          out.hub = await runHubSync({
+            // Padrão (Hub inteiro): hoje, amanhã e depois de amanhã — sem isto
+            // uma liga de elite sem jogo hoje ficava ausente do hub. E 3 dias
+            // passados alimentam `recentMatches` (motor sem histórico analisa
+            // todos os jogos da liga igual).
+            dates: 3,
+            historyDays: 3,
+            context: 24,
+            // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
+            oddsEnabled: false,
+            lineupsEnabled: false,
+            analyze: true,
+            settle: true,
+            maxContext: 20,
+            ...FASES[fase],
+            budgetMs,
+          });
+        } catch (e) {
+          out.hub = { ok: false, erro: erro(e) };
+        }
       }
     }
   }

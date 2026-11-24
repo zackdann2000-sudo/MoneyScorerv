@@ -17,6 +17,8 @@ export default function QuotaConsumo({ id }: { id: string }) {
   const { user, vip } = useApp();
   const [bloqueado, setBloqueado] = useState(false);
   const [restante, setRestante] = useState<number | null>(null);
+  /** true = esta abertura gastou a ÚLTIMA análise do dia (aviso de 1 linha). */
+  const [ultimaDoDia, setUltimaDoDia] = useState(false);
 
   useEffect(() => {
     // Sem login ou com VIP/admin: nada a consumir.
@@ -33,20 +35,32 @@ export default function QuotaConsumo({ id }: { id: string }) {
            bloqueio, e reabrir a mesma partida pulava o fetch — ou seja, quem
            estourava a quota via a análise no reload. */
         if (j?.liberado !== false) marcarConsumido(id);
-        setRestante(j?.quota?.restante ?? null);
+        const restavam = j?.quota?.restante ?? null;
+        setRestante(restavam);
+        setUltimaDoDia(j?.liberado !== false && restavam === 0);
         if (j && j.liberado === false) setBloqueado(true);
       })
       .catch(() => {});
     return () => { vivo = false; };
   }, [id, user, vip]);
 
-  if (!bloqueado) return null;
+  if (!bloqueado && !ultimaDoDia) return null;
   return (
     <div className="mb-2">
-      <PaywallCard reason="quota" compacto />
-      {restante === 0 && (
+      {/* Limite alcançado AGORA: o aviso vem antes do paywall e explica que não
+          foi erro — a próxima análise volta à meia-noite. */}
+      {bloqueado && <PaywallCard reason="quota" compacto />}
+      {bloqueado && restante === 0 && (
         <p className="mt-1 text-center text-[10px] text-mut">
           O contador zera à meia-noite (horário de Brasília). A análise continua aqui amanhã.
+        </p>
+      )}
+
+      {/* Consumiu a última liberada: aviso discreto, uma linha, sem paywall. */}
+      {!bloqueado && ultimaDoDia && (
+        <p className="rounded-xl border border-line bg-panel px-3 py-2 text-[10px] font-semibold leading-snug text-mut">
+          Essa foi sua análise grátis de hoje. A próxima volta à meia-noite (Brasília) — placares e
+          estatísticas continuam abertos até lá.
         </p>
       )}
     </div>
