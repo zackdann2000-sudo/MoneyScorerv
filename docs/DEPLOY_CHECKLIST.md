@@ -106,6 +106,7 @@ Obrigatórias:
 | `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | push Android |
 | `VAPID_PUBLIC`, `VAPID_PRIVATE`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | push web (`mailto:` no subject) |
 | `ONESIGNAL_REST_API_KEY` | se usar o canal OneSignal |
+| `NEXT_PUBLIC_GA_ID` | GA4 (`G-...`). Vazio = nenhum script de terceiro carregado. |
 
 - [ ] Nada de env de teste em Production; use *Preview* para experimentos.
 - [ ] `FCM_PRIVATE_KEY` com `\n` literais (a lib troca por quebra de linha real).

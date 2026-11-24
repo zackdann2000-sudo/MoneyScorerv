@@ -2,7 +2,7 @@
   "id": "/",
   "name": "GreenScore",
   "short_name": "GreenScore",
-  "description": "Análises esportivas com IA: probabilidades, valor esperado (EV), escalação, momentum e track record auditável.",
+  "description": "Análise esportiva quantitativa: probabilidades, xG, player props, combinada com EV e alertas de gol ao vivo. Track record auditável.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/",

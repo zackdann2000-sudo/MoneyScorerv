@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TrendingUp, Target } from "lucide-react";
+import { TrendingUp, Target, ArrowRight, Lock, LineChart } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Donut } from "@/components/charts";
 import { SourceFoot } from "@/components/ui";
@@ -17,6 +17,13 @@ export default function Desempenho() {
 
   if (!d) return <div className="space-y-2"><div className="skeleton h-8 w-56" /><div className="skeleton h-52" /><div className="skeleton h-40" /></div>;
   const s = d.last30 || {};
+  /* Números de topo vêm da MESMA auditoria que a lista detalhada usa
+     (`audit.summary`), montada pelo cron /api/track-record/run. Nada aqui é
+     recalculado no cliente — se está na tela, veio do banco. */
+  const km = d.audit?.summary ?? null;
+  const resolvidas = (km?.greens ?? 0) + (km?.reds ?? 0);
+  const comOdd = km?.priced ?? 0;
+  const semHistorico = resolvidas === 0;
 
   return (
     <div>
@@ -30,7 +37,58 @@ export default function Desempenho() {
 
       <Audit audit={d.audit} period={period} setPeriod={setPeriod} league={league} setLeague={setLeague} market={market} setMarket={setMarket} />
 
-      <div className="bg-panel border border-line rounded-2xl p-4">
+      {/* ---------- KPIs de prova social: acerto, ROI, lucro e amostra ---------- */}
+      <div className="rounded-2xl border border-acc/30 bg-gradient-to-br from-acc/[0.10] to-panel p-3 mb-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-[10px] font-black uppercase tracking-wide text-acc">
+            Win rate e ROI · {period === "all" ? "tudo" : `últimos ${period} dias`}
+          </p>
+          <p className="text-[9px] font-bold text-mut">
+            {resolvidas} pick{resolvidas === 1 ? "" : "s"} liquidada{resolvidas === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <Kpi
+            valor={km?.acc != null ? `${km.acc}%` : "—"}
+            rotulo="Acerto"
+            destaque={!semHistorico}
+          />
+          <Kpi
+            valor={km?.roi != null ? `${(km.roi * 100).toFixed(1)}%` : "—"}
+            rotulo="ROI por unidade"
+            cor={km?.roi == null ? undefined : km.roi > 0 ? "text-acc" : "text-danger"}
+          />
+          <Kpi
+            valor={km?.profit != null && km?.priced ? `${km.profit > 0 ? "+" : ""}${km.profit.toFixed(2)}u` : "—"}
+            rotulo="Lucro em unidades"
+            cor={km?.profit == null ? undefined : km.profit > 0 ? "text-acc" : "text-danger"}
+          />
+          <Kpi
+            valor={String(comOdd || 0)}
+            rotulo="Picks com odd"
+          />
+        </div>
+        {semHistorico ? (
+          <p className="mt-2 text-[10px] leading-snug text-mut">
+            Zero resultado ainda. Preferimos mostrar “—” a inventar um número de acerto.
+          </p>
+        ) : comOdd > 0 && comOdd < 30 ? (
+          <p className="mt-2 text-[10px] leading-snug text-warn">
+            Amostra de {comOdd} pick{comOdd === 1 ? "" : "s"} com odd: ainda é pouco para
+            tratar o número como prova. Conforme o histórico crescer, ele manda.
+          </p>
+        ) : (
+          <p className="mt-2 text-[10px] leading-snug text-mut">
+            ROI calculado só nas picks que tinham odd publicada no momento do pick. Pick sem
+            cotação entra no acerto, mas não no lucro.
+          </p>
+        )}
+      </div>
+
+      {semHistorico ? (
+        <TrackRecordVazio />
+      ) : (
+        <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
         <p className="text-[10px] font-bold text-mut uppercase text-center">Taxa de acerto global · últimos 30 dias (favorito do modelo 1X2)</p>
         <Donut greens={s.greens || 0} reds={s.reds || 0} pending={s.pending || 0} />
         <div className="grid grid-cols-4 gap-1.5 text-center">
@@ -50,6 +108,7 @@ export default function Desempenho() {
         </div>
         {s.total === 0 && <p className="text-[11px] text-mut text-center mt-3 bg-panel2 rounded-xl p-3">Ainda sem previsões liquidadas. Cada análise gerada na aba IA é salva antes do jogo e avaliada automaticamente após o apito final — sem maquiagem retroativa.</p>}
       </div>
+      )}
 
       {d.byLeague && Object.keys(d.byLeague).length > 0 && (
         <div className="bg-panel border border-line rounded-2xl p-4 mt-3">
@@ -147,6 +206,93 @@ function Audit({ audit, period, setPeriod, league, setLeague, market, setMarket 
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Tijolo do painel de KPIs. `—` quando o dado não existe: nunca 0% fake. */
+function Kpi({
+  valor,
+  rotulo,
+  cor,
+  destaque,
+}: {
+  valor: string;
+  rotulo: string;
+  cor?: string;
+  destaque?: boolean;
+}) {
+  const semDado = valor === "—";
+  return (
+    <div className="rounded-xl bg-panel2/80 p-2 text-center">
+      <p
+        className={`font-display font-bold text-xl tabular-nums ${
+          semDado ? "text-mut" : cor ?? (destaque ? "text-acc" : "text-ink")
+        }`}
+      >
+        {valor}
+      </p>
+      <p className="text-[8px] uppercase leading-tight text-mut">{rotulo}</p>
+    </div>
+  );
+}
+
+/**
+ * Estado vazio do Track Record.
+ *
+ * A página sem histórico é o PRIMEIRO contato de quem chega pelo tráfego novo —
+ * ela precisa explicar o que é a prova social em vez de mostrar gráfico vazio.
+ */
+function TrackRecordVazio() {
+  const passos = [
+    "Você abre a aba IA de um jogo e gera a análise.",
+    "O pick é congelado com a probabilidade do modelo, antes do apito.",
+    "No fim do jogo o cron liquida sozinho: green ou red, entra aqui.",
+  ];
+  return (
+    <div className="rounded-2xl border border-line bg-panel p-5 mb-3">
+      <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-acc/30 bg-acc/10 text-acc">
+        <LineChart size={20} />
+      </div>
+      <h2 className="mt-3 text-center font-display text-lg font-bold uppercase leading-tight text-txt">
+        O placar começa vazio — e isso é proposital
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-center text-[12px] leading-relaxed text-mut">
+        Track Record é o histórico auditável do modelo: toda previsão é registrada{" "}
+        <span className="font-bold text-txt">antes do jogo</span> e liquidada automaticamente
+        depois. Não existe pick publicada com o resultado já conhecido — e red também fica na
+        lista.
+      </p>
+
+      <ol className="mt-4 space-y-2">
+        {passos.map((t, i) => (
+          <li key={i} className="flex items-start gap-2 rounded-xl border border-line bg-panel2 p-2.5">
+            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-acc/15 text-[10px] font-black text-acc">
+              {i + 1}
+            </span>
+            <span className="text-[11px] leading-snug text-mut">{t}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <Link
+          href="/jogos"
+          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-acc px-4 py-2.5 text-[12px] font-black text-black"
+        >
+          Gerar minha primeira análise <ArrowRight size={14} />
+        </Link>
+        <Link
+          href="/metodologia"
+          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-line bg-panel2 px-4 py-2.5 text-[12px] font-bold text-txt"
+        >
+          Como o modelo calcula
+        </Link>
+      </div>
+
+      <p className="mt-3 inline-flex w-full items-center justify-center gap-1.5 text-[10px] font-bold text-mut">
+        <Lock size={11} /> Pick gravada antes do jogo · nenhuma edição retroativa
+      </p>
     </div>
   );
 }

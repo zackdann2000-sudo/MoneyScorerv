@@ -19,6 +19,14 @@ const SITE_URL = (() => {
   }
 })();
 
+/**
+ * Analytics opcional por env: sem `NEXT_PUBLIC_GA_ID` NADA de script de terceiro
+ * é carregado (zero requisição, zero cookie). Com a env presente, entra o GA4
+ * em modo anônimo — sem Google Signals e sem personalização de anúncio.
+ * O tráfego logado já é contado no banco pela tabela `visits` (/api/auth/me).
+ */
+const GA_ID = (process.env.NEXT_PUBLIC_GA_ID || "").trim();
+
 const DESCRICAO =
   "Análise esportiva quantitativa com modelo próprio: probabilidades, xG, props por jogador, combinada com EV e alertas de gol ao vivo. Números explicados — sem promessa de lucro.";
 
@@ -98,6 +106,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               } catch(e) { console.warn("OneSignal:", e && e.message); }
             });`}
         </Script>
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}',{anonymize_ip:true,allow_google_signals:false,allow_ad_personalization_signals:false});`}
+            </Script>
+          </>
+        )}
         <AppProvider>
           {/* O bilhete vive no layout: a mesma combinada atravessa /apitou,
               /jogos e /mercardos — antes ele morria ao trocar de aba. */}

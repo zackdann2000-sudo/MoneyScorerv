@@ -31,7 +31,7 @@ self.addEventListener("push", function (event) {
     body: data.body || "",
     icon: data.icon || "/icon-192x192.png",
     badge: "/icon-192x192.png",
-    data: { url: data.url || "/" },
+    data: { url: data.url || "/", gs: true },
     vibrate: [120, 60, 120],
     tag: data.tag || "greenscore",
   };
@@ -39,9 +39,12 @@ self.addEventListener("push", function (event) {
 });
 
 self.addEventListener("notificationclick", function (event) {
-  // só trata as notificações criadas aqui em cima (tag + data.url próprios)
+  // Só trata as notificações criadas aqui em cima. Marcamos `gs: true` no data
+  // porque o `tag` NÃO serve de filtro: o push de gol chega com tag "gs-<ts>"
+  // (para o mesmo gol não colapsar com o anterior), então exigir tag fixa
+  // fazia o clique morrer sem abrir a partida.
   const dados = event.notification && event.notification.data;
-  if (!dados || !dados.url || event.notification.tag !== "greenscore") return;
+  if (!dados || !dados.url || dados.gs !== true) return;
 
   event.notification.close();
   const url = dados.url;
