@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { lerOuCriarDeviceId } from "@/lib/deviceId";
+import { track } from "@/lib/analytics";
 
 export default function Cadastro() {
   const [name, setName] = useState("");
@@ -21,6 +22,7 @@ export default function Cadastro() {
       const j = await r.json();
       if (j.error) { setErr(j.error); setLoading(false); return; }
       await refreshUser();
+      track("sign_up", { method: "email" });
       if (j.bonus) addToast({ title: "🎁 Bônus ativado!", body: j.bonus });
       else if (j.trialReusado)
         addToast({

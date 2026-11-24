@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, Crown, Loader2, ShieldCheck, Sparkles, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { PLANOS, TIERS, brl } from "@/lib/planos";
 import { sanitizeNext } from "@/lib/nextPath";
+import { track, trackOnce } from "@/lib/analytics";
 
 /**
  * Página de planos (/planos).
@@ -45,6 +46,13 @@ function PlanosInner() {
       return;
     }
     setCarregando(planoId);
+    // Intenção de compra: dispara no clique, antes do redirect para o Stripe —
+    // quem desiste na tela do cartão ainda conta no funil como begin_checkout.
+    track("begin_checkout", {
+      currency: "BRL",
+      value: PLANOS.find((p) => p.id === planoId)?.preco,
+      plano: planoId,
+    });
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -69,6 +77,13 @@ function PlanosInner() {
       setCarregando(null);
     }
   }, [next, user]);
+
+  /* Compra concluída: o Stripe devolve com ?status=sucesso. Dispara UMA vez por
+     sessão — reabrir a página não pode inflar o número de assinaturas. */
+  useEffect(() => {
+    if (status !== "sucesso") return;
+    trackOnce("purchase", "stripe_sucesso", { currency: "BRL", method: "stripe" });
+  }, [status]);
 
   return (
     <div className="max-w-2xl mx-auto px-3 py-4 space-y-4">

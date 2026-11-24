@@ -39,6 +39,7 @@ SUITES+=(
   "comboBuilder|src/lib/comboBuilder.test.cjs"
   "alertDiff|src/lib/alertDiff.test.cjs"
   "stripePolicy|src/lib/stripePolicy.test.cjs"
+  "analytics|src/lib/analytics.test.cjs"
   "duelosEngine|src/lib/duelosEngine.test.cjs"
   "h2hEngine|src/lib/h2hEngine.test.cjs"
   "vereditoEngine|src/lib/vereditoEngine.test.cjs"

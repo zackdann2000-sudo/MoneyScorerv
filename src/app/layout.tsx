@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Manrope } from "next/font/google";
+import { Suspense } from "react";
 import Script from "next/script";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
 import { BetSlipProvider } from "@/context/BetSlipContext";
 import BetSlipDock from "@/components/apitou/BetSlipDock";
+import AnalyticsPageview from "@/components/AnalyticsPageview";
 import Shell from "@/components/Shell";
 
 const barlow = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-barlow" });
@@ -121,6 +123,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* O bilhete vive no layout: a mesma combinada atravessa /apitou,
               /jogos e /mercardos — antes ele morria ao trocar de aba. */}
           <BetSlipProvider>
+            {GA_ID && (
+              <Suspense fallback={null}>
+                <AnalyticsPageview />
+              </Suspense>
+            )}
             <Shell>{children}</Shell>
             <BetSlipDock />
           </BetSlipProvider>
