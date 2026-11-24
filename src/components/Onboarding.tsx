@@ -5,19 +5,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowRight,
-  BarChart3,
+  Bell,
   Check,
   ChevronLeft,
   Clock,
-  Radar,
-  Swords,
+  Sparkles,
   Target,
   X,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
 /**
- * Onboarding pós-cadastro — 4 telas, uma vez por navegador.
+ * Onboarding pós-cadastro — 3 telas, uma vez por navegador.
  *
  * Por que modal e não rota:
  * o cadastro termina em `router.push("/")`, que redireciona para /jogos. Uma
@@ -25,17 +24,19 @@ import { useApp } from "@/context/AppContext";
  * direto. O modal aparece em qualquer entrada (primeiro login, retorno no mesmo
  * aparelho com conta nova) sem mudar o fluxo de navegação.
  *
- * FLAG: `gs_onboarding_v1` no localStorage. Gravamos em "Começar a usar" E em
- * "Pular" — quem pulou também não quer ver de novo. Versione a chave (`_v1`)
- * se o conteúdo mudar de propósito, para reexibir uma vez. Subiu de v1 para v2
- * junto com a Tela 4: a regra de acesso mudou (trial de 24h → 1 análise grátis
- * por dia), e quem já usava o app precisa ver a regra nova uma vez.
+ * FLAG: `gs_onboarding_v3` no localStorage. Gravamos em "Começar a usar" E em
+ * "Pular" — quem pulou também não quer ver de novo. A chave é versionada
+ * quando o conteúdo muda de propósito, para reexibir uma vez:
+ *   v1 → telas originais (value bet, props, cron)
+ *   v2 → regra de acesso virou trial de 24h + 1 análise/dia
+ *   v3 → monetização pausada: as telas passam a explicar 24h/dia 2, o EV da
+ *        Pinnacle e onde ficam Combo IA e alertas
  *
  * Não renderiza nada até saber o resultado do localStorage: evita flash do
  * overlay para quem já viu.
  */
 
-export const ONBOARDING_KEY = "gs_onboarding_v2";
+export const ONBOARDING_KEY = "gs_onboarding_v3";
 
 /** Rotas onde o tutorial nunca deve cobrir a tela. */
 const ROTAS_IGNORADAS = ["/login", "/cadastro"];
@@ -53,56 +54,44 @@ type Tela = {
 
 const TELAS: Tela[] = [
   {
-    icone: Target,
-    etiqueta: "Tela 1 de 4",
-    titulo: "Value Bet e TRUST",
+    icone: Clock,
+    etiqueta: "Tela 1 de 3",
+    titulo: "Suas 24 horas — e o que muda no dia 2",
     texto:
-      "Value bet é quando a odd do mercado paga mais do que a probabilidade que o modelo calculou. O app só mostra a linha quando o valor esperado (EV) é positivo.",
+      "O cadastro libera o app inteiro por 24 horas: análises sem contador, props, mercados, combos, alertas. Não é uma tela de degustação — é o produto completo, para você medir se o número presta antes de decidir qualquer coisa.",
     pontos: [
-      "O TRUST é a nota de 0 a 10 de confiança: probabilidade (45%) + EV (35%) + tamanho da amostra (20%).",
-      "TRUST alto não é garantia de acerto — é o quanto o número tem de base.",
-      "Sem odd publicada pelo mercado, o EV não aparece. É proposital.",
+      "O contador das 24h fica no topo do app; as horas começam no cadastro.",
+      "No dia 2 o acesso não fecha: você passa a ter 1 análise grátis por dia, com o contador zerando à meia-noite (Brasília).",
+      "Placares, ligas, classificação e estatísticas de partida continuam abertos sempre, sem limite.",
+      "Não há assinatura nesta fase: nenhum cartão é pedido em nenhum momento.",
+    ],
+    acao: { label: "Ver os jogos de hoje", href: "/jogos" },
+  },
+  {
+    icone: Target,
+    etiqueta: "Tela 2 de 3",
+    titulo: "O EV só existe com a odd da Pinnacle",
+    texto:
+      "EV é a diferença entre o que o modelo calcula e o que a odd paga. Sem uma cotação de referência confiável esse número seria inventado — por isso ele simplesmente não aparece quando a referência falta.",
+    pontos: [
+      "O EV é calculado só sobre a cotação da Pinnacle. Casa pequena paga odd inflada e produziria EV falso.",
+      "Sem odd da Pinnacle para a linha, o card mostra a probabilidade do modelo e esconde o EV — em vez de estimar.",
+      "Em combinada com pernas correlacionadas (BTTS + over 2.5 no mesmo jogo) o EV também sai da tela: probabilidades dependentes não se multiplicam.",
     ],
     acao: { label: "Ver oportunidades +EV", href: "/ev" },
   },
   {
-    icone: Radar,
-    etiqueta: "Tela 2 de 4",
-    titulo: "Player Props e Duelos",
+    icone: Sparkles,
+    etiqueta: "Tela 3 de 3",
+    titulo: "Combo IA e alertas de gol",
     texto:
-      "Props são apostas por jogador, não pelo placar: finalizações, chutes no gol, faltas e cartões, com linha, confiança e amostra de cada atleta.",
+      "Os dois recursos que economizam mais tempo no dia a dia: montar a combinada sem fazer conta e ser avisado do gol sem ficar olhando o placar.",
     pontos: [
-      "Escolha o jogador, veja a linha (ex.: 2,5 finalizações) e o histórico recente.",
-      "Nos Duelos, o índice de Ameaça do ataque encara o índice de Muralha da defesa.",
-      "Tudo com o número aberto: dá para discordar do modelo e entender por quê.",
+      "Combo IA: com 2+ seleções no bilhete, toque em “Gerar Combo IA” e receba três perfis (Seguro, Equilibrado, Ousado) com odd, probabilidade e EV; “Usar” aplica no bilhete.",
+      "Alertas: em Configurações ligue “⚽ Gols” e “🟢 Início de jogo”. O aviso chega no gol com o placar já atualizado e 15 minutos antes do apito inicial.",
+      "O push só chega com o app instalado na tela de início — e nunca é enviado para quem não ligou aquele alerta.",
     ],
-    acao: { label: "Explorar props e duelos", href: "/gameread" },
-  },
-  {
-    icone: BarChart3,
-    etiqueta: "Tela 3 de 4",
-    titulo: "O cron e o Relatório IA trabalham por você",
-    texto:
-      "Todo dia o cron atualiza placares, classificação, cartões e probabilidades. O Relatório IA escreve a leitura do jogo em português na página da partida.",
-    pontos: [
-      "Você não precisa calcular nada: o modelo roda e o texto explica o porquê.",
-      "O histórico é público — green ou red, o pick fica registrado antes do jogo.",
-      "Volte quando quiser: os dados já estão atualizados.",
-    ],
-    acao: { label: "Abrir o Centro de Jogos", href: "/hub" },
-  },
-  {
-    icone: Clock,
-    etiqueta: "Tela 4 de 4",
-    titulo: "Seu acesso, todo dia",
-    texto:
-      "O acesso é gratuito todos os dias, não só no começo: cada conta vê 1 análise por dia. O contador zera à meia-noite, no horário de Brasília.",
-    pontos: [
-      "Cadastro libera o app completo por 24h, sem cartão.",
-      "Depois: 1 análise grátis por dia, com contador que zera à meia-noite.",
-      "Placares, ligas, classificação e estatísticas de partida continuam abertos para todo mundo.",
-    ],
-    acao: { label: "Ver como o modelo calcula", href: "/metodologia" },
+    acao: { label: "Abrir o bilhete", href: "/apitou" },
   },
 ];
 
@@ -241,7 +230,7 @@ export default function Onboarding() {
           </div>
 
           <p className="mt-3 text-center text-[10px] font-bold text-mut">
-            <Swords className="mr-1 inline h-3 w-3 text-acc" />
+            <Bell className="mr-1 inline h-3 w-3 text-acc" />
             Análise esportiva (18+). Sem promessa de lucro — o histórico mostra o que deu certo e o que não deu.
           </p>
         </div>
