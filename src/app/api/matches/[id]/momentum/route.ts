@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { extrairLances, pressao, seriePressao, sinalPressao, JANELA_GRAFICO, JANELA_SINAL } from "@/lib/momentum";
+import { extrairLances, pressao, seriePressao, sinalPressao, appm, JANELA_GRAFICO, JANELA_SINAL } from "@/lib/momentum";
 import { calcularWinProb, serieWinProb } from "@/lib/winProb";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         pressao: null,
         sinal: { nivel: null, lado: null, pct: null, rotulo: "" },
         serie: [],
+        appm: null,
         prob: null,
         fonte: "ESPN",
       });
@@ -63,6 +64,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       pressao: p15,
       sinal: sinalPressao(p10),
       serie: seriePressao(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, passo: 3 }),
+      // APPM: ataques perigosos por minuto (1, 3, 5, 10 e jogo todo) — mesma narração.
+      appm: appm(lances, { minuto: minutoAtual }),
       prob,
       fonte: "ESPN",
     });

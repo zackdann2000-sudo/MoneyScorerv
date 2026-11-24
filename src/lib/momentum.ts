@@ -200,6 +200,113 @@ export function pressao(
   return p;
 }
 
+/* ============================ APPM ============================ *
+ *
+ * APPM = Ataques Perigosos Por Minuto. Lê os mesmos lances da ESPN, mas conta
+ * só o que é ataque (gol, pênalti, gol contra, chute e escanteio) e divide pelo
+ * tempo REALMENTE jogado na janela — não pelo tamanho nominal dela.
+ *
+ * Regra de honestidade: janela que ainda não tem minutos jogados suficientes
+ * usa o tempo jogado como divisor (aos 3' a janela de 10 min divide por 3), e
+ * jogo sem nenhum lance não gera número nenhum — a UI mostra "Indisponível".
+ */
+
+/** Janelas do produto, em minutos. `APPM_JOGO` = desde o apito inicial. */
+export const APPM_JANELAS = [1, 3, 5, 10] as const;
+export const APPM_JOGO = 0;
+
+/** Cortes publicados: verde a partir de 2, laranja acima de 3, vermelho acima de 3,9. */
+export const APPM_CORTES = { verde: 2, laranja: 3, vermelho: 3.9 } as const;
+
+export type NivelAppm = "verde" | "laranja" | "vermelho" | null;
+
+/** Lance que conta como ataque perigoso. Cartão não é ataque. */
+export function ehAtaquePerigoso(tipo: TipoLance): boolean {
+  return (
+    tipo === "goal" ||
+    tipo === "pen" ||
+    tipo === "own" ||
+    tipo === "shot-on-target" ||
+    tipo === "shot-blocked" ||
+    tipo === "shot-off-target" ||
+    tipo === "corner"
+  );
+}
+
+/** Faixa de cor de um valor de APPM. `null` = sem cor (abaixo de 2 ou sem dado). */
+export function classificarAppm(valor: number | null | undefined): NivelAppm {
+  if (valor == null || !Number.isFinite(valor)) return null;
+  if (valor > APPM_CORTES.vermelho) return "vermelho";
+  if (valor > APPM_CORTES.laranja) return "laranja";
+  if (valor >= APPM_CORTES.verde) return "verde";
+  return null;
+}
+
+export type AppmCelula = {
+  /** Janela em minutos (0 = jogo todo). */
+  janela: number;
+  /** Minutos efetivamente jogados dentro da janela (divisor usado). */
+  minutos: number;
+  /** Ataques perigosos por minuto, por lado. */
+  casa: number;
+  fora: number;
+  /** Quantos ataques perigosos entraram na conta, por lado. */
+  ataquesCasa: number;
+  ataquesFora: number;
+  nivelCasa: NivelAppm;
+  nivelFora: NivelAppm;
+};
+
+export type Appm = {
+  minuto: number;
+  /** Total de ataques perigosos no jogo (minuto > 0). */
+  ataques: number;
+  /** Vazio quando não há nenhum lance para ler (a UI mostra "Indisponível"). */
+  janelas: AppmCelula[];
+};
+
+/**
+ * APPM das janelas de 1, 3, 5, 10 minutos e do jogo todo.
+ * Sem lances no jogo → `janelas: []` (nada é inventado).
+ */
+export function appm(
+  lances: Lance[],
+  opts: { minuto?: number; janelas?: readonly number[] } = {},
+): Appm {
+  const lista = Array.isArray(lances) ? lances : [];
+  const minuto = Math.max(
+    0,
+    Math.floor(opts.minuto && opts.minuto > 0 ? opts.minuto : lista.reduce((m, l) => Math.max(m, l.minuto), 0)),
+  );
+  const janelas = opts.janelas ?? [...APPM_JANELAS, APPM_JOGO];
+  if (!lista.length || minuto <= 0) return { minuto, ataques: 0, janelas: [] };
+
+  const perigosos = lista.filter((l) => ehAtaquePerigoso(l.tipo) && l.minuto > 0 && l.minuto <= minuto);
+  const out: AppmCelula[] = [];
+  for (const janela of janelas) {
+    const desde = janela > 0 ? Math.max(0, minuto - janela) : 0;
+    const minutos = minuto - desde;
+    if (minutos <= 0) continue;
+    const dentro = perigosos.filter((l) => l.minuto > desde && l.minuto <= minuto);
+    const ataquesCasa = dentro.filter((l) => l.lado === "home").length;
+    const ataquesFora = dentro.filter((l) => l.lado === "away").length;
+    // divisor = minutos jogados de verdade (jogo no 3' não divide a janela de 10 por 10)
+    const casa = +(ataquesCasa / minutos).toFixed(2);
+    const fora = +(ataquesFora / minutos).toFixed(2);
+    out.push({
+      janela,
+      minutos,
+      casa,
+      fora,
+      ataquesCasa,
+      ataquesFora,
+      nivelCasa: classificarAppm(casa),
+      nivelFora: classificarAppm(fora),
+    });
+  }
+  return { minuto, ataques: perigosos.length, janelas: out };
+}
+
 export type NivelSinal = "fire" | "ball" | null;
 
 export type SinalPressao = {

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Flame } from "lucide-react";
 import type { WinProbPayload } from "@/lib/winProb";
+import type { NivelAppm } from "@/lib/momentum";
 
 type Pressao = {
   casa: number;
@@ -24,6 +25,19 @@ type Pressao = {
 
 type Sinal = { nivel: "fire" | "ball" | null; lado: "home" | "away" | null; pct: number | null; rotulo: string };
 
+type CelulaAppm = {
+  janela: number;
+  minutos: number;
+  casa: number;
+  fora: number;
+  ataquesCasa: number;
+  ataquesFora: number;
+  nivelCasa: NivelAppm;
+  nivelFora: NivelAppm;
+};
+
+type AppmPayload = { minuto: number; ataques: number; janelas: CelulaAppm[] };
+
 type Resposta = {
   ok?: boolean;
   vazio?: boolean;
@@ -31,12 +45,95 @@ type Resposta = {
   pressao?: Pressao | null;
   sinal?: Sinal;
   serie?: { min: number; casa: number; fora: number }[];
+  /** APPM: ataques perigosos por minuto (1, 3, 5, 10 e jogo todo). */
+  appm?: AppmPayload | null;
   /** Probabilidade 1X2 ao vivo, calculada na mesma resposta. */
   prob?: WinProbPayload | null;
   error?: string;
 };
 
 const POLL_MS = 30000;
+
+/**
+ * Barra de pressão APPM — ataques perigosos por minuto.
+ *
+ * Escala fixa de 0 a 4 ataques/min (o teto prático do futebol), com a cor do
+ * valor vindo dos cortes publicados: verde ≥ 2, laranja > 3, vermelho > 3,9.
+ * Sem lances na fonte não existe número: o bloco mostra "Indisponível" em vez
+ * de barra vazia ou estimativa.
+ */
+export function AppmBar({ dados, home, away }: { dados?: AppmPayload | null; home: string; away: string }) {
+  const celulas = dados?.janelas ?? [];
+  if (!celulas.length) {
+    return (
+      <div className="space-y-1">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-mut">APPM · ataques perigosos/min</p>
+        <p className="text-[11px] leading-snug text-mut">
+          Indisponível: a fonte ainda não entregou lances desta partida.
+        </p>
+      </div>
+    );
+  }
+
+  const ESCALA = 4; // ataques perigosos por minuto no topo da barra
+  const cor = (n: NivelAppm) =>
+    n === "vermelho" ? "text-danger" : n === "laranja" ? "text-warn" : n === "verde" ? "text-good" : "text-mut";
+  const fundo = (n: NivelAppm) =>
+    n === "vermelho" ? "bg-danger" : n === "laranja" ? "bg-warn" : n === "verde" ? "bg-good" : "bg-mut/50";
+  const nomeJanela = (j: number) => (j === 0 ? "Jogo" : `${j} min`);
+  const nf = (v: number) => v.toFixed(1).replace(".", ",");
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-mut">APPM · ataques perigosos/min</p>
+        <span className="text-[9px] font-bold text-mut">{dados?.ataques ?? 0} no jogo</span>
+      </div>
+
+      <div className="space-y-1">
+        {celulas.map((c) => (
+          <div key={c.janela} className="flex items-center gap-2">
+            <span className="w-10 shrink-0 text-[9px] font-bold text-mut">{nomeJanela(c.janela)}</span>
+
+            {/* lado casa: valor + barra crescendo da esquerda */}
+            <div className="flex flex-1 items-center gap-1">
+              <span className={`w-8 shrink-0 text-right font-display text-[10px] font-black ${cor(c.nivelCasa)}`}>
+                {nf(c.casa)}
+              </span>
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel2">
+                <div
+                  className={`h-full rounded-full transition-all ${fundo(c.nivelCasa)}`}
+                  style={{ width: `${Math.min(100, (c.casa / ESCALA) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <span className="w-2 shrink-0 text-center text-[9px] text-mut/60">·</span>
+
+            {/* lado fora: barra crescendo da direita */}
+            <div className="flex flex-1 items-center gap-1">
+              <div className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-full bg-panel2">
+                <div
+                  className={`h-full rounded-full transition-all ${fundo(c.nivelFora)}`}
+                  style={{ width: `${Math.min(100, (c.fora / ESCALA) * 100)}%` }}
+                />
+              </div>
+              <span className={`w-8 shrink-0 font-display text-[10px] font-black ${cor(c.nivelFora)}`}>{nf(c.fora)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-between text-[9px] font-bold text-mut">
+        <span className="truncate">{home}</span>
+        <span className="truncate text-right">{away}</span>
+      </div>
+      <p className="text-[9px] leading-snug text-mut/80">
+        Ataques perigosos por minuto jogado na janela. Cor: verde ≥ 2 · laranja acima de 3 · vermelho acima de 3,9.
+      </p>
+    </div>
+  );
+}
 
 /**
  * Selo de pressão (FIRE/BALL) do topo da aba LIVE.
@@ -197,6 +294,11 @@ export function MomentumChart({
           </div>
         </div>
       )}
+
+      {/* APPM: ataques perigosos por minuto (janelas 1/3/5/10 + jogo) */}
+      <div className="rounded-xl border border-line bg-panel2 p-2">
+        <AppmBar dados={dados.appm} home={home} away={away} />
+      </div>
 
       {/* de onde vem a barra */}
       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-bold text-mut">
