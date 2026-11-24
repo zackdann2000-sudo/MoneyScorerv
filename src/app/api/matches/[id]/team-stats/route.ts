@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { matchTeamStatsCache } from "@/db/schema";
 import { getSummaryRaw, matchFromSummary, normStats } from "@/lib/espn";
+import { splitDoEspn } from "@/lib/espnTempos";
 import { getKey } from "@/lib/keys";
 import { afTeamStats, afFindFixtureId, afFixtureFinished, type TeamStatMetric } from "@/lib/providers";
 import { smFindFixtureId, smTeamStats } from "@/lib/providers";
@@ -13,6 +14,34 @@ import { getUser } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
+
+/*
+ * ESPN (boxscore) usa chaves próprias — `possessionPct`, `totalShots`, … — e
+ * nenhuma delas existia nas categorias de filtro da UI. Resultado: a lista era
+ * montada e o filtro `principais` (default) a esvaziava, e a tela dizia
+ * "Nenhuma métrica disponível" mesmo com o ESPN cheio. Aqui as chaves viram o
+ * vocabulário canônico (o mesmo da API-Football e do SportMonks).
+ */
+const ESPN_KEY_MAP: Record<string, string> = {
+  possessionPct: "ball_possession",
+  totalShots: "total_shots",
+  shotsOnTarget: "shots_on_goal",
+  wonCorners: "corner_kicks",
+  foulsCommitted: "fouls",
+  offsides: "offsides",
+  yellowCards: "yellow_cards",
+  redCards: "red_cards",
+  saves: "goalkeeper_saves",
+  totalPasses: "total_passes",
+  accuratePasses: "passes_accurate",
+  passPct: "pass_pct",
+  totalTackles: "total_tackles",
+  interceptions: "interceptions",
+  totalClearance: "total_clearance",
+  blockedShots: "blocked_shots",
+  totalCrosses: "total_crosses",
+  penaltyKickGoals: "penalty_kick_goals",
+};
 
 /* Janelas de validade do cache (ms). */
 const TTL_ENCERRADA = 24 * 60 * 60 * 1000; /* dado definitivo */
@@ -42,25 +71,47 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const encerrada = !!match.finished;
     const ttl = encerrada ? TTL_ENCERRADA : TTL_AO_VIVO;
 
+    /* Comparativo do ESPN (grátis, sem cota): serve de base para todo mundo e
+       de fallback do bloco VIP. Antes só o visitante free usava esses números,
+       então em jogo sem 5Dollar/API-Football o assinante ficava com a tela
+       vazia mesmo com o ESPN cheio de estatística. */
+    const metricsEspn: TeamStatMetric[] = normStats(sm, match.home.id).map((s: any) => {
+      const num = (v: any) => {
+        const n = Number(String(v ?? "0").replace("%", "").replace(",", "."));
+        return Number.isFinite(n) ? n : 0;
+      };
+      const chave = ESPN_KEY_MAP[String(s.key)] || String(s.key);
+      /* O ESPN manda precisão de passe como fração (0.9). Em percentual
+         (90%) para não aparecer "0.9" do lado de "43.5" de posse. */
+      const escala = (v: any) => {
+        const n = num(v);
+        return chave === "pass_pct" && n <= 1 ? +(n * 100).toFixed(1) : n;
+      };
+      const pct = /%/.test(String(s.home ?? "")) || chave === "ball_possession" || chave === "pass_pct";
+      return {
+        key: chave,
+        label: String(s.label),
+        home: escala(s.home),
+        away: escala(s.away),
+        percent: pct,
+      };
+    });
+
+    /* Recorte de 1º/2º tempo do ESPN (linescores + keyEvents): é o único que
+       cobre Brasileirão — o SportMonks só tem a liga do plano dele. */
+    const splitEspn = splitDoEspn(sm);
+
     /* ---------- 0) FREE/ANÔNIMO: comparativo só com a ESPN (zero cota paga) ---------- */
     if (!vip) {
-      const metrics: TeamStatMetric[] = normStats(sm, match.home.id).map((s: any) => {
-        const num = (v: any) => {
-          const n = Number(String(v ?? "0").replace("%", "").replace(",", "."));
-          return Number.isFinite(n) ? n : 0;
-        };
-        const pct = /%/.test(String(s.home ?? "")) || /%/.test(String(s.away ?? ""));
-        return { key: String(s.key), label: String(s.label), home: num(s.home), away: num(s.away), percent: pct };
-      });
       return NextResponse.json({
-        metrics,
+        metrics: metricsEspn,
         source: "ESPN",
         cache: "espn",
         finalizada: encerrada,
         updatedAt: new Date().toISOString(),
-        primeiroTempo: [],
-        segundoTempo: [],
-        temSplits: false,
+        primeiroTempo: splitEspn.primeiroTempo,
+        segundoTempo: splitEspn.segundoTempo,
+        temSplits: splitEspn.primeiroTempo.length > 0 && splitEspn.segundoTempo.length > 0,
         jogadoresBloqueados: true,
         locked: false,
       });
@@ -117,10 +168,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       });
     }
 
-    /* Resultado da cascata: quem entregou, o que entregou e os splits. */
+    /* Resultado da cascata: quem entregou, o que entregou e os splits.
+       O split já nasce do ESPN; o SportMonks só troca quando tem métrica de
+       período de verdade (posse/finalização), não só o placar. */
     let metrics: TeamStatMetric[] = [];
-    let primeiroTempo: TeamStatMetric[] = [];
-    let segundoTempo: TeamStatMetric[] = [];
+    let primeiroTempo: TeamStatMetric[] = splitEspn.primeiroTempo;
+    let segundoTempo: TeamStatMetric[] = splitEspn.segundoTempo;
     let fonte = "";
     let fixtureIdUsado = "";
     let fim = encerrada;
@@ -209,7 +262,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
                 const existentes = new Set(metrics.map((m) => m.key));
                 metrics = [...metrics, ...rsm.metrics.filter((m) => !existentes.has(m.key))];
               }
-              if (!(primeiroTempo.length && segundoTempo.length)) {
+              /* O split do SportMonks só vale se tiver mais que o placar: com só
+                 "gols" o do ESPN (que também traz cartões) é igual ou melhor. */
+              const smTemMetrica = rsm.primeiroTempo.some((m) => m.key !== "goals");
+              if (smTemMetrica) {
                 primeiroTempo = rsm.primeiroTempo;
                 segundoTempo = rsm.segundoTempo;
               }
@@ -264,6 +320,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       } catch {
         /* sem fonte: mensagem amigável abaixo */
       }
+    }
+
+    /* ---------- 6b) ESPN como último recurso do comparativo ----------
+       Chega aqui quando as fontes pagas não responderam (5Dollar fora da liga,
+       API-Football suspensa, SportMonks sem o campeonato). O ESPN já está na
+       mão — usar é melhor que mostrar "nenhuma métrica disponível". */
+    if (!metrics.length && metricsEspn.length) {
+      metrics = metricsEspn;
+      fonte = "ESPN";
     }
 
     /* ---------- 7) Nada encontrado ---------- */

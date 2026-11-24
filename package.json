@@ -12,6 +12,7 @@
     "check:tz": "node scripts/check-timestamptz.mjs",
     "seo:check": "tsx scripts/seo-check.ts",
     "hub:status": "tsx scripts/hub-status.ts",
+    "debug:team-stats": "tsx scripts/debug-team-stats.ts",
     "db:precheck-tz": "node scripts/precheck-tz.mjs",
     "db:audit-tz": "node scripts/audit-tz.mjs",
     "db:clean-tz": "node scripts/db-clean-tz.mjs",

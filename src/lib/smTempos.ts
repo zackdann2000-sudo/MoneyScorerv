@@ -60,6 +60,22 @@ export const SM_TEAM_METRICS: { keys: string[]; key: string; label: string; perc
   { keys: ["passes", "totalpasses", "passestotal"], key: "total_passes", label: "Passes" },
 ];
 
+/**
+ * Diz se dois nomes de time são o mesmo, já normalizados.
+ * Cobre "Palmeiras" x "SE Palmeiras" e "Chapecoense" x "Associação
+ * Chapecoense de Futebol" (um contém o outro). Para apelido curto
+ * ("Vasco" x "Vasco da Gama" já cai no contém), compara o prefixo quando os
+ * dois nomes têm pelo menos 6 letras.
+ */
+export function nomesCompativeis(a: string, b: string): boolean {
+  const x = chaveStatSM(a);
+  const y = chaveStatSM(b);
+  if (!x || !y) return false;
+  if (x.includes(y) || y.includes(x)) return true;
+  const min = Math.min(x.length, y.length);
+  return min >= 6 && x.slice(0, 6) === y.slice(0, 6);
+}
+
 /** Normaliza nome de estatística/time: "Ball Possession" → "ballpossession". */
 export function chaveStatSM(s: unknown): string {
   return String(s ?? "")

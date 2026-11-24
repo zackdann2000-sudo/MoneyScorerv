@@ -24,7 +24,13 @@ export type MetricKey =
   | "yellow_cards"
   | "red_cards"
   | "goalkeeper_saves"
-  | "free_kicks";
+  | "free_kicks"
+  | "pass_pct"
+  | "total_tackles"
+  | "interceptions"
+  | "total_clearance"
+  | "total_crosses"
+  | "penalty_kick_goals";
 
 export type TeamStatMetric = {
   key: string;
@@ -74,9 +80,19 @@ export const CATEGORIAS: Record<Exclude<FiltroId, "todas">, MetricKey[]> = {
     "expected_goals",
     "corner_kicks",
     "offsides",
+    "total_crosses",
+    "penalty_kick_goals",
   ],
-  passes: ["total_passes", "passes_accurate", "ball_possession", "free_kicks"],
-  defesa: ["goalkeeper_saves", "fouls", "blocked_shots", "shots_insidebox"],
+  passes: ["total_passes", "passes_accurate", "pass_pct", "ball_possession", "free_kicks"],
+  defesa: [
+    "goalkeeper_saves",
+    "fouls",
+    "blocked_shots",
+    "shots_insidebox",
+    "interceptions",
+    "total_tackles",
+    "total_clearance",
+  ],
   disciplina: ["yellow_cards", "red_cards", "fouls", "offsides", "free_kicks"],
 };
 

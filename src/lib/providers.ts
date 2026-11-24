@@ -1,6 +1,6 @@
 import { fetchJson } from "./cache";
 import { getKey } from "./keys";
-import { chaveStatSM, splitDoFixture, type SplitTempos } from "./smTempos";
+import { chaveStatSM, nomesCompativeis, splitDoFixture, type SplitTempos } from "./smTempos";
 
 /* =======================================================================
    NAVOR DE RESILIÊNCIA — toda cascata registra quem respondeu e por quê
@@ -84,7 +84,11 @@ export async function smFixtureStats(fixtureId: string | number) {
 
 /**
  * Resolve o fixture do SportMonks por nome dos times + data (YYYY-MM-DD).
- * A API nao aceita busca por dois nomes; a listagem do dia e filtrada aqui.
+ *
+ * A API não aceita busca por dois nomes, então a listagem do dia é filtrada
+ * aqui. A data NÃO é confiável sozinha: um jogo às 21h em Brasília é 00h do dia
+ * seguinte em UTC, e o SportMonks agrupa por dia do seu próprio fuso — por isso
+ * varremos o dia anterior e o seguinte também.
  */
 export async function smFindFixtureId(
   homeName: string,
@@ -92,15 +96,21 @@ export async function smFindFixtureId(
   isoDate: string,
 ): Promise<number | null> {
   const dia = String(isoDate || "").slice(0, 10);
-  if (!dia) return null;
-  const d = await smFetch(`/fixtures/date/${dia}?include=participants`, 24 * 60 * 60 * 1000);
-  const home = chaveStatSM(homeName);
-  const away = chaveStatSM(awayName);
-  if (!home || !away) return null;
-  for (const f of d?.data || []) {
-    const nomes: string[] = (f?.participants || []).map((p: any) => chaveStatSM(p?.name));
-    if (nomes.some((n) => n.includes(home)) && nomes.some((n) => n.includes(away))) {
-      return Number(f?.id) || null;
+  if (!dia || !chaveStatSM(homeName) || !chaveStatSM(awayName)) return null;
+
+  const base = new Date(`${dia}T12:00:00Z`);
+  if (!Number.isFinite(base.getTime())) return null;
+  const deslocamento = [-1, 0, 1];
+
+  for (const d of deslocamento) {
+    const alvoDia = new Date(base.getTime() + d * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    /* 24h de cache por dia: a varredura do dia inteiro não se repete por request. */
+    const lista = await smFetch(`/fixtures/date/${alvoDia}?include=participants`, 24 * 60 * 60 * 1000);
+    for (const f of lista?.data || []) {
+      const nomes: string[] = (f?.participants || []).map((p: any) => String(p?.name ?? ""));
+      const casa = nomes.some((n) => nomesCompativeis(n, homeName));
+      const fora = nomes.some((n) => nomesCompativeis(n, awayName));
+      if (casa && fora) return Number(f?.id) || null;
     }
   }
   return null;
