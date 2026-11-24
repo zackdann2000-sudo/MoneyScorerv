@@ -7,8 +7,8 @@
  *
  * Autorização no esquema único do projeto (`lib/cronAuth`):
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
- *   - Manual: header `x-cron-secret` ou `?secret=` ($PUSH_CRON_SECRET)
- *   - Fail-closed: sem segredo configurado -> 503
+ *   - Manual: header `x-cron-secret` ou `?secret=` (mesmo $CRON_SECRET)
+ *   - Fail-closed: sem CRON_SECRET configurada -> 503
  *
  * Por que as competições rodam em SÉRIE com pausa:
  * o plano gratuito do Football-Data.org aceita ~10 requisições por minuto.
@@ -21,7 +21,7 @@
  * válido — tabela velha é melhor que tabela errada.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cronConfigurado, motivoCronAutorizado } from "@/lib/cronAuth";
+import { cronConfigurado, motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 import { db } from "@/db";
 import { hubJobLog } from "@/db/hub-schema";
 import { eq } from "drizzle-orm";
@@ -38,10 +38,11 @@ const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const erro = (e: unknown) => String((e as Error)?.message ?? e ?? "falha").slice(0, 300);
 
 export async function GET(req: NextRequest) {
-  if (!cronConfigurado("PUSH_CRON_SECRET")) {
-    return NextResponse.json({ error: "Cron sem segredo configurado (CRON_SECRET / PUSH_CRON_SECRET)." }, { status: 503 });
+  if (!cronConfigurado()) {
+    const bloqueio = respostaNaoAutorizado();
+    return NextResponse.json(bloqueio.body, { status: bloqueio.status });
   }
-  const motivo = motivoCronAutorizado(req, "PUSH_CRON_SECRET");
+  const motivo = motivoCronAutorizado(req);
   if (!motivo) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
   const pedido = req.nextUrl.searchParams.get("codes");

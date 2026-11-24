@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarOportunidadesDoDia, liquidarPendentes, estatisticas } from "@/lib/trackRecord";
-import { motivoCronAutorizado, cronConfigurado } from "@/lib/cronAuth";
+import { motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 // 300s = teto do plano Hobby (Fluid Compute). A liquidação + registro ficam
@@ -16,17 +16,13 @@ export const maxDuration = 300;
  *
  * Segurança (mesmo esquema das outras rotas internas):
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
- *   - Manual: header `x-cron-secret: <PUSH_CRON_SECRET>` ou `?secret=`
+ *   - Manual: header `x-cron-secret: <CRON_SECRET>` ou `?secret=<CRON_SECRET>`
  */
 export async function GET(req: NextRequest) {
-  const motivo = motivoCronAutorizado(req, "PUSH_CRON_SECRET");
+  const motivo = motivoCronAutorizado(req);
   if (!motivo) {
-    return NextResponse.json(
-      cronConfigurado("PUSH_CRON_SECRET")
-        ? { error: "não autorizado." }
-        : { error: "nenhum segredo configurado (CRON_SECRET ou PUSH_CRON_SECRET)." },
-      { status: cronConfigurado("PUSH_CRON_SECRET") ? 401 : 503 },
-    );
+    const bloqueio = respostaNaoAutorizado();
+    return NextResponse.json(bloqueio.body, { status: bloqueio.status });
   }
   const acao = req.nextUrl.searchParams.get("acao") ?? "tudo";
   if (acao === "stats") {
@@ -55,14 +51,10 @@ export async function GET(req: NextRequest) {
 
 /** POST = curl manual; aceita body { acao, date, dias } igual ao GET. */
 export async function POST(req: NextRequest) {
-  const motivo = motivoCronAutorizado(req, "PUSH_CRON_SECRET");
+  const motivo = motivoCronAutorizado(req);
   if (!motivo) {
-    return NextResponse.json(
-      cronConfigurado("PUSH_CRON_SECRET")
-        ? { error: "não autorizado." }
-        : { error: "nenhum segredo configurado (CRON_SECRET ou PUSH_CRON_SECRET)." },
-      { status: cronConfigurado("PUSH_CRON_SECRET") ? 401 : 503 },
-    );
+    const bloqueio = respostaNaoAutorizado();
+    return NextResponse.json(bloqueio.body, { status: bloqueio.status });
   }
   let body: any = {};
   try { body = await req.json(); } catch { /* body opcional */ }

@@ -3,7 +3,7 @@ import { inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { alertPrefs, alertState, fcmTokens } from "@/db/schema";
 import { getAllMatches, todayYmd, type Match } from "@/lib/espn";
-import { motivoCronAutorizado } from "@/lib/cronAuth";
+import { cronConfigurado, motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 import { sendFcmToTokens } from "@/lib/fcm";
 import { enviarNotificacao } from "@/lib/push";
 import {
@@ -35,13 +35,14 @@ export const maxDuration = 60;
  * Só envia para quem tem opt-in explícito (`alerts.gol` / `alerts.kickoff`) e
  * nunca repete um evento já marcado em `alert_state.sent`.
  *
- * Auth: `Authorization: Bearer $CRON_SECRET` (Vercel) ou `?secret=` com a env
- * `LIVE_CRON_SECRET`. Sem segredo configurado responde 503 (falha fechada).
+ * Auth: `Authorization: Bearer $CRON_SECRET` (Vercel) ou `?secret=`/`x-cron-secret`
+ * com o MESMO `CRON_SECRET`. Sem segredo configurado responde 503 (falha fechada).
  */
 export async function GET(req: NextRequest) {
-  const auth = motivoCronAutorizado(req, "LIVE_CRON_SECRET");
+  const auth = motivoCronAutorizado(req);
   if (!auth) {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 503 });
+    const bloqueio = respostaNaoAutorizado();
+    return NextResponse.json(bloqueio.body, { status: bloqueio.status });
   }
 
   const agora = Date.now();

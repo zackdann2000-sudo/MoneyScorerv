@@ -52,8 +52,12 @@
  *
  * Autorização (mesmo esquema das outras rotas internas):
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
- *   - Manual: header `x-cron-secret: <PUSH_CRON_SECRET>` ou `?secret=`
- *   - Fail-closed: sem nenhum segredo configurado → 503.
+ *   - Manual: header `x-cron-secret: <CRON_SECRET>` ou `?secret=<CRON_SECRET>`
+ *   - Fail-closed: sem CRON_SECRET configurada → 503.
+ *
+ * `CRON_SECRET` é a ÚNICA env aceita (`lib/cronAuth`). Não existe mais fallback
+ * para PUSH_CRON_SECRET: era ele que fazia a rota responder "nenhum segredo"
+ * mesmo com a variável principal configurada.
  *
  * Saúde do sync: `npm run hub:status` (última escrita por liga, fixtures
  * finalizadas, análises degeneradas). Uma etapa pulada por tempo NÃO aparece
@@ -61,7 +65,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { cronConfigurado, motivoCronAutorizado } from "@/lib/cronAuth";
+import { motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 import { aquecerRankings } from "@/lib/rankingsWarm";
 import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
 import { sincronizarArbitros } from "@/lib/arbitrosFonte";
@@ -76,16 +80,10 @@ export const maxDuration = 300;
 const erro = (e: any) => String(e?.message || e || "falha").slice(0, 200);
 
 export async function GET(req: NextRequest) {
-  const motivo = motivoCronAutorizado(req, "PUSH_CRON_SECRET");
+  const motivo = motivoCronAutorizado(req);
   if (!motivo) {
-    return NextResponse.json(
-      {
-        error: cronConfigurado("PUSH_CRON_SECRET")
-          ? "não autorizado."
-          : "nenhum segredo configurado (CRON_SECRET ou PUSH_CRON_SECRET).",
-      },
-      { status: cronConfigurado("PUSH_CRON_SECRET") ? 401 : 503 },
-    );
+    const bloqueio = respostaNaoAutorizado();
+    return NextResponse.json(bloqueio.body, { status: bloqueio.status });
   }
 
   const acao = req.nextUrl.searchParams.get("acao") ?? "tudo";

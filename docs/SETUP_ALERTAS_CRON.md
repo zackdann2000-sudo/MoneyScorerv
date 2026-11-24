@@ -12,8 +12,7 @@ cron-job.org, que também hospeda as fases do Hub: `docs/DEPLOY_CHECKLIST.md` §
 
 | Variável | Para que serve |
 |---|---|
-| `LIVE_CRON_SECRET` | Segredo da rota. Sem ele a rota responde **503** de propósito (falha fechada). |
-| `CRON_SECRET` | Só necessário se você usar o Vercel Cron (Pro). |
+| `CRON_SECRET` | **Único** segredo das rotas internas (esta, `/api/cron/diario`, `/api/hub/sync`, `/api/push/value-alerts`, `/api/track-record/run`). Sem ele a rota responde **503** de propósito (falha fechada). A Vercel Cron envia sozinha `Authorization: Bearer $CRON_SECRET`. |
 | `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | Push do app Android via Firebase. |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Push do navegador (PWA). Os dois primeiros são um par: misturar chaves de origens diferentes faz todo push falhar em silêncio. |
 

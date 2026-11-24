@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runHubSync, type HubSyncOptions } from "@/lib/hub/sync-runner";
-import { motivoCronAutorizado, cronConfigurado } from "@/lib/cronAuth";
+import { motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // Teto do plano Hobby (Fluid Compute). Ajuste os limites abaixo se a execução
 // encostar no teto — eles existem justamente para caber aqui.
 export const maxDuration = 300;
-
-const SEGREDO = "HUB_SYNC_SECRET";
 
 /**
  * POST /api/hub/sync — roda o SISTEMA DE CASCATA do Hub no servidor.
@@ -19,7 +17,7 @@ const SEGREDO = "HUB_SYNC_SECRET";
  *
  * Segurança (mesmo esquema das outras rotas internas):
  *   - Vercel Cron: `Authorization: Bearer $CRON_SECRET`
- *   - Manual: header `x-cron-secret: <HUB_SYNC_SECRET>` ou `?secret=`
+ *   - Manual: header `x-cron-secret: <CRON_SECRET>` ou `?secret=<CRON_SECRET>`
  *
  * Query/body opcionais (todos com teto para caber no maxDuration):
  *   dates=3   dias futuros de fixtures (0 = só hoje)
@@ -35,12 +33,8 @@ const SEGREDO = "HUB_SYNC_SECRET";
  *   ?dates=0&odds=0&lineups=0&context=0   (só análise + liquidação)
  */
 function naoAutorizado() {
-  return NextResponse.json(
-    cronConfigurado(SEGREDO)
-      ? { error: "não autorizado." }
-      : { error: "nenhum segredo configurado (CRON_SECRET ou HUB_SYNC_SECRET)." },
-    { status: cronConfigurado(SEGREDO) ? 401 : 503 },
-  );
+  const bloqueio = respostaNaoAutorizado();
+  return NextResponse.json(bloqueio.body, { status: bloqueio.status });
 }
 
 function montarOpcoes(body: Record<string, unknown>, sp: URLSearchParams): HubSyncOptions {
@@ -73,7 +67,7 @@ function montarOpcoes(body: Record<string, unknown>, sp: URLSearchParams): HubSy
 }
 
 async function executar(req: NextRequest, body: Record<string, unknown>) {
-  const motivo = motivoCronAutorizado(req, SEGREDO);
+  const motivo = motivoCronAutorizado(req);
   if (!motivo) return naoAutorizado();
 
   const opcoes = montarOpcoes(body, req.nextUrl.searchParams);
