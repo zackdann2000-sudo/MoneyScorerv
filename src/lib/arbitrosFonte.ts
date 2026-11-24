@@ -298,6 +298,10 @@ export async function sincronizarArbitros(): Promise<ResultadoSync> {
         });
     }
 
+    /* Sem árbitro normalizado não há o que gravar: parar aqui evita montar
+       um `inArray` com lista vazia para descobrir os ids. */
+    if (!unicos.size) return { ok: true, arbitros: 0, aparicoes: 0 };
+
     /* 2) aparições — precisa do id de cada árbitro */
     const refs = await db
       .select({ id: hubReferee.id, nomeNorm: hubReferee.nomeNorm })
