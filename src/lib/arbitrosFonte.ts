@@ -369,13 +369,30 @@ export async function sincronizarArbitros(): Promise<ResultadoSync> {
 
     return { ok: true, arbitros: refs.length, aparicoes: linhas.length };
   } catch (e) {
-    const erro = e instanceof Error ? e.message : String(e);
+    /* O Drizzle embrulha o erro do Postgres: `e.message` traz só o SQL
+       ("Failed query: insert into ...") e a causa REAL fica em `e.cause`.
+       Antes daqui saía `erro.slice(0, 200)`, que cortava a mensagem no meio do
+       VALUES — foi assim que "insert ... values (default, $1, $2, $3)" passou
+       por bug de mapeamento quando o problema era "relation does not exist". */
+    const erro = descreverErro(e);
     console.warn("[arbitros] gravação falhou:", erro);
-    return { ok: false, arbitros: 0, aparicoes: 0, erro: erro.slice(0, 200) };
+    return { ok: false, arbitros: 0, aparicoes: 0, erro: erro.slice(0, 500) };
   }
 }
 
 /* ---------------------------- utilidades ---------------------------- */
+
+/**
+ * Mensagem útil para diagnóstico: a causa do Postgres primeiro (é ela que diz
+ * o que consertar), o SQL do Drizzle depois.
+ */
+function descreverErro(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const causa = (e as Error & { cause?: unknown }).cause;
+  const detalhe =
+    causa instanceof Error ? causa.message : typeof causa === "string" ? causa : "";
+  return detalhe && !e.message.includes(detalhe) ? `${detalhe} — ${e.message}` : e.message;
+}
 
 /** `excluded.coluna` — o valor que o INSERT tentou gravar (padrão do upsert). */
 function sqlExcluded(coluna: string) {
