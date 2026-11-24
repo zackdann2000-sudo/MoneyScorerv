@@ -1,7 +1,28 @@
 "use client";
 
-import { ShoppingBasket, X, Trash2, Plus, TrendingUp, AlertTriangle, Anchor } from "lucide-react";
-import { useBetSlip } from "@/context/BetSlipContext";
+import { useEffect, useState } from "react";
+import {
+  ShoppingBasket,
+  X,
+  Trash2,
+  Plus,
+  TrendingUp,
+  AlertTriangle,
+  Anchor,
+  Sparkles,
+  Loader2,
+  ShieldCheck,
+  Scale,
+  Flame,
+} from "lucide-react";
+import { useBetSlip, type Selecao } from "@/context/BetSlipContext";
+import type { Combo, Perfil } from "@/lib/comboBuilder";
+
+type RespostaCombos = {
+  combos: Combo[];
+  aviso?: string | null;
+  error?: string;
+};
 
 /**
  * Carrinho flutuante + gaveta da combinada.
@@ -17,6 +38,7 @@ export default function BetSlipDock() {
     selecoes,
     remover,
     limpar,
+    substituir,
     oddTotal,
     probCombinada,
     evCombinado,
@@ -25,6 +47,83 @@ export default function BetSlipDock() {
     aberto,
     setAberto,
   } = useBetSlip();
+
+  const [combos, setCombos] = useState<Combo[] | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erroCombos, setErroCombos] = useState("");
+
+  // Sugestão antiga deixa de valer quando o bilhete muda.
+  useEffect(() => {
+    setCombos(null);
+    setErroCombos("");
+  }, [total, correlacao]);
+
+  /**
+   * Só faz sentido pedir combo com 2+ pernas e sem correlação já ativa: a API
+   * recusa se não houver duas pernas ancoradas na Pinnacle, e um bilhete já
+   * correlacionado não tem EV para comparar.
+   */
+  const podeGerar = total >= 2 && !correlacao;
+
+  const gerar = async () => {
+    const base = selecoes.find((s) => s.origem === "mercado") ?? selecoes[0];
+    if (!base) return;
+    const partes = base.chave.split(":");
+    const matchId = base.origem === "mercado" ? partes[1] : String(base.fixtureId);
+    if (!matchId) {
+      setErroCombos("Não foi possível identificar a partida desta seleção.");
+      return;
+    }
+    setCarregando(true);
+    setErroCombos("");
+    try {
+      const r = await fetch("/api/combos/build", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, league: base.league || "bra.1" }),
+      });
+      const j = (await r.json()) as RespostaCombos;
+      if (!r.ok || j.error) {
+        setCombos(null);
+        setErroCombos(j.error || "Não foi possível gerar os combos agora.");
+        return;
+      }
+      setCombos(j.combos ?? []);
+      if (j.aviso) setErroCombos(j.aviso);
+    } catch {
+      setCombos(null);
+      setErroCombos("Sem conexão com o servidor. Tente de novo.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  /** Aplica o combo no lugar do bilhete atual (com as odds da Pinnacle). */
+  const usar = (c: Combo) => {
+    const novas: Selecao[] = c.pernas.map((p) => ({
+      chave: p.chave,
+      fixtureId: p.fixtureId,
+      origem: p.origem,
+      matchLabel: p.matchLabel,
+      jogador: p.jogador,
+      mercado: p.rotulo,
+      grupo: p.grupo,
+      league: selecoes[0]?.league,
+      odd: p.odd ?? 0,
+      oddPinnacle: p.odd ?? null,
+      probModelo: p.prob,
+      estimado: p.estimado,
+    }));
+    substituir(novas);
+    setCombos(null);
+    setAberto(false);
+  };
+
+  const ICONE_PERFIL: Record<Perfil, typeof ShieldCheck> = {
+    Seguro: ShieldCheck,
+    Equilibrado: Scale,
+    Ousado: Flame,
+  };
 
   if (total === 0) return null;
 
@@ -132,6 +231,87 @@ export default function BetSlipDock() {
                 </li>
               ))}
             </ul>
+
+            {/* AI Combo Builder — só com 2+ pernas e sem correlação ativa */}
+            <div className="border-t border-line px-3 py-2 space-y-2">
+              <button
+                type="button"
+                onClick={gerar}
+                disabled={!podeGerar || carregando}
+                className={`w-full h-10 rounded-xl text-xs font-extrabold inline-flex items-center justify-center gap-1.5 border ${
+                  podeGerar
+                    ? "bg-acc/15 border-acc/60 text-acc"
+                    : "bg-panel2 border-line text-mut/60"
+                }`}
+              >
+                {carregando ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {carregando ? "Montando combos…" : "Gerar Combo IA"}
+              </button>
+
+              {!podeGerar && (
+                <p className="text-[9px] leading-snug text-mut">
+                  {total < 2
+                    ? "O combo precisa de pelo menos 2 seleções."
+                    : "Há correlação entre as pernas: resolva o aviso acima para o combo ter EV."}
+                </p>
+              )}
+
+              {erroCombos && (
+                <p className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-[10px] leading-snug text-warn">
+                  {erroCombos}
+                </p>
+              )}
+
+              {combos && combos.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[9px] font-extrabold uppercase tracking-wide text-mut">
+                    Sugestões para {combos[0]?.pernas[0]?.matchLabel || "esta partida"} · odd da Pinnacle
+                  </p>
+                  {combos.map((c) => {
+                    const Icone = ICONE_PERFIL[c.perfil] ?? ShieldCheck;
+                    return (
+                      <div
+                        key={c.perfil}
+                        className="rounded-xl border border-line bg-panel2 p-2 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1 text-[10px] font-extrabold text-ink">
+                            <Icone size={11} className="text-acc" /> {c.perfil}
+                          </p>
+                          <p className="text-[9px] text-mut truncate">
+                            {c.pernas.length} pernas · odd {c.odd.toFixed(2)} · prob{" "}
+                            {(c.prob * 100).toFixed(1)}%
+                          </p>
+                          <p className="text-[9px] font-bold tabular-nums">
+                            {c.ev == null ? (
+                              <span className="text-warn">EV indisponível</span>
+                            ) : (
+                              <span className={c.ev > 0 ? "text-acc" : "text-mut"}>
+                                EV {c.ev >= 0 ? "+" : ""}
+                                {c.ev.toFixed(1)}%
+                              </span>
+                            )}
+                            {c.correlacionado && (
+                              <span className="ml-1 text-warn">· correlacionado</span>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => usar(c)}
+                          className="shrink-0 h-8 px-2.5 rounded-lg border border-acc/60 bg-acc/10 text-acc text-[9px] font-extrabold uppercase"
+                        >
+                          Usar
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[8px] leading-snug text-mut/80">
+                    “Usar” substitui o bilhete atual pelas pernas do combo.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Totais */}
             <div className="border-t border-line px-4 py-3 space-y-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">

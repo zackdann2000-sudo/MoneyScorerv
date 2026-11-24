@@ -43,6 +43,8 @@ export type Selecao = {
   linha?: number;
   /** `gols` | `gols_1t` | `escanteios` — régua de correlação. */
   grupo?: string;
+  /** Código da liga na fonte (necessário para montar combo pela API). */
+  league?: string;
   /** Odd exibida. 0 quando não há odd nenhuma. */
   odd: number;
   /**
@@ -61,6 +63,8 @@ type Ctx = {
   total: number;
   tem: (chave: string) => boolean;
   alternar: (s: Selecao) => void;
+  /** Troca o bilhete inteiro de uma vez (usado ao aplicar um combo). */
+  substituir: (novas: Selecao[]) => void;
   remover: (chave: string) => void;
   limpar: () => void;
   /** Produto das odds exibidas. */
@@ -136,6 +140,7 @@ function migrar(s: Partial<Selecao> & { home?: string; away?: string }): Selecao
     mercado: String(s.mercado || ""),
     linha: typeof s.linha === "number" ? s.linha : undefined,
     grupo: s.grupo,
+    league: s.league,
     odd: Number(s.odd) > 1 ? Number(s.odd) : 0,
     oddPinnacle: typeof s.oddPinnacle === "number" && s.oddPinnacle > 1 ? s.oddPinnacle : null,
     probModelo: Math.min(0.999, Math.max(0.001, Number(s.probModelo) || 0)),
@@ -206,6 +211,14 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
     definir(estado.filter((s) => s.chave !== chave));
   }, []);
 
+  const substituir = useCallback((novas: Selecao[]) => {
+    garantirInit();
+    // Dedupe por chave: aplicar duas vezes o mesmo combo não duplica perna.
+    const porChave = new Map<string, Selecao>();
+    for (const s of novas) porChave.set(s.chave, s);
+    definir([...porChave.values()]);
+  }, []);
+
   const limpar = useCallback(() => {
     definir(VAZIO);
   }, []);
@@ -252,6 +265,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       total: selecoes.length,
       tem,
       alternar,
+      substituir,
       remover,
       limpar,
       oddTotal,
@@ -262,7 +276,7 @@ export function BetSlipProvider({ children }: { children: React.ReactNode }) {
       aberto,
       setAberto,
     }),
-    [selecoes, tem, alternar, remover, limpar, oddTotal, probCombinada, evCombinado, correlacao, semAncora, aberto],
+    [selecoes, tem, alternar, substituir, remover, limpar, oddTotal, probCombinada, evCombinado, correlacao, semAncora, aberto],
   );
 
   return <BetSlipCtx.Provider value={valor}>{children}</BetSlipCtx.Provider>;

@@ -160,6 +160,7 @@ export default function MercadosTab({
     matchLabel: `${home.name} × ${away.name}`,
     mercado: m.rotulo,
     grupo: m.grupo,
+    league,
     linha: m.linha > 0 ? m.linha : undefined,
     odd: m.oddAncora ?? 0,
     oddPinnacle: m.oddAncora ?? null,
