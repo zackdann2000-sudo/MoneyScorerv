@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Eye, EyeOff, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff, Plus, Check, TrendingUp } from "lucide-react";
 import { PISO_PROB_MERCADO, evPct, type MercadoProb } from "@/lib/mercadosPoisson";
+import { useBetSlip, type Selecao } from "@/context/BetSlipContext";
 
 type Team = { id: string; name: string };
 
@@ -29,7 +30,18 @@ function corProb(p: number | null): string {
   return "text-warn";
 }
 
-function CardMercado({ m, odd }: { m: MercadoProb; odd?: number | null }) {
+function CardMercado({
+  m,
+  combinado,
+  onCombinar,
+}: {
+  m: MercadoProb;
+  combinado: boolean;
+  onCombinar: () => void;
+}) {
+  // EV SEMPRE na odd da Pinnacle. Sem âncora, não há EV — e o card diz isso com
+  // todas as letras em vez de usar a odd de uma casa menor.
+  const odd = m.oddAncora ?? null;
   const ev = m.prob != null && odd != null ? evPct(m.prob, odd) : null;
   return (
     <div className="rounded-xl border border-line bg-panel p-2.5 space-y-1.5 min-w-0">
@@ -63,12 +75,34 @@ function CardMercado({ m, odd }: { m: MercadoProb; odd?: number | null }) {
         {m.estimado && (
           <span className="text-[8px] font-bold bg-warn/15 text-warn px-1.5 py-0.5 rounded">ESTIMADO</span>
         )}
+        {odd != null ? (
+          <span className="text-[8px] font-bold bg-panel2 text-mut px-1.5 py-0.5 rounded tabular-nums">
+            Pinnacle {odd.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-[8px] font-bold bg-panel2 text-mut/70 px-1.5 py-0.5 rounded">
+            sem âncora · sem EV
+          </span>
+        )}
         {ev != null && (
           <span className={`inline-flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded ${ev > 0 ? "bg-acc/15 text-acc" : "bg-panel2 text-mut"}`}>
             <TrendingUp size={9} /> EV {ev >= 0 ? "+" : ""}{ev.toFixed(1)}%
           </span>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={onCombinar}
+        disabled={m.prob == null}
+        aria-pressed={combinado}
+        className={`mt-1 inline-flex w-full items-center justify-center gap-1 h-7 rounded-lg border text-[9px] font-extrabold uppercase tracking-wide disabled:opacity-40 ${
+          combinado ? "border-acc bg-acc/15 text-acc" : "border-line bg-panel2 text-mut"
+        }`}
+      >
+        {combinado ? <Check size={11} /> : <Plus size={11} />}
+        {combinado ? "No bilhete" : "Combinar"}
+      </button>
     </div>
   );
 }
@@ -92,8 +126,10 @@ export default function MercadosTab({
   league: string;
   home: Team;
   away: Team;
+  /** @deprecated a odd do card agora vem da âncora Pinnacle (`m.oddAncora`). */
   odds?: { btts?: number | null } | null;
 }) {
+  const { tem, alternar } = useBetSlip();
   const [data, setData] = useState<Resposta | null>(null);
   const [erro, setErro] = useState("");
   const [verTodos, setVerTodos] = useState(false);
@@ -116,7 +152,21 @@ export default function MercadosTab({
     };
   }, [matchId, league, home.id, away.id]);
 
-  const oddsPorId = useMemo(() => ({ btts: odds?.btts ?? null }), [odds?.btts]);
+  /** Monta a seleção v2 para o bilhete. Odd = âncora Pinnacle (0 = sem odd). */
+  const selecaoDe = (m: MercadoProb): Selecao => ({
+    chave: `match:${matchId}:${m.id}`,
+    fixtureId: Number(matchId) || 0,
+    origem: "mercado",
+    matchLabel: `${home.name} × ${away.name}`,
+    mercado: m.rotulo,
+    grupo: m.grupo,
+    linha: m.linha > 0 ? m.linha : undefined,
+    odd: m.oddAncora ?? 0,
+    oddPinnacle: m.oddAncora ?? null,
+    probModelo: m.prob ?? 0,
+    estimado: m.estimado,
+  });
+
   const lista = verTodos ? data?.mercados ?? [] : data?.melhores ?? [];
   const abaixoDoPiso = (data?.mercados ?? []).filter((m) => !(m.prob != null && m.prob >= PISO_PROB_MERCADO)).length;
 
@@ -147,7 +197,7 @@ export default function MercadosTab({
         <p className="text-[10px] text-mut mt-1 leading-snug">
           Probabilidade Poisson sobre os últimos {data.amostra?.casa ?? 0} jogos do mandante e{" "}
           {data.amostra?.fora ?? 0} do visitante (fonte {data.fonte ?? "ESPN"}). Só aparece o que passa de{" "}
-          {Math.round(PISO_PROB_MERCADO * 100)}% ou tem EV positivo.
+          {Math.round(PISO_PROB_MERCADO * 100)}% ou tem EV positivo <b>na odd da Pinnacle</b>.
         </p>
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center rounded-full border border-acc/40 bg-acc/10 px-2 py-0.5 text-[9px] font-extrabold text-acc">
@@ -184,7 +234,12 @@ export default function MercadosTab({
               <h3 className="text-[10px] font-extrabold uppercase tracking-wide text-mut">{grupo.titulo}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {itens.map((m) => (
-                  <CardMercado key={m.id} m={m} odd={oddsPorId[m.id as keyof typeof oddsPorId] ?? null} />
+                  <CardMercado
+                    key={m.id}
+                    m={m}
+                    combinado={tem(`match:${matchId}:${m.id}`)}
+                    onCombinar={() => alternar(selecaoDe(m))}
+                  />
                 ))}
               </div>
             </section>
@@ -193,7 +248,8 @@ export default function MercadosTab({
       )}
 
       <p className="text-[9px] text-mut leading-relaxed">
-        Não é odd nem promessa de acerto. Os mercados de escanteios do 1º tempo são <b>estimados</b> a
+        EV calculado só sobre a odd da Pinnacle: mercado que ela não cotou fica sem EV, em vez de
+        usar a odd de uma casa menor. Não é promessa de acerto. Os mercados de escanteios do 1º tempo são <b>estimados</b> a
         partir do total do jogo, porque a fonte não publica escanteios por tempo. Os de gols do 1º tempo
         usam os eventos reais (gols do primeiro tempo) do histórico.
       </p>

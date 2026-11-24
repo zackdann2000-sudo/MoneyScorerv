@@ -55,6 +55,12 @@ export type MercadoProb = {
   estimado?: boolean;
   /** texto curto explicando a base do número */
   detalhe: string;
+  /**
+   * Odd da Pinnacle para este mercado (âncora do EV). `null` = a Pinnacle não
+   * cotou — e nesse caso o app NÃO mostra EV em vez de usar a odd de uma casa
+   * menor. Preenchido pela rota `/markets`.
+   */
+  oddAncora?: number | null;
 };
 
 /**
@@ -158,6 +164,7 @@ export function mercadosDoJogo(
       : null;
 
   const over15Jogo = lambdaJogo != null ? poissonAcima(1.5, lambdaJogo) : null;
+  const over25Jogo = lambdaJogo != null ? poissonAcima(2.5, lambdaJogo) : null;
   const over15Casa = lambdaCasa != null ? poissonAcima(1.5, lambdaCasa) : null;
   const over15Fora = lambdaFora != null ? poissonAcima(1.5, lambdaFora) : null;
 
@@ -242,6 +249,16 @@ export function mercadosDoJogo(
       over15Jogo,
       lambdaJogo,
       1.5,
+      nGols,
+      `λ do jogo ${lambdaJogo?.toFixed(2) ?? "—"}`,
+    ),
+    mercado(
+      "over25_jogo",
+      "2.5+ gols na partida",
+      "gols",
+      over25Jogo,
+      lambdaJogo,
+      2.5,
       nGols,
       `λ do jogo ${lambdaJogo?.toFixed(2) ?? "—"}`,
     ),

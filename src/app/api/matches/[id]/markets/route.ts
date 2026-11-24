@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary, getTeamHistory } from "@/lib/espn";
 import { filtrarMelhores, mercadosDoJogo } from "@/lib/mercadosPoisson";
+import { ancorasPinnaclePorEspnId, comAncoras } from "@/lib/oddsPinnacle";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,12 +51,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       );
     }
 
-    const mercados = mercadosDoJogo(casa.games, fora.games);
-    const melhores = filtrarMelhores(mercados);
+    const mercados = comAncoras(mercadosDoJogo(casa.games, fora.games), await ancorasPinnaclePorEspnId(id));
+
+    // EV e radar SEMPRE na odd da Pinnacle; mercado sem âncora depende só da
+    // probabilidade e nunca ganha EV de casa menor.
+    const oddes = Object.fromEntries(mercados.map((m) => [m.id, m.oddAncora ?? null]));
+    const melhores = filtrarMelhores(mercados, oddes);
 
     return NextResponse.json({
       mercados,
       melhores,
+      ancora: "Pinnacle",
+      comAncora: mercados.filter((m) => m.oddAncora != null).length,
       amostra: { casa: casa.games.length, fora: fora.games.length },
       fonte: "ESPN",
       updatedAt: new Date().toISOString(),

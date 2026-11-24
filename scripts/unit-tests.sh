@@ -35,6 +35,8 @@ SUITES+=(
   "accessMessage|src/lib/accessMessage.test.cjs"
   "trialCountdown|src/lib/trialCountdown.test.cjs"
   "playerPropsEngine|src/lib/playerPropsEngine.test.cjs"
+  "winProb|src/lib/winProb.test.cjs"
+  "comboBuilder|src/lib/comboBuilder.test.cjs"
   "duelosEngine|src/lib/duelosEngine.test.cjs"
   "h2hEngine|src/lib/h2hEngine.test.cjs"
   "vereditoEngine|src/lib/vereditoEngine.test.cjs"

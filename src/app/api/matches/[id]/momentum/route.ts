@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { extrairLances, pressao, seriePressao, sinalPressao, JANELA_GRAFICO, JANELA_SINAL } from "@/lib/momentum";
+import { calcularWinProb, serieWinProb } from "@/lib/winProb";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const league = req.nextUrl.searchParams.get("league") || "bra.1";
 
   // auth → rate limit → trabalho (anônimo nunca consome CPU à toa)
+  //
+  // 240/h = 4 req/min: o cliente busca a cada 30 s (120/h) e duas abas abertas
+  // ainda cabem. Com 60/h o gráfico congelava em silêncio depois de ~30 min de
+  // jogo — o polling estourava o teto e todo request virava 429.
   const ip = clientIp(req);
-  const rl = await rateLimit("momentum", ip, { limit: 60, windowSec: 60 * 60 });
+  const rl = await rateLimit("momentum", ip, { limit: 240, windowSec: 60 * 60 });
   if (!rl.ok) {
     return NextResponse.json({ error: "Muitas requisições." }, { status: 429, headers: { "Retry-After": String(rl.retryAfterSec ?? 60) } });
   }
@@ -36,6 +41,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         pressao: null,
         sinal: { nivel: null, lado: null, pct: null, rotulo: "" },
         serie: [],
+        prob: null,
         fonte: "ESPN",
       });
     }
@@ -44,6 +50,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const p15 = pressao(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO });
     const p10 = pressao(lances, { minuto: minutoAtual, janela: JANELA_SINAL });
 
+    // Probabilidade 1X2 ao vivo: mesma narração, nenhuma chamada extra à ESPN.
+    const probAtual = calcularWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO });
+    const prob = probAtual
+      ? { atual: probAtual, serie: serieWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, passo: 5 }) }
+      : null;
+
     return NextResponse.json({
       ok: true,
       vazio: false,
@@ -51,6 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       pressao: p15,
       sinal: sinalPressao(p10),
       serie: seriePressao(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, passo: 3 }),
+      prob,
       fonte: "ESPN",
     });
   } catch (e: any) {

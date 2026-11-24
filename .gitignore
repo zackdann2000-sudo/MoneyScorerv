@@ -74,3 +74,6 @@ reverse_engineering/gonzo/*.xapk
 reverse_engineering/gonzo/*.apk
 reverse_engineering/gonzo/.web/
 replica/overlyzer/.raw/
+
+# artefatos temporários de recon (não versionar)
+.tmp/

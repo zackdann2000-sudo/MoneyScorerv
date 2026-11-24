@@ -10,6 +10,8 @@ import { InsightsCache, type RespostaInsights } from "@/components/match/Insight
 import { OddsMultiCasaLive } from "@/components/match/OddsMultiCasaLive";
 import AiReport from "@/components/hub/AiReport";
 import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
+import WinProbChart from "@/components/match/WinProbChart";
+import type { WinProbPayload } from "@/lib/winProb";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
 import type { ContextoH2H } from "@/lib/blocoAnalises";
@@ -68,6 +70,7 @@ export function Timeline({ events, vip }: { events: any[]; vip: boolean }) {
 export function LiveTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {
   const [oracle, setOracle] = useState<any>(null);
   const [sinal, setSinal] = useState<{ nivel: "fire" | "ball" | null; lado: "home" | "away" | null; pct: number | null; rotulo: string } | null>(null);
+  const [winProb, setWinProb] = useState<WinProbPayload | null>(null);
   useEffect(() => {
     let on = true;
     const load = () => fetch(`/api/matches/${matchId}/oracle?league=${league}`).then((r) => r.json()).then((j) => on && setOracle(j)).catch(() => {});
@@ -110,9 +113,14 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
         )}
       </div>
 
+      {/* Probabilidade de vitória ao vivo — placar + tempo + momentum */}
+      <div className="bg-panel border border-line rounded-2xl p-4">
+        <WinProbChart dados={winProb} home={nomeCasa} away={nomeFora} />
+      </div>
+
       {/* Momentum ao vivo — lances reais da ESPN */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} />
+        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} onWinProb={setWinProb} />
       </div>
 
       {/* Timeline */}

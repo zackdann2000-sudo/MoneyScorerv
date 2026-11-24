@@ -1,16 +1,30 @@
 "use client";
 
-import { ShoppingBasket, X, Trash2, Plus, TrendingUp } from "lucide-react";
+import { ShoppingBasket, X, Trash2, Plus, TrendingUp, AlertTriangle, Anchor } from "lucide-react";
 import { useBetSlip } from "@/context/BetSlipContext";
 
 /**
  * Carrinho flutuante + gaveta da combinada.
  *
- * Só aparece quando há seleções — um botão vazio fixo na tela é ruído. O badge
- * mostra a contagem; a gaveta calcula odd total e probabilidade combinada.
+ * Só aparece quando há seleções — um botão vazio fixo na tela é ruído. A gaveta
+ * mostra odd total, probabilidade combinada e EV. O EV usa EXCLUSIVAMENTE a odd
+ * da Pinnacle: perna sem âncora aparece como "sem âncora" e o EV do bilhete fica
+ * indisponível, em vez de ser calculado com a odd de uma casa menor.
  */
 export default function BetSlipDock() {
-  const { total, selecoes, remover, limpar, oddTotal, probCombinada, aberto, setAberto } = useBetSlip();
+  const {
+    total,
+    selecoes,
+    remover,
+    limpar,
+    oddTotal,
+    probCombinada,
+    evCombinado,
+    correlacao,
+    semAncora,
+    aberto,
+    setAberto,
+  } = useBetSlip();
 
   if (total === 0) return null;
 
@@ -82,24 +96,35 @@ export default function BetSlipDock() {
                 <li key={s.chave} className="rounded-xl border border-line bg-panel p-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-extrabold text-ink truncate">{s.jogador}</p>
+                      <p className="text-xs font-extrabold text-ink truncate">
+                        {s.jogador || s.mercado}
+                      </p>
                       <p className="text-[10px] text-mut truncate">
-                        {s.mercado} · acima de {s.linha}
+                        {s.jogador ? s.mercado : "Mercado de jogo"}
+                        {s.linha != null ? ` · acima de ${s.linha}` : ""}
                       </p>
-                      <p className="text-[9px] text-mut/80 truncate">
-                        {s.home} × {s.away}
-                      </p>
+                      <p className="text-[9px] text-mut/80 truncate">{s.matchLabel}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-extrabold text-acc tabular-nums">{s.odd.toFixed(2)}</p>
+                      <p className="text-xs font-extrabold text-acc tabular-nums">
+                        {s.odd > 1 ? s.odd.toFixed(2) : "—"}
+                      </p>
                       <p className="text-[9px] text-mut tabular-nums">
                         {Math.round(s.probModelo * 100)}%
+                      </p>
+                      <p
+                        className={`mt-0.5 inline-flex items-center gap-0.5 text-[8px] font-bold ${
+                          s.oddPinnacle != null ? "text-acc" : "text-warn"
+                        }`}
+                      >
+                        <Anchor size={8} />
+                        {s.oddPinnacle != null ? "Pinnacle" : "sem âncora"}
                       </p>
                     </div>
                     <button
                       onClick={() => remover(s.chave)}
                       className="shrink-0 w-7 h-7 rounded-lg border border-line text-mut inline-flex items-center justify-center"
-                      aria-label={`Remover ${s.jogador}`}
+                      aria-label={`Remover ${s.jogador || s.mercado}`}
                     >
                       <X size={12} />
                     </button>
@@ -120,10 +145,47 @@ export default function BetSlipDock() {
                   {probPct.toFixed(2)}%
                 </span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-mut">EV (odd Pinnacle)</span>
+                {evCombinado == null ? (
+                  <span className="text-[10px] font-bold text-warn">indisponível</span>
+                ) : (
+                  <span
+                    className={`text-sm font-extrabold tabular-nums inline-flex items-center gap-1 ${
+                      evCombinado > 0 ? "text-acc" : "text-mut"
+                    }`}
+                  >
+                    <TrendingUp size={11} />
+                    {evCombinado >= 0 ? "+" : ""}
+                    {evCombinado.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+
+              {correlacao && (
+                <div className="rounded-xl border border-warn/50 bg-warn/10 p-2">
+                  <p className="flex items-center gap-1 text-[10px] font-extrabold text-warn uppercase">
+                    <AlertTriangle size={11} /> Combinada correlacionada
+                  </p>
+                  <p className="mt-0.5 text-[9px] leading-snug text-warn/90">
+                    {correlacao}. O produto das probabilidades só vale para eventos independentes —
+                    aqui a chance real é <b>maior</b> que a mostrada, e o EV não é publicado.
+                  </p>
+                </div>
+              )}
+
+              {!correlacao && semAncora > 0 && (
+                <p className="text-[9px] leading-snug text-mut">
+                  {semAncora} {semAncora === 1 ? "seleção está" : "seleções estão"} sem odd da
+                  Pinnacle. Sem âncora não calculamos EV — preferimos não mostrar a mostrar um
+                  número puxado pela odd de uma casa menor.
+                </p>
+              )}
+
               <p className="text-[9px] text-mut leading-relaxed">
-                A probabilidade é o produto das probabilidades individuais do modelo — assume que os
-                eventos são independentes. Na prática, propostas do mesmo jogo tendem a se
-                correlacionar, então trate como estimativa otimista.
+                A probabilidade é o produto das probabilidades individuais do modelo. Pernas do mesmo
+                jogo ou do mesmo jogador tendem a se correlacionar: quando isso acontece, o aviso
+                acima aparece e o EV é omitido.
               </p>
 
               <div className="flex gap-2 pt-1">

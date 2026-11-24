@@ -6,8 +6,6 @@ import { CalendarDays, Crosshair, Activity, Radar } from "lucide-react";
 import JogosTab from "@/components/apitou/JogosTab";
 import AnaliseTab from "@/components/apitou/AnaliseTab";
 import DesajustesTab from "@/components/apitou/DesajustesTab";
-import BetSlipDock from "@/components/apitou/BetSlipDock";
-import { BetSlipProvider } from "@/context/BetSlipContext";
 
 type AbaKey = "jogos" | "analise" | "desajustes";
 
@@ -62,8 +60,7 @@ function ApitouInner() {
   const voltarLigas = useCallback(() => sincronizar({ liga: null }), [sincronizar]);
 
   return (
-    <BetSlipProvider>
-      <div className="max-w-2xl mx-auto px-3 py-3 space-y-3">
+    <div className="max-w-2xl mx-auto px-3 py-3 space-y-3">
         <header className="flex items-center gap-2">
         <Radar size={17} className="text-acc shrink-0" />
         <div className="min-w-0">
@@ -135,10 +132,6 @@ function ApitouInner() {
           garantia de resultado. Aposte com responsabilidade.
         </p>
       </div>
-
-      {/* Carrinho da combinada: fica dentro do provider e só aparece com itens. */}
-      <BetSlipDock />
-    </BetSlipProvider>
   );
 }
 

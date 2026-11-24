@@ -174,13 +174,14 @@ function ListaDesajustes({ data }: { data: JogoResp }) {
                   selecao={{
                     chave: d.chave,
                     fixtureId: d.fixtureId,
+                    origem: "prop",
+                    matchLabel: `${d.home} × ${d.away}`,
                     jogador: d.jogador,
                     mercado: d.mercado,
                     linha: d.linha,
                     odd: d.odd,
+                    oddPinnacle: null,
                     probModelo: d.probModelo,
-                    home: d.home,
-                    away: d.away,
                   }}
                 />
               </span>
@@ -270,13 +271,14 @@ function ListaProps({
                       selecao={{
                         chave: p.chave,
                         fixtureId: p.fixtureId,
+                        origem: "prop",
+                        matchLabel: `${p.home} × ${p.away}`,
                         jogador: p.jogador,
                         mercado: p.mercadoRotulo,
                         linha: p.linha,
                         odd: p.odd,
+                        oddPinnacle: null,
                         probModelo: p.probModelo,
-                        home: p.home,
-                        away: p.away,
                       }}
                     />
                     <ChevronDown

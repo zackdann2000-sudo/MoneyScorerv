@@ -3,6 +3,8 @@ import { Barlow_Condensed, Manrope } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { AppProvider } from "@/context/AppContext";
+import { BetSlipProvider } from "@/context/BetSlipContext";
+import BetSlipDock from "@/components/apitou/BetSlipDock";
 import Shell from "@/components/Shell";
 
 const barlow = Barlow_Condensed({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-barlow" });
@@ -82,7 +84,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             });`}
         </Script>
         <AppProvider>
-          <Shell>{children}</Shell>
+          {/* O bilhete vive no layout: a mesma combinada atravessa /apitou,
+              /jogos e /mercardos — antes ele morria ao trocar de aba. */}
+          <BetSlipProvider>
+            <Shell>{children}</Shell>
+            <BetSlipDock />
+          </BetSlipProvider>
         </AppProvider>
       </body>
     </html>

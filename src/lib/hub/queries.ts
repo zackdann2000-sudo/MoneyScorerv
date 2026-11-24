@@ -293,7 +293,7 @@ const SEM_INSIGHTS: HubInsightsCache = { fixtureId: null, labInsights: [], xgFac
  * `hub_fixture_source.(provider, external_id)`, com fallback para
  * `hub_fixture.(source, external_ref)`. Só banco, nenhum fornecedor.
  */
-async function fixtureIdPorEspnId(idBruto: string): Promise<number | null> {
+export async function fixtureIdPorEspnId(idBruto: string): Promise<number | null> {
   const id = String(idBruto ?? "").trim();
   if (!id) return null;
 

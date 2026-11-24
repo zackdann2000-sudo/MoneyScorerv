@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Flame } from "lucide-react";
+import type { WinProbPayload } from "@/lib/winProb";
 
 type Pressao = {
   casa: number;
@@ -30,6 +31,8 @@ type Resposta = {
   pressao?: Pressao | null;
   sinal?: Sinal;
   serie?: { min: number; casa: number; fora: number }[];
+  /** Probabilidade 1X2 ao vivo, calculada na mesma resposta. */
+  prob?: WinProbPayload | null;
   error?: string;
 };
 
@@ -74,6 +77,7 @@ export function MomentumChart({
   home,
   away,
   onSinal,
+  onWinProb,
 }: {
   matchId: string;
   league: string;
@@ -81,6 +85,8 @@ export function MomentumChart({
   away: string;
   /** Avisa a aba qual é o selo atual, para ele ficar no topo do jogo. */
   onSinal?: (s: Sinal | null) => void;
+  /** Entrega a probabilidade 1X2 para o gráfico, sem uma segunda requisição. */
+  onWinProb?: (p: WinProbPayload | null) => void;
 }) {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [erro, setErro] = useState(false);
@@ -93,10 +99,11 @@ export function MomentumChart({
         .then((r) => r.json())
         .then((j) => {
           if (!vivo.current) return;
-          if (j?.error) { setErro(true); return; }
+          if (j?.error) { setErro(true); onWinProb?.(null); return; }
           setErro(false);
           setDados(j as Resposta);
           onSinal?.(j?.sinal ?? null);
+          onWinProb?.(j?.prob ?? null);
         })
         .catch(() => vivo.current && setErro(true));
     carregar();
@@ -105,7 +112,7 @@ export function MomentumChart({
       vivo.current = false;
       clearInterval(t);
     };
-  }, [matchId, league, onSinal]);
+  }, [matchId, league, onSinal, onWinProb]);
 
   const serie = dados?.serie || [];
   const p = dados?.pressao || null;
