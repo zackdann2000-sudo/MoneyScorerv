@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import PaywallCard from "@/components/PaywallCard";
 import { useApp } from "@/context/AppContext";
+import { jaConsumiuHoje, marcarConsumido } from "@/lib/quotaLocal";
 
 export default function QuotaConsumo({ id }: { id: string }) {
   const { user, vip } = useApp();
@@ -21,17 +22,17 @@ export default function QuotaConsumo({ id }: { id: string }) {
     // Sem login ou com VIP/admin: nada a consumir.
     if (!user || vip) return;
     if (user.quota?.ilimitada) return;
-    const dia = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-    const chave = `gs_q_${dia}_${id}`;
-    try {
-      if (localStorage.getItem(chave)) return;
-    } catch {}
+    // Mesma chave usada pelo LimiteAnaliseGuard (fonte única em lib/quotaLocal).
+    if (jaConsumiuHoje(id)) return;
     let vivo = true;
     fetch("/api/quota", { method: "POST" })
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
-        try { localStorage.setItem(chave, "1"); } catch {}
+        /* Só marca quando o servidor DEBITOU. Antes a chave era gravada mesmo no
+           bloqueio, e reabrir a mesma partida pulava o fetch — ou seja, quem
+           estourava a quota via a análise no reload. */
+        if (j?.liberado !== false) marcarConsumido(id);
         setRestante(j?.quota?.restante ?? null);
         if (j && j.liberado === false) setBloqueado(true);
       })

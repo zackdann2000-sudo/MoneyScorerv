@@ -33,6 +33,7 @@ SUITES+=(
   "mainLeagues|src/lib/mainLeagues.test.cjs"
   "trackStats|src/lib/trackStats.test.cjs"
   "accessMessage|src/lib/accessMessage.test.cjs"
+  "quotaLocal|src/lib/quotaLocal.test.cjs"
   "trialCountdown|src/lib/trialCountdown.test.cjs"
   "playerPropsEngine|src/lib/playerPropsEngine.test.cjs"
   "winProb|src/lib/winProb.test.cjs"

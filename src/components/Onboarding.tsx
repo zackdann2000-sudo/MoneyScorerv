@@ -180,16 +180,21 @@ export default function Onboarding() {
             </p>
           </div>
 
-          <h2 id="onboarding-titulo" className="mt-3 text-xl font-black leading-tight text-ink sm:text-2xl">
+          <h2 id="onboarding-titulo" className="mt-3 text-balance break-words text-xl font-black leading-tight text-ink sm:text-2xl">
             {tela.titulo}
           </h2>
-          <p className="mt-2 text-[12px] leading-relaxed text-mut sm:text-[13px]">{tela.texto}</p>
+          <p className="mt-2 break-words text-[12px] leading-relaxed text-mut [overflow-wrap:anywhere] sm:text-[13px]">
+            {tela.texto}
+          </p>
 
           <ul className="mt-3 space-y-2">
             {tela.pontos.map((p) => (
               <li key={p} className="flex items-start gap-2 text-[11px] leading-snug text-ink sm:text-[12px]">
                 <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-good" />
-                <span>{p}</span>
+                {/* min-w-0 no filho: sem isso, o flex item não encolhe abaixo do
+                    conteúdo e uma palavra longa (ex.: “Placar/estatística”) estoura
+                    a tela de 320px em vez de quebrar. */}
+                <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{p}</span>
               </li>
             ))}
           </ul>
@@ -197,7 +202,7 @@ export default function Onboarding() {
           <Link
             href={tela.acao.href}
             onClick={concluir}
-            className="mt-3 inline-flex items-center gap-1 text-[11px] font-black text-acc hover:underline"
+            className="mt-3 inline-flex max-w-full items-center gap-1 break-words text-left text-[11px] font-black text-acc hover:underline"
           >
             {tela.acao.label} <ArrowRight className="h-3 w-3" />
           </Link>

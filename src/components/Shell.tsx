@@ -23,6 +23,7 @@ import InstallApp from "@/components/InstallApp";
 import Onboarding from "@/components/Onboarding";
 import StripeReturn from "@/components/StripeReturn";
 import TrialExpiradoModal from "@/components/TrialExpiradoModal";
+import LimiteAnaliseGuard from "@/components/LimiteAnaliseGuard";
 import ExploreSheet from "@/components/ExploreSheet";
 import {
   GRUPOS,
@@ -135,6 +136,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </header>
       <TrialBanner />
       <TrialExpiradoModal />
+      <LimiteAnaliseGuard />
 
       {/* ---------------- MENU LATERAL (árvore completa) ---------------- */}
       {open && (
