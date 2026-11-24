@@ -1,13 +1,19 @@
 # Checklist de Produção — GreenScore
 
-Ordem de execução. Não pule a seção 2 (Stripe CLI): é o único jeito de validar o
-webhook antes de alguém pagar de verdade.
+> **Estado atual: vendas PAUSADAS.** O produto é cadastro por e-mail → 24h de
+> acesso completo → 1 análise grátis por dia. Nenhuma tela oferece assinatura e
+> `/planos` é uma página informativa (`noindex`). O Stripe fica em **standby**: o
+> código continua no repositório e testado, mas as seções **2 e 2.3** deste
+> documento só valem no dia em que a venda voltar.
+
+Ordem de execução. Para lançar sem vendas, vá de 0 → 1 → 3 (só as envs
+não-Stripe) → 4 → 5 → 6.
 
 ---
 
 ## 0. Antes de tocar em produção
 
-- [ ] `main` verde: `npx tsc --noEmit` **e** `./scripts/unit-tests.sh` (hoje: 36 suítes).
+- [ ] `main` verde: `npx tsc --noEmit` **e** `./scripts/unit-tests.sh` (hoje: 37 suítes).
 - [ ] `vercel.json` **sem** cron de 1 minuto (o Hobby recusa e o deploy falha). O
       watcher de gol roda por agendador externo — ver `docs/SETUP_ALERTAS_CRON.md`.
 - [ ] Nenhuma chave de teste commitada: `git grep -n "sk_test"` não deve achar nada.
@@ -24,7 +30,19 @@ webhook antes de alguém pagar de verdade.
       `fcm_tokens`, `hub_bookmaker_odd`, `predictions`, `payment_events`.
 - [ ] Habilitar backup/PITR no provedor (Neon: *Restore window* ≥ 7 dias).
 
-## 2. Stripe — testar ANTES de virar live
+## 2. Stripe — ⏸️ STANDBY (pular enquanto a venda estiver pausada)
+
+Nada aqui é necessário para lançar. Com `VENDAS_ATIVAS = false`, a UI não expõe
+checkout, `/api/stripe/checkout` responde 503 se alguém chamar direto e o trial de
+24h é concedido pelo cadastro, sem passar por pagamento.
+
+Para reativar a venda, nesta ordem:
+
+- [ ] Trocar `VENDAS_ATIVAS` para `true` em `src/lib/vendas.ts` (é o único switch:
+      devolve os botões em `/planos`, `/config`, `PaywallCard`, landing e CTAs).
+- [ ] Restaurar a entrada `/planos` no `src/app/sitemap.ts` e remover o `robots:
+      noindex` de `src/app/planos/page.tsx`.
+- [ ] Seguir as subseções 2.1 → 2.3 abaixo.
 
 ### 2.1 Stripe CLI no ambiente local
 
@@ -96,15 +114,15 @@ Obrigatórias:
 | `DATABASE_URL` | Postgres de produção |
 | `NEXT_PUBLIC_SITE_URL` | `https://SEU_DOMINIO` (canonical/OG e URL dos pushes) |
 | `APP_URL` | mesma URL (redirects do Stripe) |
-| `STRIPE_SECRET_KEY` | `sk_live_...` |
-| `STRIPE_PRICE_MENSAL`, `STRIPE_PRICE_ANUAL` | `price_...` live |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_...` do endpoint de produção |
+| `STRIPE_SECRET_KEY` | `sk_live_...` — **só com vendas ativas** |
+| `STRIPE_PRICE_MENSAL`, `STRIPE_PRICE_ANUAL` | `price_...` live — **só com vendas ativas** |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...` do endpoint de produção — **só com vendas ativas** |
 | `CRON_SECRET` | segredo dos crons diários |
 | `LIVE_CRON_SECRET` | segredo do watcher de gol (ver `docs/SETUP_ALERTAS_CRON.md`) |
 | `OWNER_EMAILS` | e-mails com acesso vitalício, separados por vírgula |
 | `SPORTMONKS_TOKEN`, `FOOTBALL_DATA_TOKEN`, `API_FOOTBALL_KEY`, `BZZOIRO_TOKEN` | fontes de dados |
 | `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | push Android |
-| `VAPID_PUBLIC`, `VAPID_PRIVATE`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` | push web (`mailto:` no subject) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | push web (`mailto:` no subject). O push só liga com o **par vindo da env** — a pública tem fallback no código e misturar as duas invalida a assinatura. |
 | `ONESIGNAL_REST_API_KEY` | se usar o canal OneSignal |
 | `NEXT_PUBLIC_GA_ID` | GA4 (`G-...`). Vazio = nenhum script de terceiro carregado. |
 
@@ -125,12 +143,15 @@ Obrigatórias:
 
 - [ ] `/` renderiza a landing; `/cadastro` cria conta e cai em `/jogos`.
 - [ ] Cadastro novo ganha 24h de VIP e o banner do trial mostra o contador.
-- [ ] `/planos` com sessão abre o checkout live; sem sessão manda para o login.
+- [ ] `/planos` mostra a página informativa (sem botão de assinatura) e não é indexada.
+- [ ] `/config` não exibe “Assinar VIP” nem portal do Stripe.
 - [ ] Webhook: `Developers → Webhooks → attempts` com `200` nas últimas entregas.
 - [ ] `curl "https://SEU_DOMINIO/api/cron/live?secret=$LIVE_CRON_SECRET&debug=1"` → `ok:true`.
 - [ ] Cron diário rodou (`/api/cron/diario?acao=apitou` com `Authorization: Bearer $CRON_SECRET`).
-- [ ] Push de teste: ligar "⚽ Gols" em `/config` e rodar `stripe trigger`… não —
-      push precisa de jogo real; use o alerta de teste do app.
+- [ ] **Fim do trial**: esperar as 24h (ou ajustar `expiresAt` no banco) e conferir o
+      modal “Seu período de teste de 24h acabou”, com o limite de 1 análise/dia.
+- [ ] Cadastro no MESMO device → deve cair na tela “teste de 24h já usado”, com a
+      conta em `free` (sem VIP).
 - [ ] PWA instalável no Android (manifest + service worker `sw.js`).
 
 ## 6. Monitoramento e rollback

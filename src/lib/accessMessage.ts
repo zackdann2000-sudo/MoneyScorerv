@@ -24,6 +24,6 @@ export function mensagemAcesso(u: AcessoInfo, agora: Date = new Date()): string 
   if (u.isAdmin) return "Você tem acesso vitalício a todas as análises e estatísticas.";
   const exp = u.expiresAt ? new Date(u.expiresAt) : null;
   const valido = exp !== null && Number.isFinite(exp.getTime()) && exp.getTime() > agora.getTime();
-  if (!u.accessActive || !valido) return "Seu período de teste expirou. Faça upgrade para ver as oportunidades.";
-  return `Seu período VIP de 24h termina em ${quandoSP(u.expiresAt as string)}`;
+  if (!u.accessActive || !valido) return "Seu teste de 24h terminou. Você continua com 1 análise grátis por dia — o contador zera à meia-noite.";
+  return `Seu teste de 24h (acesso completo) termina em ${quandoSP(u.expiresAt as string)}`;
 }

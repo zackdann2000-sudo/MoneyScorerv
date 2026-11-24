@@ -27,7 +27,7 @@ type Rota = {
 const ROTAS: Rota[] = [
   // Funil principal
   { caminho: "/", prioridade: 1, freq: "daily" },
-  { caminho: "/planos", prioridade: 0.9, freq: "weekly" },
+  // /planos fica fora do sitemap: a venda está pausada e a página é noindex.
   { caminho: "/metodologia", prioridade: 0.8, freq: "monthly" },
   // Conteúdo que atualiza todo dia
   { caminho: "/hub", prioridade: 0.8, freq: "daily" },

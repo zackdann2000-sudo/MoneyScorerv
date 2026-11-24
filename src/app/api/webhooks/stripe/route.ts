@@ -104,8 +104,17 @@ async function revogar(alvo: Alvo, origem: string) {
       .update(users)
       .set({ expiresAt: REVOGADO })
       .where(eq(sql`lower(${users.email})`, alvo.email));
-    console.log(`[stripe] acesso revogado (${alvo.email}) via ${origem}`);
+    // E-mail mascarado no log: o log de produção não precisa de PII completa
+    // para rastrear uma revogação (basta identificar qual conta).
+    console.log(`[stripe] acesso revogado (${mascararEmail(alvo.email)}) via ${origem}`);
   }
+}
+
+/** `fulano@dominio.com` → `fu***@dominio.com`. */
+function mascararEmail(email: string): string {
+  const [nome, dominio] = email.split("@");
+  if (!dominio) return "***";
+  return `${nome.slice(0, 2)}***@${dominio}`;
 }
 
 /* ------------------------------------------------------------------ */

@@ -431,16 +431,16 @@ export default async function LigaSeoPage({ params }: Props) {
       </section>
 
       <section className="rounded-2xl border border-acc/35 bg-gradient-to-br from-acc/10 via-panel to-panel p-4">
-        <p className="font-display font-bold text-base uppercase text-ink">Quer mais que 1 análise por dia?</p>
+        <p className="font-display font-bold text-base uppercase text-ink">Acesso completo por 24h</p>
         <p className="mt-1 text-[11px] leading-relaxed text-mut">
-          O Free libera 1 análise por dia, todos os dias. Starter abre 6, Pro abre 20 e Expert não tem
-          contador — no cartão, cancele quando quiser.
+          O cadastro libera o app inteiro por 24 horas. Depois, 1 análise grátis por dia — o contador
+          zera à meia-noite. Sem cartão.
         </p>
         <Link
-          href="/planos"
+          href="/cadastro"
           className="mt-2 inline-flex h-9 items-center rounded-xl bg-acc px-3 text-[11px] font-extrabold text-black"
         >
-          Ver os planos
+          Criar conta grátis
         </Link>
       </section>
 

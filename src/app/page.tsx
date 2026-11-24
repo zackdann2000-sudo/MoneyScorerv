@@ -296,8 +296,9 @@ export default async function LandingPage() {
             Comece com 1 análise grátis por dia
           </h2>
           <p className="mx-auto mt-2 max-w-lg text-[12px] leading-relaxed text-mut sm:text-sm">
-            Crie sua conta e libere IA Analista, Player Props, Duelos e o Track Record inteiro.
-            Todo dia o contador zera. Sem cartão, sem compromisso — e sem promessa de lucro.
+            Crie sua conta e libere IA Analista, Player Props, Duelos e o Track Record inteiro por 24
+            horas. Depois, 1 análise grátis por dia — o contador zera à meia-noite. Sem cartão e sem
+            promessa de lucro.
           </p>
           <div className="mt-5 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
             <Link
@@ -307,10 +308,10 @@ export default async function LandingPage() {
               Criar conta grátis <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/planos"
+              href="/edge"
               className="inline-flex w-full items-center justify-center rounded-full border border-line bg-panel px-5 py-3.5 text-[13px] font-bold text-txt hover:border-acc/50 sm:w-auto sm:text-sm"
             >
-              Ver planos
+              Ver picks de hoje
             </Link>
           </div>
 

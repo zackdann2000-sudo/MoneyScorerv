@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, CreditCard, LogIn, ShieldCheck, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { VENDAS_ATIVAS, MODELO_ATUAL } from "@/lib/vendas";
 import { sanitizeNext } from "@/lib/nextPath";
 
 /**
@@ -50,13 +51,25 @@ export default function PaywallCard({
       : motivo === "login"
         ? "Libere as análises completas"
         : "Seu acesso VIP terminou");
+
+  /* Venda pausada: nada de botão de assinatura apontando para uma página que
+     não vende. O convite é o cadastro (24h completas) e, para quem já tem
+     conta, a verdade sobre o limite diário. */
   const descricaoFinal =
     descricao ??
-    (motivo === "quota"
-      ? `Seu plano ${(user?.quota?.plano ?? "free").toUpperCase()} libera ${user?.quota?.limite ?? 1} análise(s) por dia e o contador zera à meia-noite. Assine para ver agora: Starter 6/dia, Pro 20/dia, Expert ilimitado.`
-      : motivo === "login"
-        ? "Crie sua conta grátis e veja 1 análise completa por dia, sem cartão. Para ver mais, assine no cartão — cancele quando quiser."
-        : "Assine e volte a ver oportunidades, props e relatórios agora. Acesso imediato após o pagamento, cancele quando quiser.");
+    (!VENDAS_ATIVAS
+      ? motivo === "quota"
+        ? `Sua análise de hoje já foi usada e o contador zera à meia-noite (horário de Brasília). ${MODELO_ATUAL}`
+        : `Crie sua conta e use o app completo por 24h. Depois, 1 análise grátis por dia — placares e estatísticas continuam abertos.`
+      : motivo === "quota"
+        ? `Seu plano ${(user?.quota?.plano ?? "free").toUpperCase()} libera ${user?.quota?.limite ?? 1} análise(s) por dia e o contador zera à meia-noite. Assine para ver agora: Starter 6/dia, Pro 20/dia, Expert ilimitado.`
+        : motivo === "login"
+          ? "Crie sua conta grátis e veja 1 análise completa por dia, sem cartão. Para ver mais, assine no cartão — cancele quando quiser."
+          : "Assine e volte a ver oportunidades, props e relatórios agora. Acesso imediato após o pagamento, cancele quando quiser.");
+
+  const beneficios = VENDAS_ATIVAS
+    ? ["Acesso imediato após o pagamento", "Cartão de crédito via Stripe", "Cancele quando quiser"]
+    : ["24h de acesso completo, sem cartão", "Depois: 1 análise grátis por dia", "Placares e estatísticas sempre abertos"];
 
   return (
     <div className={`rounded-2xl border border-acc/35 bg-gradient-to-br from-acc/10 via-panel to-panel ${compacto ? "p-4" : "p-5"}`}>
@@ -70,7 +83,7 @@ export default function PaywallCard({
       <p className="mt-2 text-[12px] leading-relaxed text-mut">{descricaoFinal}</p>
 
       <ul className="mt-3 space-y-1.5">
-        {["Acesso imediato após o pagamento", "Cartão de crédito via Stripe", "Cancele quando quiser"].map((b) => (
+        {beneficios.map((b) => (
           <li key={b} className="flex items-start gap-2 text-[11px] font-semibold text-ink">
             <Check size={13} className="mt-0.5 shrink-0 text-good" />
             {b}
@@ -79,12 +92,21 @@ export default function PaywallCard({
       </ul>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <button
-          onClick={irParaPlanos}
-          className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-acc px-4 text-[13px] font-black text-black"
-        >
-          <CreditCard size={15} /> Assinar o VIP
-        </button>
+        {VENDAS_ATIVAS ? (
+          <button
+            onClick={irParaPlanos}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-acc px-4 text-[13px] font-black text-black"
+          >
+            <CreditCard size={15} /> Assinar o VIP
+          </button>
+        ) : (
+          <Link
+            href="/cadastro"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-acc px-4 text-[13px] font-black text-black"
+          >
+            <Sparkles size={15} /> Criar conta grátis
+          </Link>
+        )}
         {motivo === "login" && (
           <Link
             href="/login"

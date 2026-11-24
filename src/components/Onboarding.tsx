@@ -98,11 +98,11 @@ const TELAS: Tela[] = [
     texto:
       "O acesso é gratuito todos os dias, não só no começo: cada conta vê 1 análise por dia. O contador zera à meia-noite, no horário de Brasília.",
     pontos: [
-      "Free: 1 análise por dia, sem cartão e sem prazo para acabar.",
-      "Quer ver mais no mesmo dia? Starter libera 6, Pro libera 20 e Expert é ilimitado.",
+      "Cadastro libera o app completo por 24h, sem cartão.",
+      "Depois: 1 análise grátis por dia, com contador que zera à meia-noite.",
       "Placares, ligas, classificação e estatísticas de partida continuam abertos para todo mundo.",
     ],
-    acao: { label: "Comparar os planos", href: "/planos" },
+    acao: { label: "Ver como o modelo calcula", href: "/metodologia" },
   },
 ];
 

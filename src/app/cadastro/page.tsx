@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LogIn, ShieldAlert } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { lerOuCriarDeviceId } from "@/lib/deviceId";
 import { track } from "@/lib/analytics";
@@ -12,6 +13,7 @@ export default function Cadastro() {
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bloqueio, setBloqueio] = useState<null | "device" | "ip">(null);
   const { refreshUser, addToast, deviceId } = useApp();
   const router = useRouter();
   const submit = async (e: React.FormEvent) => {
@@ -24,15 +26,57 @@ export default function Cadastro() {
       await refreshUser();
       track("sign_up", { method: "email" });
       if (j.bonus) addToast({ title: "🎁 Bônus ativado!", body: j.bonus });
-      else if (j.trialReusado)
-        addToast({
-          title: "Conta criada",
-          body: "O bônus de 24h já foi usado neste aparelho ou rede. Você segue com 1 análise grátis por dia — o contador zera à meia-noite e os placares continuam abertos.",
-          url: "/planos",
-        });
+      /* Sem bônus de 24h: o device ou o IP já usou o teste. A conta é criada (não
+         punimos CGNAT/família), mas o VIP NÃO é liberado — a tela explica isso em
+         vez de deixar a pessoa descobrir depois de 2 telas. */
+      if (j.trialReusado) {
+        setBloqueio(j.motivo === "ip" ? "ip" : "device");
+        setLoading(false);
+        return;
+      }
       router.push("/");
     } catch { setErr("Falha de conexão."); setLoading(false); }
   };
+
+  /* Conta criada, mas sem os 24h: um aparelho/rede já ganhou o teste. A conta
+     nasce `free` (1 análise por dia) e o VIP nunca é liberado. Explicamos aqui,
+     uma única vez, em vez de deixar a pessoa descobrir pelos limites depois. */
+  if (bloqueio) {
+    return (
+      <div className="mx-auto max-w-sm px-3 pt-8">
+        <div className="rounded-2xl border border-warn/40 bg-warn/10 p-5 text-center">
+          <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl border border-warn/40 bg-warn/15 text-warn">
+            <ShieldAlert size={20} />
+          </div>
+          <h1 className="mt-3 font-display text-xl font-bold uppercase leading-tight text-ink">
+            Conta criada — teste de 24h já usado
+          </h1>
+          <p className="mt-2 text-[12px] leading-relaxed text-mut">
+            {bloqueio === "ip"
+              ? "A rede deste acesso já ganhou o teste grátis de 24h."
+              : "Este aparelho já ganhou o teste grátis de 24h."}{" "}
+            Por isso esta conta começa com <strong className="text-ink">1 análise grátis por dia</strong> em
+            vez do acesso completo.
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-mut">
+            Placares, ligas, classificação e estatísticas de partida continuam abertos, o dia inteiro.
+          </p>
+          <button
+            onClick={() => router.push("/jogos")}
+            className="mt-4 h-11 w-full rounded-xl bg-acc text-[13px] font-black text-black"
+          >
+            Continuar com o plano grátis
+          </button>
+          <Link
+            href="/login?next=/jogos"
+            className="mt-2 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-panel2 text-[12px] font-bold text-ink"
+          >
+            <LogIn size={13} /> Entrar com outra conta
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-sm mx-auto pt-8">

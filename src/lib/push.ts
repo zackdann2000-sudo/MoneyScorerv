@@ -30,8 +30,14 @@ export const VAPID_PUBLIC =
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "";
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:contato@greenscore.app";
 
-/** true quando há par VAPID válido configurado via ambiente. */
-export const VAPID_ENABLED = Boolean(VAPID_PUBLIC && VAPID_PRIVATE);
+/**
+ * true quando o par VAPID vem do ambiente.
+ *
+ * A chave pública tem fallback (é pública por design), mas exigi-la da env aqui
+ * evita o pior cenário: privada nova + pública antiga = assinatura inválida e
+ * TODO push falhando em silêncio, sem erro visível na aplicação.
+ */
+export const VAPID_ENABLED = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && VAPID_PRIVATE);
 
 if (VAPID_ENABLED) {
   try {
@@ -67,7 +73,9 @@ export async function pushOneSignal(opts: { title: string; body: string; url?: s
   } catch (e: any) { return { ok: false, reason: e?.message }; }
 }
 export function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "https://3000-ih165z0jra26etpu1uray.e2b.app";
+  // Fallback = domínio do produto. Antes era uma URL de preview do ambiente de
+  // desenvolvimento, que vazava para os links de push se a env faltasse.
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://greenscore.app").replace(/\/$/, "");
 }
 
 /* ============ Web Push nativo (VAPID) ============ */

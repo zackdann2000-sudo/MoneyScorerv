@@ -16,6 +16,7 @@ import { analisarOportunidades, type AnaliseJogo, type OportunidadeValor } from 
 import { FaixaTag, OddJustaLinha, SeloAcertos, TrustNota } from "@/components/FaixaRisco";
 import FiltrosLinks from "@/components/FiltrosLinks";
 import SeloFrescor from "@/components/SeloFrescor";
+import CtaTrial from "@/components/CtaTrial";
 import { idadeMaisAntiga } from "@/lib/cache";
 import {
   contarOcultasPeloPiso,
@@ -207,15 +208,7 @@ export default async function EdgePage({
             );
           })}
           {!isVip && oportunidades.length > 2 && (
-            <Link
-              href="/planos"
-              className="flex items-center justify-between rounded-2xl border border-acc/40 bg-acc/10 px-3 py-2.5 text-[12px] font-extrabold text-acc"
-            >
-              <span className="flex items-center gap-2">
-                <Lock className="h-3.5 w-3.5" /> {oportunidades.length - 2} picks liberados no VIP
-              </span>
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <CtaTrial titulo={`${oportunidades.length - 2} picks a mais no teste de 24h`} />
           )}
         </section>
       )}
@@ -288,8 +281,8 @@ function PickCard({ o, bloqueado }: { o: OportunidadeValor; bloqueado: boolean }
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-panel/92 backdrop-blur-[3px]">
           <Lock className="h-4 w-4 text-acc" />
           <span className="text-[11px] font-extrabold text-txt">Pick do plano VIP</span>
-          <Link href="/planos" className="rounded-full bg-acc px-3 py-1 text-[11px] font-black text-black">
-            Liberar
+          <Link href="/cadastro" className="rounded-full bg-acc px-3 py-1 text-[11px] font-black text-black">
+            Teste 24h grátis
           </Link>
         </div>
       )}

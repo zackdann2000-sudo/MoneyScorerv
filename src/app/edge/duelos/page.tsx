@@ -3,6 +3,7 @@ import { ArrowLeft, Lock, Swords, Shield, Zap, Info } from "lucide-react";
 import { cached } from "@/lib/cache";
 import { getUser } from "@/lib/auth";
 import { getAllMatches } from "@/lib/espn";
+import CtaTrial from "@/components/CtaTrial";
 import { getPropsDoTime, montarJogadores, PROPS_DISABLED, PROPS_MAX_JOGOS } from "@/lib/playerProps";
 import { montarDuelos, type Duelo } from "@/lib/duelosEngine";
 
@@ -226,9 +227,7 @@ function BloqueioVip() {
           </div>
         ))}
       </div>
-      <Link href="/planos" className="mt-3 inline-block rounded-full bg-acc px-4 py-1.5 text-[12px] font-black text-black">
-        Liberar acesso
-      </Link>
+      <CtaTrial titulo="Teste 24h com acesso completo" compacto />
     </div>
   );
 }

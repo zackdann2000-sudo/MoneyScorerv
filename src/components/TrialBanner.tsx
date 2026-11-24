@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
-import { formatarRestante, chaveToastExpiracao } from "@/lib/trialCountdown";
+import { formatarRestante } from "@/lib/trialCountdown";
 
 /**
  * Banner do acesso com prazo (trial de 24h e assinatura), abaixo do header.
@@ -33,22 +33,12 @@ export default function TrialBanner() {
   }, [temExpiracao]);
 
   // Toast de fim de trial: dispara UMA vez por usuário+expiração (localStorage).
+  /*
+   * O aviso de fim do trial virou modal (TrialExpiradoModal): toast de 3s não
+   * explicava a mudança de ritmo e ainda duplicava a mensagem. Aqui só fica o
+   * contador/banner que abre /config.
+   */
   const expiradoAgora = Boolean(exp) && temExpiracao && formatarRestante(exp as string, agora).expirado;
-  useEffect(() => {
-    if (!user || !exp || !expiradoAgora) return;
-    const chave = chaveToastExpiracao(user.id, exp);
-    try {
-      if (localStorage.getItem(chave)) return;
-      localStorage.setItem(chave, "1");
-    } catch {
-      /* localStorage bloqueado: ainda mostra o toast (pode repetir em reload) */
-    }
-    addToast({
-      title: "⏳ Acesso VIP encerrado",
-      body: "Seu período VIP terminou. Você continua com 1 análise grátis por dia — o contador zera à meia-noite.",
-      url: "/config",
-    });
-  }, [user, exp, expiradoAgora, addToast]);
 
   if (!user || !temExpiracao) return null;
 

@@ -90,13 +90,16 @@ export default async function Palpites() {
       </section>
 
       <section className="rounded-2xl border border-acc/35 bg-gradient-to-br from-acc/10 via-panel to-panel p-4">
-        <p className="font-display font-bold text-base uppercase text-ink">Grátis todo dia: 1 análise</p>
+        <p className="font-display font-bold text-base uppercase text-ink">Acesso completo por 24h</p>
         <p className="mt-1 text-[11px] leading-relaxed text-mut">
-          O contador zera à meia-noite. Quer ver mais no mesmo dia? Starter libera 6, Pro 20 e Expert é
-          ilimitado.
+          O cadastro libera o app inteiro por 24 horas. Depois disso você continua com 1 análise
+          grátis por dia — o contador zera à meia-noite. Sem cartão em nenhum momento.
         </p>
-        <Link href="/planos" className="mt-2 inline-flex h-9 items-center rounded-xl bg-acc px-3 text-[11px] font-extrabold text-black">
-          Ver os planos
+        <Link
+          href="/cadastro"
+          className="mt-2 inline-flex h-9 items-center rounded-xl bg-acc px-3 text-[11px] font-extrabold text-black"
+        >
+          Criar conta grátis
         </Link>
       </section>
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2, Crown, CreditCard, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { mensagemAcesso } from "@/lib/accessMessage";
+import { VENDAS_ATIVAS } from "@/lib/vendas";
 import { Toggle, Crest } from "@/components/ui";
 
 function urlB64ToUint8(base64: string) {
@@ -142,37 +143,43 @@ export default function Config() {
             <p className="font-display font-bold text-xl uppercase">Seu acesso, todo dia</p>
           </div>
           <p className="text-[12px] mt-2 text-ink">
-            Grátis, todos os dias: <strong>1 análise por dia</strong> — o contador zera à meia-noite (horário de
-            Brasília). Quem quer mais assina no cartão: <strong>Starter 6/dia, Pro 20/dia, Expert ilimitado</strong>,
-            com cancelamento quando quiser. Placares, ligas e estatísticas de partida continuam gratuitos.
+            O cadastro libera o app completo por <strong>24 horas</strong>. Depois disso você continua com{" "}
+            <strong>1 análise por dia</strong> — o contador zera à meia-noite (horário de Brasília).
+            Placares, ligas e estatísticas de partida continuam gratuitos o dia inteiro.
           </p>
           {user && (
             <p className={`text-[12px] mt-2 font-bold ${vip ? "text-acc" : "text-danger"}`}>
               {mensagemAcesso({ isAdmin: user.isAdmin, accessActive: user.access.active, expiresAt: user.expiresAt })}
             </p>
           )}
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <Link
-              href="/planos"
-              className="flex-1 h-10 rounded-xl bg-acc text-black text-xs font-extrabold inline-flex items-center justify-center gap-1.5"
-            >
-              <CreditCard size={14} /> {vip ? "Ver planos" : "Assinar VIP no cartão"}
-            </Link>
-            {user && vip && (
-              <button
-                onClick={abrirPortal}
-                disabled={portalCarregando}
-                className="flex-1 h-10 rounded-xl bg-panel2 border border-line text-ink text-xs font-extrabold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+          {VENDAS_ATIVAS && (
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Link
+                href="/planos"
+                className="flex-1 h-10 rounded-xl bg-acc text-black text-xs font-extrabold inline-flex items-center justify-center gap-1.5"
               >
-                {portalCarregando ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-                Gerenciar assinatura
-              </button>
-            )}
-          </div>
-          <p className="text-[9px] text-mut mt-2">
-            Pagamento processado pelo Stripe. No portal você troca o cartão, baixa faturas e cancela sem
-            falar com o suporte.
-          </p>
+                <CreditCard size={14} /> {vip ? "Ver planos" : "Assinar VIP no cartão"}
+              </Link>
+              {user && vip && (
+                <button
+                  onClick={abrirPortal}
+                  disabled={portalCarregando}
+                  className="flex-1 h-10 rounded-xl bg-panel2 border border-line text-ink text-xs font-extrabold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+                >
+                  {portalCarregando ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                  Gerenciar assinatura
+                </button>
+              )}
+            </div>
+          )}
+          {!VENDAS_ATIVAS && !user && (
+            <Link
+              href="/cadastro"
+              className="mt-3 h-10 rounded-xl bg-acc text-black text-xs font-extrabold inline-flex items-center justify-center gap-1.5 px-4"
+            >
+              Criar conta grátis
+            </Link>
+          )}
         </div>
       </div>
 
