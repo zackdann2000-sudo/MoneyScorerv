@@ -6,7 +6,7 @@ import { getUser } from "@/lib/auth";
 import { str, boolMap, jsonBytes } from "@/lib/validate";
 
 // Chaves aceitas em `alerts` — qualquer outra é descartada.
-const ALERT_KEYS = ["goals", "redCards", "yellowCards", "corners", "fouls", "offsides", "matchStart", "matchEnd", "substitutions", "lineups", "MoneyTIPS"] as const;
+const ALERT_KEYS = ["gol", "kickoff", "goals", "redCards", "yellowCards", "corners", "fouls", "offsides", "matchStart", "matchEnd", "substitutions", "lineups", "MoneyTIPS"] as const;
 /** Teto de bytes para o JSON de preferências (proteção contra blob). */
 const MAX_PREFS_BYTES = 4096;
 

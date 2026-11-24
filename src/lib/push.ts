@@ -157,8 +157,12 @@ export async function scanLiveAlerts() {
         }
         if (prev.keys && prev.state !== "in" && m.finished) { /* noop */ }
         if (!prev.keys && m.live) await dispatch({ id: `${m.id}:start`, ts: Date.now(), type: "start", matchId: m.id, league: m.league, teamId: m.home.id, title: `🟢 BOLA ROLANDO!`, body: `${m.home.name} x ${m.away.name} — ${m.leagueName}.`, url: `/jogos/${m.id}?league=${m.league}` });
-        await db.insert(alertState).values({ matchId: m.id, state: { keys, corners: cH + cA, fouls: sv("foulsCommitted", "home") + sv("foulsCommitted", "away"), offsides: sv("offsides", "home") + sv("offsides", "away"), state: m.state } as any, updatedAt: new Date() })
-          .onConflictDoUpdate({ target: alertState.matchId, set: { state: { keys, corners: cH + cA, fouls: sv("foulsCommitted", "home") + sv("foulsCommitted", "away"), offsides: sv("offsides", "home") + sv("offsides", "away"), state: m.state } as any, updatedAt: new Date() } });
+        /* `...prev` é essencial: o watcher /api/cron/live grava `snap` e `sent`
+           na MESMA linha. Sobrescrever o objeto inteiro apagaria o dedupe de
+           gol e o cron reenviaria alerta de placar antigo. */
+        const estadoAlerta = { ...prev, keys, corners: cH + cA, fouls: sv("foulsCommitted", "home") + sv("foulsCommitted", "away"), offsides: sv("offsides", "home") + sv("offsides", "away"), state: m.state } as any;
+        await db.insert(alertState).values({ matchId: m.id, state: estadoAlerta, updatedAt: new Date() })
+          .onConflictDoUpdate({ target: alertState.matchId, set: { state: estadoAlerta, updatedAt: new Date() } });
       } catch {}
     }
     // fim de jogo

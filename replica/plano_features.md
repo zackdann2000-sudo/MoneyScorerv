@@ -129,6 +129,22 @@ Sem `alert_prefs` para aquele jogo → não envia (opt-in explícito, nunca push
 5. Quiet hours + cap diário.
 6. Service Worker (`public/sw.js`) tratando `push` e `notificationclick` → deep link.
 
+### 2.4.1 Implementado (fases 1–3)
+
+- `src/lib/alertDiff.ts` — diff puro (gol/início/fim), dedupe `matchId:gol:1-0`, janela de
+  kickoff 15±2 min, seleção de destinatários por opt-in e poda de 7 dias. Testes:
+  `src/lib/alertDiff.test.cjs` (40 asserções).
+- `GET /api/cron/live` — 1 varredura em lote (`getAllMatches`) + 2 selects + 1 upsert;
+  nenhum `summary` por jogo. Gol e kickoff na mesma rota (a rota separada de kickoff do
+  plano não foi necessária).
+- `alert_state` passou a guardar `snap` (placar/estado/minuto) e `sent` (dedupe) junto
+  das chaves do motor antigo — `scanLiveAlerts` agora faz merge (`...prev`) para não
+  apagar o dedupe.
+- **Agendamento**: o `vercel.json` NÃO tem entrada `* * * * *` porque Hobby só aceita
+  cron diário. Como ligar em 1 minuto: **`docs/SETUP_ALERTAS_CRON.md`**.
+- Falta (fases 4–6): quiet hours, cap diário por usuário, notificação de fim de jogo
+  pelo watcher novo, e handler de `notificationclick` no `public/sw.js`.
+
 ### 2.5 Métricas de sucesso
 - % de gols entregues em < 90 s do lance.
 - Push por usuário/dia (meta < 8).
