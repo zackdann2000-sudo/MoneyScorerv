@@ -59,6 +59,7 @@ export const GRUPOS: NavGroup[] = [
       { href: "/hub/classificacao", label: "Classificação", icon: Trophy },
       { href: "/ao-vivo", label: "Ao vivo", icon: Radio },
       { href: "/ligas", label: "Ligas", icon: ListOrdered },
+      { href: "/arbitros", label: "Árbitros", icon: Whistle },
       { href: "/palpites", label: "Palpites por liga", icon: ListOrdered },
       { href: "/noticias", label: "Notícias", icon: Newspaper },
     ],

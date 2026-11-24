@@ -1,0 +1,53 @@
+feature,area,priority,zunoscore,nosso,notes
+Jogos do dia e ao vivo,Discovery,must,yes,yes,/hub /ao-vivo
+Stats comparadas no jogo (posse/chutes/escanteios),Live,must,yes,yes,InfoTabs + /api/matches/[id]/stats
+xG do jogo,Live,must,yes,yes,xgOfficial.ts / xgEst
+APPM ataques perigosos por minuto (1/3/5/10),Live,must,yes,no,momentum.ts só tem pressão agregada
+Domínio territorial (posição média da bola/minuto),Live,should,yes,no,—
+Barra de pressão por janela,Live,should,yes,no,momentum.ts base
+Notas ao vivo por jogador,Live,must,yes,no,—
+Jogador da Partida (MOTM),Live,should,yes,no,—
+Lance a lance narrativo (detalhado/simples),Live,must,yes,partial,temos eventos sem narração
+Odds pré-jogo e ao vivo,Analysis,must,yes,yes,OddsCards/OddsMultiCasaLive
+H2H,Analysis,should,yes,yes,H2HTab
+Classificação,Analysis,must,yes,yes,/hub/classificacao
+Escalações,Analysis,must,yes,yes,Lineup.tsx
+Escalação provável + disclaimer,Analysis,should,yes,partial,—
+Desfalques por motivo,Analysis,should,yes,partial,—
+Sequências (invicto/sem marcar/marca 1º),Analysis,should,yes,partial,padroes.ts/amostra.ts
+Atributos 0-100 (ata/tec/tat/def/cri),Analysis,should,yes,no,—
+Médias por jogo (marca/sofre),Analysis,should,yes,yes,TeamStatsTab
+Conversão de xG (% jogos marcou com xG>1),Analysis,should,yes,no,—
+Árbitro (médias de cartões),Analysis,could,yes,partial,apitou AnaliseTab
+Clima no local do jogo,Analysis,could,yes,no,—
+Estádio + mapa,Analysis,could,yes,partial,venue no header
+Canais de TV,Analysis,could,yes,no,—
+Transmissão ao vivo,Live,could,yes,no,direitos de terceiros (não copiar)
+Replays,Live,could,yes,no,direitos de terceiros (não copiar)
+Multitela de até 4 jogos,Live,should,yes,no,—
+Jogo em popup,Platform,could,yes,no,—
+Organizar painel (ordem dos blocos),Platform,should,yes,no,—
+Seguir time/liga/jogador,Social,must,yes,partial,favorites/preferences
+Feed Acontecendo (timeline dos seguidos),Social,should,yes,no,—
+Stories por entidade,Social,should,yes,no,—
+Central de alertas por tipo,Alerts,must,yes,partial,alert_prefs tem 12 chaves
+Cap por tipo + quiet hours,Alerts,should,yes,no,plano_features 2.4
+Zuno IA (chat com cota),AI,must,yes,no,IaTab é análise não chat
+Busca com IA,AI,should,yes,no,—
+Transferências (time/liga),Data,could,yes,no,—
+Stats de jogador por temporada na liga,Data,should,yes,partial,/api/players /rankings
+Seletor de rodada e temporada na liga,Data,should,yes,partial,/hub/liga/[id]
+Probabilidade 1X2/O-U/BTTS/placar,Predictions,must,no,yes,engine.ts
+EV / valor esperado,Predictions,must,no,yes,valueBet.ts
+Props de jogador com lambda,Predictions,must,no,yes,playerPropsEngine.ts
+Veredito IA,Analysis,must,no,yes,vereditoEngine.ts
+Win probability ao vivo,Live,must,no,yes,winProb.ts
+Track record liquidado,Trust,must,no,yes,trackRecord.ts
+Rankings,Discovery,should,no,yes,rankingsEngine.ts
+Combo builder,Predictions,should,no,yes,comboBuilder.ts
+Detector de desajustes,Odds,should,no,yes,apitou/kingstats
+15 idiomas + hreflang,Platform,could,yes,no,—
+SEO de jogo com JSON-LD SportsEvent,Growth,should,yes,no,sitemap.ts exclui jogos hoje
+Personalização por região/UF,Platform,could,yes,no,—
+Anúncios como receita,Pricing,could,yes,no,nosso modelo é assinatura
+PWA instalável,Platform,could,yes,yes,manifest.json + InstallApp

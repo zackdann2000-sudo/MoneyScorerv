@@ -1,0 +1,73 @@
+feature,area,priority,original,clone,notes
+Agenda de jogos por data,Discovery,must,yes,sim,/hub e /jogos ja cobrem
+Chips Ao vivo / Agendado / Finalizado,Discovery,should,yes,parcial,/ao-vivo separado; falta chip unico
+Busca de time/jogo na agenda,Discovery,could,yes,parcial,busca existe em /jogadores e /times
+Favoritar time/jogo,Discovery,should,yes,sim,/favoritos + favorites + FavStar
+Ficha da partida com stats,Analysis,must,yes,sim,/api/matches/[id]/{stats,team-stats}
+Abas Geral/Ataque/Defesa/Disciplina,Analysis,should,yes,parcial,teamStatCats tem 4 filtros mas 17 metricas vs 63
+Split Jogo completo / 1o tempo / 2o tempo,Analysis,must,yes,nao,somente mercados pontuais hoje
+Ultimos confrontos (H2H),Analysis,must,yes,sim,h2hEngine + H2HPalpiteCard
+Escalacao em campo por formacao,Analysis,should,yes,sim,Lineup.tsx + hubLineupPlayer
+Titulares vs quem finalizou,Analysis,could,yes,nao,toggle de formation_field
+Odds premium do jogo,Analysis,should,yes,parcial,odds-casas/hubBookmakerOdd
+Tabela de janela por jogo (total/media/P90/%Seq),Analysis,must,yes,nao,feature #3 do plano
+Coluna %Seq (sequencia),Analysis,should,yes,nao,calculo puro sobre historico
+Media P90 (por 90 min),Analysis,should,yes,nao,normalizacao por minuto
+Toggles da tabela (soma substituicoes, ultimos 5 do time, ocultar vazios),Analysis,could,yes,nao
+Filtro casa/fora e temporada,Analysis,should,yes,parcial,rankings tem casa/fora
+Ficha do jogador com stats,Analysis,must,yes,parcial,/jogadores lista; falta pagina por jogador
+Ficha do time com eventos e ranking,Analysis,must,yes,parcial,/times/[id]
+Melhor / Pior por liga e time,Analysis,should,yes,nao
+Proximo jogo contra,Analysis,should,yes,nao
+Ficha da liga (stats, tabela, jogos),Analysis,must,yes,sim,/ligas + /hub/classificacao
+Classificacao com grupos,Analysis,should,yes,sim,hubStanding + zonas
+Ranking de jogadores e times por parametro,Analysis,should,yes,sim,/rankings + rankingsEngine
+Better / Worse (comparador mais/menos),Analysis,could,yes,parcial,duelosEngine compara jogos nao entidades
+Screener de jogador (piso + N jogos + taxa),Screening,must,yes,parcial,gameread/props-radar filtra hitRateL10 fixo
+Screener de time,Screening,must,yes,nao,feature #1 do plano
+Screener por data + liga + estatistica,Screening,must,yes,nao
+Taxa de acerto exibida por linha,Screening,must,yes,parcial,hitRateL5/L10/L20 em lines
+Ultimos jogos (form) na linha do screener,Screening,should,yes,parcial,campo form no payload do radar
+Tabela de arbitros ordenavel,Referee,must,yes,nao,so nome do arbitro no detalhe
+Pagina do arbitro com medias,Referee,must,yes,nao,feature #5 do plano
+Media de cartoes/faltas/penaltis por jogo,Referee,must,yes,nao,feature #5 do plano
+Historico de jogos do arbitro,Referee,should,yes,nao,feature #5 do plano
+Proximo jogo do arbitro,Referee,should,yes,nao,feature #5 do plano
+Super Odds (odds turbinadas),Value,could,yes,nao,exige feed de odds turbinadas
+Filtro de super odd por casa e faixa,Value,could,yes,nao
+Timer de expiracao da super odd,Value,could,yes,nao
+Link compartilhavel de super odd,Value,could,yes,nao
+Robo Telegram com filtros salvos,Automation,should,yes,nao,grep telegram = 0 no projeto
+Conectar Telegram por token,Automation,should,yes,nao
+Limite de 1 filtro gratis / ilimitado premium,Automation,could,yes,parcial,quota.ts tem limite de consumo
+Alertas automaticos de props,Automation,must,yes,sim,push OneSignal + Web Push + FCM
+Track record auditavel (acerto/ROI),Trust,must,no,sim,diferencial nosso: credibility.ts Wilson/Brier/ROI
+Modelo Poisson / Dixon-Coles,Model,must,no,sim,diferencial nosso: model.ts
+Veredito / oracle do jogo,Model,must,no,sim,vereditoEngine + /api/matches/[id]/oracle
+Oportunidades +EV,Model,must,no,sim,opportunitiesEngine + valueBet
+Combo builder,Model,should,no,sim,comboBuilder + BetSlipContext
+Probabilidade ao vivo (APPM),Live,should,no,sim,winProb + momentum
+Assinatura com cartao (Stripe),Monetization,must,yes,sim,/planos + stripePolicy + trial
+PIX com QR copiavel,Monetization,must,yes,nao,feature #12 do plano
+Cartao em ate 12x,Monetization,should,yes,nao,Stripe hoje so a vista
+Cupom de desconto,Monetization,should,yes,parcial,verificar suporte a coupon no stripe.ts
+Planos mensal/anual com promocao,Monetization,should,yes,sim,STRIPE_PRICE_MENSAL/ANUAL
+Times gratuitos do dia (freemium),Monetization,could,yes,parcial,trial + quota no lugar
+Programa de afiliados,Monetization,could,yes,nao,
+Painel de afiliado,Monetization,could,yes,nao,
+Login por e-mail e senha,Auth,must,yes,sim,src/lib/auth.ts scrypt
+Login com Google,Auth,should,yes,nao,
+Esqueci minha senha,Auth,should,yes,nao,nao ha canal de e-mail hoje
+Cadastro com celular,Auth,could,yes,parcial,campo existe no cadastro
+Aceite de termos no cadastro,Auth,must,yes,sim,consents + /termos
+Minha conta com status de assinatura,Account,must,yes,sim,/config e /conta
+Cancelar assinatura pelo app,Account,should,yes,sim,stripe/portal
+Historico de pagamentos,Account,should,yes,parcial,stripeEventos
+PWA instalavel,Platform,could,yes,sim,InstallApp + manifest
+i18n PT/EN,Platform,could,yes,nao,projeto 100% PT hardcoded
+Paginas SEO por jogo no sitemap,Growth,must,yes,parcial,sitemap.ts + seoLigas
+Vídeo-curso de onboarding,Growth,could,yes,nao,Onboarding.tsx em 3 telas
+Cookie consent (LGPD),Compliance,should,yes,nao,
+Analytics de produto,Compliance,could,yes,parcial,GA4 existe; sem PostHog
+Monitoramento de erro (Sentry),Compliance,could,yes,nao,
+Cookie/tour/survey (PostHog),Compliance,could,yes,nao,

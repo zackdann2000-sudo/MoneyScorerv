@@ -619,3 +619,68 @@ export const hubPlayerStat = pgTable("hub_player_stat", {
   index("hub_player_stat_season_idx").on(t.seasonId),
   index("hub_player_stat_team_idx").on(t.teamId),
 ]);
+
+/* =======================================================================
+   MÓDULO ÁRBITROS (feature #5 — recon Craque Stats)
+   -----------------------------------------------------------------------
+   Dois níveis, de propósito:
+
+   - `hub_referee` guarda o AGREGADO que a fonte publica (jogos, amarelos,
+     vermelhos, faltas, pênaltis da temporada/carreira). É o divisor das
+     médias exibidas quando a amostra é grande.
+   - `hub_referee_appearance` guarda cada jogo apitado que NÓS vimos
+     (data + liga + placar). Sem ela o módulo morreria no dia 1: nenhum
+     agregado diz *quais* jogos o árbitro apitou.
+
+   Nenhuma das duas inventa número: coluna ausente é `null`, nunca 0. A regra
+   está em `src/lib/arbitros.ts` (media() com divisor protegido).
+   ======================================================================= */
+
+/**
+ * Árbitro consolidado. `nome_norm` (sem acento/caixa/espaço duplo) é a chave
+ * de dedupe entre fontes — duas grafias do mesmo nome não viram dois árbitros.
+ */
+export const hubReferee = pgTable("hub_referee", {
+  id: serial("id").primaryKey(),
+  nome: text("nome").notNull(),
+  nomeNorm: text("nome_norm").notNull().unique(),
+  /** Agregado da fonte: divisor das médias quando existir. */
+  jogos: integer("jogos"),
+  amarelos: integer("amarelos"),
+  vermelhos: integer("vermelhos"),
+  faltas: integer("faltas"),
+  penaltis: integer("penaltis"),
+  /** Quem publicou o agregado (`apitou`, `sportmonks`, …). */
+  fonte: text("fonte"),
+  vistoEm: timestamp("visto_em", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("hub_referee_nome_idx").on(t.nomeNorm)]);
+
+/**
+ * Um jogo apitado por um árbitro. `fonte + fonte_ref` identifica o jogo na
+ * origem, então o cron (que roda várias vezes por dia) só atualiza a linha.
+ *
+ * Cartões/faltas do jogo ficam `null` quando a fonte não entrega o número por
+ * jogo — e é por isso que o agregado de `hub_referee` existe em paralelo.
+ */
+export const hubRefereeAppearance = pgTable("hub_referee_appearance", {
+  id: serial("id").primaryKey(),
+  refereeId: integer("referee_id").notNull().references(() => hubReferee.id, { onDelete: "cascade" }),
+  matchDate: timestamp("match_date", { withTimezone: true }).notNull(),
+  leagueName: text("league_name").notNull().default(""),
+  homeName: text("home_name").notNull().default(""),
+  awayName: text("away_name").notNull().default(""),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  amarelos: integer("amarelos"),
+  vermelhos: integer("vermelhos"),
+  faltas: integer("faltas"),
+  penaltis: integer("penaltis"),
+  fonte: text("fonte").notNull(),
+  fonteRef: text("fonte_ref").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("hub_ref_appearance_uq").on(t.fonte, t.fonteRef),
+  index("hub_ref_appearance_ref_idx").on(t.refereeId, t.matchDate),
+]);

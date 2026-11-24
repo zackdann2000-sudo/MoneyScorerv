@@ -64,6 +64,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cronConfigurado, motivoCronAutorizado } from "@/lib/cronAuth";
 import { aquecerRankings } from "@/lib/rankingsWarm";
 import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
+import { sincronizarArbitros } from "@/lib/arbitrosFonte";
 import { runHubSync } from "@/lib/hub/sync-runner";
 import { diagnosticarPipeline } from "@/lib/pipelineHealth";
 
@@ -120,6 +121,16 @@ export async function GET(req: NextRequest) {
       };
     } catch (e) {
       out.apitou = { ok: false, duracaoMs: Date.now() - t0, erro: erro(e) };
+    }
+
+    /* MÓDULO ÁRBITROS: reaproveita o resumo que acabou de ser gravado. É uma
+       leitura de cache + 2 upserts, sem chamada nova a fornecedor — por isso
+       cabe aqui e não em um cron separado (o Hobby limita o número de jobs).
+       Falha de árbitro nunca derruba o pipeline: a função devolve ok:false. */
+    try {
+      out.arbitros = await sincronizarArbitros();
+    } catch (e) {
+      out.arbitros = { ok: false, erro: erro(e) };
     }
   }
 

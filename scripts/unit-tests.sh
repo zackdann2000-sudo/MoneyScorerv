@@ -52,6 +52,7 @@ SUITES+=(
   "quota|src/lib/quota.test.cjs"
   "cronAuth|src/lib/cronAuth.test.cjs"
   "semana|src/lib/semana.test.cjs"
+  "arbitros|src/lib/arbitros.test.cjs"
   "oportunidadeFiltros|src/lib/oportunidadeFiltros.test.cjs"
   "rankingsEngine|src/lib/rankingsEngine.test.cjs"
   "cache|src/lib/cache.test.cjs"
