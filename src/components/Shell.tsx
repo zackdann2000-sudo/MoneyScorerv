@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Menu,
   Moon,
+  Search,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -25,6 +26,7 @@ import StripeReturn from "@/components/StripeReturn";
 import TrialExpiradoModal from "@/components/TrialExpiradoModal";
 import LimiteAnaliseGuard from "@/components/LimiteAnaliseGuard";
 import ExploreSheet from "@/components/ExploreSheet";
+import BuscaGlobal from "@/components/BuscaGlobal";
 import {
   GRUPOS,
   ROTAS_IA,
@@ -75,6 +77,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme, user, toasts, dismissToast, favorites } = useApp();
   const [open, setOpen] = useState(false); // menu lateral
   const [explorar, setExplorar] = useState(false); // bottom sheet
+  const [busca, setBusca] = useState(false); // busca global (Ctrl/⌘K)
   const favCount = favorites.length;
 
   const go = (href: string) => {
@@ -82,6 +85,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     setExplorar(false);
     router.push(href);
   };
+
+  /* Ctrl/⌘K abre a busca de qualquer tela — atalho que quem usa teclado espera. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBusca((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const tabAtiva = (id: (typeof TABS)[number]["id"]) => {
     if (id === "explorar") return explorar;
@@ -107,6 +122,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <span className="block text-[9px] font-bold tracking-widest text-acc">LIVE ANALYTICS</span>
             </span>
           </Link>
+          <button
+            onClick={() => setBusca(true)}
+            aria-label="Buscar time, liga ou jogo"
+            className="w-10 h-10 rounded-xl border border-line flex items-center justify-center text-ink"
+          >
+            <Search size={17} />
+          </button>
           <button
             onClick={() => setOpen(true)}
             aria-label="Abrir menu completo"
@@ -291,6 +313,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         }}
         path={path}
       />
+
+      {/* busca global: aberta pelo ícone do header ou por Ctrl/⌘K */}
+      {busca && <BuscaGlobal onClose={() => setBusca(false)} autoFocus />}
 
       {/* convite de instalação: só aparece quando o navegador diz que dá para instalar */}
       <InstallApp />

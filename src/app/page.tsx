@@ -184,6 +184,21 @@ export default async function LandingPage() {
         </div>
       </section>
 
+      {/* ---------- ÂNCORA DO SCREENER ----------
+          Atalho leve: o painel pesado vive em /jogos?aba=screener. Aqui é só o
+          convite — a Home não carrega nenhuma consulta de histórico. */}
+      <Link
+        href="/jogos?aba=screener"
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-acc/30 bg-panel px-4 py-3 card-hover"
+      >
+        <span className="text-xl">🔎</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-black text-txt">Ver melhores oportunidades do dia</span>
+          <span className="block text-[10px] text-mut">Screener: filtra os jogos que batem os mercados no histórico recente</span>
+        </span>
+        <span className="shrink-0 text-[11px] font-bold text-acc">Abrir →</span>
+      </Link>
+
       {/* ---------- PILARES ---------- */}
       <section className="mt-10">
         <div className="flex items-end justify-between gap-3">

@@ -71,3 +71,22 @@ export async function fetchJson(url: string, opts: RequestInit = {}, ttlMs = 450
 export function cacheBust(prefix: string) {
   for (const k of store.keys()) if (k.startsWith(prefix)) store.delete(k);
 }
+
+/**
+ * Leitura **não-bloqueante** do cache: devolve o que já está fresco, sem
+ * disparar nenhuma requisição.
+ *
+ * Serve para telas que precisam de contexto já buscado por outra rota (a busca
+ * global usa o placar do dia que o GamesBoard carregou). Se nada estiver em
+ * cache, devolve lista vazia — quem chama decide mostrar só o que tem.
+ */
+export function peek<T = any>(prefixo: string): { key: string; data: T; idadeMs: number }[] {
+  const agora = Date.now();
+  const fora: { key: string; data: T; idadeMs: number }[] = [];
+  for (const [key, entry] of store) {
+    if (!key.startsWith(prefixo)) continue;
+    if (agora - entry.at >= entry.ttl) continue;
+    fora.push({ key, data: entry.data as T, idadeMs: agora - entry.at });
+  }
+  return fora;
+}

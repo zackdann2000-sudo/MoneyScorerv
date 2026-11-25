@@ -352,6 +352,10 @@ export type HistGame = {
   corners: number | null; fouls: number | null; yellow: number | null; red: number | null; offsides: number | null;
   sot: number | null; shots: number | null; poss: number | null; xgEst: number | null;
   oppCorners: number | null; oppSot: number | null; oppFouls: number | null; oppYellow: number | null;
+  /** Cartões vermelhos do adversário — "total de cartões do jogo" (Screener/Estatísticas). */
+  oppRed: number | null;
+  /** Impedimentos do adversário — "impedimentos do jogo" e conferência de lado. */
+  oppOffsides: number | null;
   /** xG estimado pelo adversário (mesma fórmula, chutes do adversário). */
   oppXgEst: number | null;
   /** xG OFICIAL do time (API-Football) — preenchido fora da ESPN, quando disponível. */
@@ -383,11 +387,21 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
     const sv = (k: string, side: "home" | "away") => { const row = stats.find((s: any) => s.key === k); const v = row ? (side === "home" ? row.home : row.away) : null; return v == null ? null : parseFloat(String(v).replace("%", "")); };
     const mySide = isHome ? "home" : "away", opSide = isHome ? "away" : "home";
     const htGoals = evs.filter((e) => e.period === 1 && ["goal", "pen", "own"].includes(e.type));
+    /* 1º tempo — fonte primária é o linescore do schedule (`m.ht`), que existe
+       mesmo para ligas cujo summary não publica keyEvents. O summary só assume
+       quando não há linescore. Se NADA existir, os dois campos ficam `null`:
+       antes o código gravava 0-0 quando o summary vinha sem eventos, e um "0"
+       inventado contamina mercados de "0.5 gols no 1º tempo" (regra de ouro:
+       dado ausente aparece como ausente). */
     let htGf: number | null = null, htGa: number | null = null;
-    if (sm && evs.some((e) => ["goal", "pen", "own"].includes(e.type))) {
+    const htCasa = m.ht?.home ?? null, htFora = m.ht?.away ?? null;
+    if (htCasa != null && htFora != null) {
+      htGf = isHome ? htCasa : htFora;
+      htGa = isHome ? htFora : htCasa;
+    } else if (evs.some((e) => ["goal", "pen", "own"].includes(e.type))) {
       htGf = htGoals.filter((e) => (e.type === "own" ? e.side !== mySide : e.side === mySide)).length;
       htGa = htGoals.filter((e) => (e.type === "own" ? e.side === mySide : e.side !== mySide)).length;
-    } else if (sm) { htGf = 0; htGa = 0; }
+    }
     const gf = me.score ?? 0, ga = opp.score ?? 0;
     const sot = sv("shotsOnTarget", mySide), shots = sv("totalShots", mySide);
     const oppSot = sv("shotsOnTarget", opSide), oppShots = sv("totalShots", opSide);
@@ -400,10 +414,56 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
       xgEst: sot != null ? +(sot * 0.3 + Math.max(0, (shots ?? 0) - sot) * 0.06).toFixed(2) : null,
       oppXgEst: oppSot != null ? +(oppSot * 0.3 + Math.max(0, (oppShots ?? 0) - oppSot) * 0.06).toFixed(2) : null,
       oppCorners: sv("wonCorners", opSide), oppSot: sv("shotsOnTarget", opSide), oppFouls: sv("foulsCommitted", opSide),
-      oppYellow: sv("yellowCards", opSide),
+      oppYellow: sv("yellowCards", opSide), oppRed: sv("redCards", opSide), oppOffsides: sv("offsides", opSide),
       events: evs.filter((e) => ["goal", "pen", "own", "yellow", "red"].includes(e.type)).map((e) => ({ type: e.type, player: e.player, assist: e.assist, period: e.period, side: e.side, minute: parseInt(String(e.minute).replace(/\D/g, ""), 10) || 0 })),
     });
   }));
   games.sort((a, b) => b.date.localeCompare(a.date));
   return { games, baseParcial: games.length < 5, source: "ESPN" };
+}
+
+/**
+ * Histórico **sem summary** — só o que o schedule já entrega (placar, mando,
+ * resultado e o 1º tempo do linescore).
+ *
+ * Existe por custo: `getTeamHistory` faz 1 request de summary por jogo (até 11
+ * por time) porque precisa de escanteios/cartões/impedimentos. Os mercados que
+ * só dependem de placar (BTTS, over/under, vitória, 1º tempo) não precisam
+ * disso, e a Etapa A do Screener usa 1 request por time.
+ *
+ * Campos de estatística vêm `null` de propósito: quem consome sabe que não
+ * houve coleta — nunca zero.
+ */
+export async function getTeamScheduleGames(
+  league: string,
+  teamId: string,
+  n = 10
+): Promise<{ games: HistGame[]; baseParcial: boolean; source: string }> {
+  const { season, events } = await getSchedule(league, teamId);
+  let finished = events.filter((e) => e.finished).sort((a, b) => b.date.localeCompare(a.date));
+  if (finished.length < 5 && season) {
+    const prev = await getSchedule(league, teamId, season - 1);
+    const prevFin = prev.events.filter((e) => e.finished).sort((a, b) => b.date.localeCompare(a.date));
+    finished = [...finished, ...prevFin];
+  }
+  const games: HistGame[] = finished.slice(0, n).map((m) => {
+    const isHome = m.home.id === String(teamId);
+    const me = isHome ? m.home : m.away, opp = isHome ? m.away : m.home;
+    const htCasa = m.ht?.home ?? null, htFora = m.ht?.away ?? null;
+    const htOk = htCasa != null && htFora != null;
+    const gf = me.score ?? 0, ga = opp.score ?? 0;
+    return {
+      id: m.id, date: m.date, league: m.league, home: isHome,
+      opp: { id: opp.id, name: opp.name, short: opp.short, logo: opp.logo },
+      gf, ga, res: gf > ga ? "V" : gf === ga ? "E" : "D",
+      htGf: htOk ? (isHome ? htCasa! : htFora!) : null,
+      htGa: htOk ? (isHome ? htFora! : htCasa!) : null,
+      corners: null, fouls: null, yellow: null, red: null, offsides: null,
+      sot: null, shots: null, poss: null, xgEst: null, oppXgEst: null,
+      oppCorners: null, oppSot: null, oppFouls: null, oppYellow: null, oppRed: null, oppOffsides: null,
+      events: [],
+    };
+  });
+  games.sort((a, b) => b.date.localeCompare(a.date));
+  return { games, baseParcial: games.length < 5, source: "ESPN/schedule" };
 }
