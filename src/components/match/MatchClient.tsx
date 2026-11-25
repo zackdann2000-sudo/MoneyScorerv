@@ -10,12 +10,14 @@ import OppTab from "./OppTab";
 import MercadosTab from "./MercadosTab";
 import IaTab from "./IaTab";
 import { PreLiveTab, H2HTab, StatsTab, TabelaTab, LiveTab, MoneyTab, FormacoesTab, JogadoresTab } from "./InfoTabs";
+import ComboTab from "./ComboTab";
 import { H2HRealTab } from "./H2HTab";
 import PropsTab from "./PropsTab";
 
 const TABS = [
   { id: "oportunidades", label: "OPORTUNIDADES" },
   { id: "mercados", label: "MERCADOS" },
+  { id: "combo", label: "COMBO" },
   { id: "prelive", label: "PRÉ LIVE" },
   { id: "live", label: "LIVE" },
   { id: "h2h", label: "H2H" },
@@ -180,6 +182,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
       <div className="pt-3 rise" key={tab}>
         {tab === "oportunidades" && <TipsGate><OppTab matchId={id} league={league} home={m.home} away={m.away} odds={d.odds} oddsSource={d.oddsSource} /></TipsGate>}
         {tab === "mercados" && <MercadosTab matchId={id} league={league} home={m.home} away={m.away} odds={d.odds} />}
+        {tab === "combo" && <ComboTab league={league} />}
         {tab === "ia" && <TipsGate><IaTab matchId={id} league={league} odds={d.odds} /></TipsGate>}
         {tab === "prelive" && <PreLiveTab home={m.home} away={m.away} league={league} officials={d.officials} h2h={d.h2h} matchId={id} />}
         {tab === "live" && <LiveTab d={d} matchId={id} league={league} finished={encerrado} />}

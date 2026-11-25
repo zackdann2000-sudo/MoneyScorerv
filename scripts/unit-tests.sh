@@ -38,6 +38,7 @@ SUITES+=(
   "playerPropsEngine|src/lib/playerPropsEngine.test.cjs"
   "winProb|src/lib/winProb.test.cjs"
   "comboBuilder|src/lib/comboBuilder.test.cjs"
+  "comboDoDia|src/lib/comboDoDia.test.cjs"
   "alertDiff|src/lib/alertDiff.test.cjs"
   "stripePolicy|src/lib/stripePolicy.test.cjs"
   "analytics|src/lib/analytics.test.cjs"
