@@ -12,6 +12,7 @@ import AiReport from "@/components/hub/AiReport";
 import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
 import WinProbChart from "@/components/match/WinProbChart";
 import type { WinProbPayload } from "@/lib/winProb";
+import { minutoDoRelogio } from "@/lib/momentum";
 import BlocoAnalises from "./BlocoAnalises";
 import { JANELA_H2H, mediaSimples } from "@/lib/formaRecente";
 import type { ContextoH2H } from "@/lib/blocoAnalises";
@@ -95,6 +96,17 @@ export function LiveTab({
   const nomeCasa = d.match?.home?.name || "Casa";
   const nomeFora = d.match?.away?.name || "Fora";
 
+  /*
+   * Minuto do ESTADO GLOBAL do jogo — o mesmo que o placar no topo mostra.
+   * `d` é o payload de /api/matches/[id] (repollado a cada 40 s), e o relógio
+   * dele é a verdade da tela. Usar o último lance narrado aqui travava a
+   * probabilidade e o momentum em minutos atrás do cronômetro.
+   */
+  const minutoAoVivo = useMemo(
+    () => (d.match?.live ? minutoDoRelogio(d.match?.clock) : null),
+    [d.match?.live, d.match?.clock],
+  );
+
   const V_COLOR: Record<string, string> = { MANTER: "bg-acc text-black", COBRIR: "bg-warn text-black", MUDAR: "bg-away text-black", SAIR: "bg-danger text-white" };
 
   return (
@@ -129,12 +141,22 @@ export function LiveTab({
 
       {/* Probabilidade de vitória — ao vivo durante o jogo, final depois do apito */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <WinProbChart dados={winProb} home={nomeCasa} away={nomeFora} finished={finished} />
+        <WinProbChart dados={winProb} home={nomeCasa} away={nomeFora} finished={finished} minuto={minutoAoVivo} />
       </div>
 
-      {/* Momentum — janela móvel ao vivo, "final" quando encerrado */}
+      {/* Momentum — janela móvel ao vivo, "final" quando encerrado.
+          É ele quem busca (30 s) o payload que alimenta as DUAS caixas. */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} onWinProb={setWinProb} finished={finished} />
+        <MomentumChart
+          matchId={matchId}
+          league={league}
+          home={nomeCasa}
+          away={nomeFora}
+          onSinal={setSinal}
+          onWinProb={setWinProb}
+          finished={finished}
+          minutoAoVivo={minutoAoVivo}
+        />
       </div>
 
       {/* Timeline */}

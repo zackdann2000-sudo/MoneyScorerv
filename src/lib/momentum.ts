@@ -78,6 +78,38 @@ export function minutoDoLance(entry: any): number {
   return Number.isFinite(seg) && seg > 0 ? Math.floor(seg / 60) : 0;
 }
 
+/** Teto de minuto aceito pelo modelo (prorrogação não muda a conta). */
+const MINUTO_MAX = 120;
+const clampMinuto = (n: number): number | null =>
+  Number.isFinite(n) ? Math.min(MINUTO_MAX, Math.max(0, Math.floor(n))) : null;
+
+/**
+ * Minuto que o RELÓGIO da partida marca — e não o minuto do último lance.
+ *
+ * A narração da ESPN atrasa em relação ao cronômetro: aos 26' a última
+ * finalização narrada pode ser dos 19'. Usar o último lance como "minuto atual"
+ * fazia o card de probabilidade e o gráfico de momentum travarem em 19'
+ * enquanto o placar no topo já marcava 26'.
+ *
+ * Aceita o que a fonte manda: "26'", "45'+2", "90+3'", "26:14" (mm:ss) e "67".
+ * Devolve `null` quando não há relógio legível ("HT", "FT", "", null) — quem
+ * chama decide cair para o minuto dos lances.
+ */
+export function minutoDoRelogio(clock: string | null | undefined): number | null {
+  const s = String(clock ?? "").trim();
+  if (!s) return null;
+  // "45'+2" / "90+3'" → minuto base (o acréscimo não muda a janela do modelo)
+  const comAcrescimo = s.match(/^(\d{1,3})\s*['\u2019]?\s*\+\s*\d{1,2}/);
+  if (comAcrescimo) return clampMinuto(parseInt(comAcrescimo[1], 10));
+  // cronômetro corrido "26:14" (mm:ss)
+  const mmss = s.match(/^(\d{1,3}):(\d{2})$/);
+  if (mmss) return clampMinuto(parseInt(mmss[1], 10));
+  // "26'" ou só os dígitos
+  const soMinuto = s.match(/^(\d{1,3})\s*['\u2019]?$/);
+  if (soMinuto) return clampMinuto(parseInt(soMinuto[1], 10));
+  return null;
+}
+
 /**
  * Converte a narração crua da ESPN em lances com lado.
  * O time vem em `play.team.id` (quando existe) ou no nome — por isso o nome

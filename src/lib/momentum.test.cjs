@@ -5,6 +5,7 @@ const {
   sinalPressao,
   seriePressao,
   minutoDoLance,
+  minutoDoRelogio,
   appm,
   classificarAppm,
   ehAtaquePerigoso,
@@ -53,6 +54,32 @@ assert.strictEqual(minutoDoLance({ time: { displayValue: "44'" } }), 44);
 assert.strictEqual(minutoDoLance({ time: { value: 2612 } }), 43);
 assert.strictEqual(minutoDoLance({ time: { displayValue: "90+3'" } }), 90);
 assert.strictEqual(minutoDoLance({}), 0);
+
+/* ---------- relógio do jogo → minuto (o card segue o cronômetro, não o lance) ---------- */
+assert.strictEqual(minutoDoRelogio("26'"), 26);
+assert.strictEqual(minutoDoRelogio("67"), 67);
+assert.strictEqual(minutoDoRelogio("45'+2"), 45);
+assert.strictEqual(minutoDoRelogio("90+3'"), 90);
+assert.strictEqual(minutoDoRelogio("26:14"), 26); // cronômetro mm:ss
+assert.strictEqual(minutoDoRelogio(" 12' "), 12);
+assert.strictEqual(minutoDoRelogio("HT"), null); // sem relógio de jogo
+assert.strictEqual(minutoDoRelogio("FT"), null);
+assert.strictEqual(minutoDoRelogio(""), null);
+assert.strictEqual(minutoDoRelogio(null), null);
+assert.strictEqual(minutoDoRelogio("999'"), 120); // teto do modelo
+assert.strictEqual(minutoDoRelogio("0'"), 0);
+
+/* regressão do bug: relógio em 26' com o último lance em 19'.
+   Ancorado no último lance, a janela de 15 min fica 4'–19' e mostra a pressão
+   errada; ancorada no relógio (26') ela é 11'–26', que é o que o topo mostra. */
+const lancesAtrasados = [
+  { minuto: 6, tipo: "shot-on-target", lado: "home" },
+  { minuto: 24, tipo: "shot-on-target", lado: "away" },
+];
+const ancoradoNoLance = pressao(lancesAtrasados, { minuto: 19, janela: JANELA_GRAFICO });
+const ancoradoNoRelogio = pressao(lancesAtrasados, { minuto: minutoDoRelogio("26'") ?? 0, janela: JANELA_GRAFICO });
+assert.strictEqual(ancoradoNoLance.dominante, "home"); // janela 4'–19' pega o chute dos 6'
+assert.strictEqual(ancoradoNoRelogio.dominante, "away"); // janela 11'–26' pega o chute dos 24'
 
 /* ---------- pressão ---------- */
 assert.strictEqual(JANELA_GRAFICO, 15);

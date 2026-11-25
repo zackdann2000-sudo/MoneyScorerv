@@ -47,6 +47,9 @@ const RESTANTE_MIN = 2;
 
 export type Prob1X2 = { casa: number; empate: number; fora: number };
 
+/** Placar em gols no momento do cálculo (vem do relógio/placar, não dos lances). */
+export type PlacarGols = { casa: number; fora: number };
+
 export type PontoProb = Prob1X2 & { min: number };
 
 export type WinProbResultado = Prob1X2 & {
@@ -173,10 +176,16 @@ export function prob1x2(diff: number, lambdaCasa: number, lambdaFora: number): P
   };
 }
 
-/** Cálculo no minuto atual (usado no card e no topo do gráfico). */
+/**
+ * Cálculo no minuto atual (usado no card e no topo do gráfico).
+ *
+ * `placar` é opcional e existe para o chamador que TEM o placar oficial (o
+ * cabeçalho da partida): a narração pode atrasar e esconder um gol recente, e
+ * aí o card mostraria 0-0 enquanto o topo da tela mostra 1-0.
+ */
 export function calcularWinProb(
   lances: Lance[],
-  opts: { minuto?: number; janela?: number } = {},
+  opts: { minuto?: number; janela?: number; placar?: PlacarGols } = {},
 ): WinProbResultado | null {
   if (!lances?.length) return null;
   const minutoReal = opts.minuto ?? lances.reduce((m, l) => Math.max(m, l.minuto), 0);
@@ -184,7 +193,7 @@ export function calcularWinProb(
   const minuto = Math.min(minutoReal, 120);
   const janela = opts.janela ?? 15;
 
-  const placar = placarAte(lances, minuto);
+  const placar = opts.placar ?? placarAte(lances, minuto);
   const xg = xgAte(lances, minuto);
   const p = pressaoAte(lances, minuto, janela);
 
@@ -213,7 +222,7 @@ export function calcularWinProb(
  */
 export function serieWinProb(
   lances: Lance[],
-  opts: { minuto?: number; passo?: number; janela?: number; desde?: number } = {},
+  opts: { minuto?: number; passo?: number; janela?: number; desde?: number; placar?: PlacarGols } = {},
 ): PontoProb[] {
   if (!lances?.length) return [];
   const minutoReal = opts.minuto ?? lances.reduce((m, l) => Math.max(m, l.minuto), 0);
@@ -227,7 +236,7 @@ export function serieWinProb(
     const r = calcularWinProb(lances, { minuto: m, janela });
     if (r) pontos.push({ min: m, casa: r.casa, empate: r.empate, fora: r.fora });
   }
-  const atual = calcularWinProb(lances, { minuto: minutoReal, janela });
+  const atual = calcularWinProb(lances, { minuto: minutoReal, janela, placar: opts.placar });
   if (atual) pontos.push({ min: minutoReal, casa: atual.casa, empate: atual.empate, fora: atual.fora });
   return pontos;
 }

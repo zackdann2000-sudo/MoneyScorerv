@@ -21,12 +21,15 @@ export default function WinProbChart({
   home,
   away,
   finished = false,
+  minuto,
 }: {
   dados: WinProbPayload | null;
   home: string;
   away: string;
   /** Jogo encerrado: congela em "Probabilidade final" e mostra o placar final. */
   finished?: boolean;
+  /** Minuto do estado GLOBAL do jogo (relógio do topo): manda no título do card. */
+  minuto?: number | null;
 }) {
   const serie = dados?.serie || [];
   const atual = dados?.atual || null;
@@ -81,13 +84,17 @@ export default function WinProbChart({
     { id: "fora", nome: away, valor: congelado ? congelado.fora : atual.fora },
   ];
 
+  /* Minuto mostrado: o do relógio global quando ele existe. O payload traz o
+     minuto em que foi calculado e pode estar alguns segundos atrás. */
+  const minutoExibido = minuto != null && minuto > 0 ? minuto : atual.minuto;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-acc" />
           <p className="text-[10px] font-bold uppercase tracking-wide text-mut">
-            {congelado ? "Probabilidade final" : `Probabilidade ao vivo · ${atual.minuto}'`}
+            {congelado ? "Probabilidade final" : `Probabilidade ao vivo · ${minutoExibido}'`}
           </p>
         </div>
         <span className="text-[9px] font-bold text-mut">

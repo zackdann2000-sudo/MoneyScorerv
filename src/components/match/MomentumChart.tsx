@@ -52,7 +52,14 @@ type Resposta = {
   error?: string;
 };
 
-const POLL_MS = 30000;
+/*
+ * Ritmo de atualização do bloco AO VIVO (probabilidade + momentum).
+ *
+ * 30 s é o teto acordado para dado ao vivo: acompanha o snapshot da ESPN e o
+ * polling do próprio jogo (40 s), sem multiplicar requisição à fonte. Com
+ * `finished` o componente busca uma vez só.
+ */
+const LIVE_REFRESH_MS = 30000;
 
 /**
  * Barra de pressão APPM — ataques perigosos por minuto.
@@ -176,6 +183,7 @@ export function MomentumChart({
   onSinal,
   onWinProb,
   finished = false,
+  minutoAoVivo = null,
 }: {
   matchId: string;
   league: string;
@@ -187,15 +195,28 @@ export function MomentumChart({
   onSinal?: (s: Sinal | null) => void;
   /** Entrega a probabilidade 1X2 para o gráfico, sem uma segunda requisição. */
   onWinProb?: (p: WinProbPayload | null) => void;
+  /**
+   * Minuto do estado GLOBAL do jogo (relógio do placar no topo).
+   * Vai na requisição e no título: o último lance narrado atrasa em relação ao
+   * cronômetro, e era isso que travava o card em 19' com o topo em 26'.
+   */
+  minutoAoVivo?: number | null;
 }) {
   const [dados, setDados] = useState<Resposta | null>(null);
   const [erro, setErro] = useState(false);
   const vivo = useRef(true);
+  /* Refs para o minuto e o loader: o relógio muda sem reiniciar o intervalo
+     (se dependesse do minuto na lista de deps, cada minuto novo zeraria o
+     polling e ele poderia nunca disparar). */
+  const minutoRef = useRef<number | null>(minutoAoVivo);
+  const carregarRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     vivo.current = true;
-    const carregar = () =>
-      fetch(`/api/matches/${matchId}/momentum?league=${encodeURIComponent(league)}`)
+    const carregar = () => {
+      const min = minutoRef.current;
+      const q = min != null && min > 0 ? `&minuto=${min}` : "";
+      return fetch(`/api/matches/${matchId}/momentum?league=${encodeURIComponent(league)}${q}`)
         .then((r) => r.json())
         .then((j) => {
           if (!vivo.current) return;
@@ -206,6 +227,8 @@ export function MomentumChart({
           onWinProb?.(j?.prob ?? null);
         })
         .catch(() => vivo.current && setErro(true));
+    };
+    carregarRef.current = carregar;
     carregar();
     /* Jogo encerrado não muda mais: uma busca basta, sem polling contínuo. */
     if (finished) {
@@ -213,15 +236,33 @@ export function MomentumChart({
         vivo.current = false;
       };
     }
-    const t = setInterval(carregar, POLL_MS);
+    const t = setInterval(carregar, LIVE_REFRESH_MS);
     return () => {
       vivo.current = false;
       clearInterval(t);
     };
   }, [matchId, league, onSinal, onWinProb, finished]);
 
+  /* Minuto global mudou: busca já, sem esperar o próximo tique.
+     O primeiro render é pulado (a busca acima já cobriu). A escrita no ref fica
+     num efeito anterior a este, para o fetch já mandar o minuto novo. */
+  useEffect(() => {
+    minutoRef.current = minutoAoVivo;
+  }, [minutoAoVivo]);
+
+  const primeiro = useRef(true);
+  useEffect(() => {
+    if (primeiro.current) {
+      primeiro.current = false;
+      return;
+    }
+    if (!finished && minutoAoVivo != null && minutoAoVivo > 0) carregarRef.current();
+  }, [minutoAoVivo, finished]);
+
   const serie = dados?.serie || [];
   const p = dados?.pressao || null;
+  /* Título sempre no relógio global; o payload é o fallback. */
+  const minutoExibido = minutoAoVivo != null && minutoAoVivo > 0 ? minutoAoVivo : (dados?.minuto ?? 0);
 
   /* Caminho SVG do gráfico de linha: uma linha por time, escala pelo maior pico. */
   const caminhos = useMemo(() => {
@@ -265,7 +306,7 @@ export function MomentumChart({
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wide text-mut">
           {finished ? "Momentum final" : `Momentum · últimos ${p.janela} min`}
-          {finished ? "" : dados.minuto ? ` · ${dados.minuto}'` : ""}
+          {finished ? "" : ` · ${minutoExibido}'`}
         </p>
         <span className="text-[9px] font-bold text-mut">{p.lances} lances</span>
       </div>

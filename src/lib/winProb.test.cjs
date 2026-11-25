@@ -86,6 +86,26 @@ ok(
 ok("sem lances → null", calcularWinProb([]) === null);
 ok("série vazia sem lances", serieWinProb([]).length === 0);
 
+// 10. Relógio à frente da narração: o minuto do relógio manda no cálculo
+//     (bug: card travado em 19' com o placar do topo em 26').
+const atrasados = [
+  { minuto: 6, tipo: "shot-on-target", lado: "home" },
+  { minuto: 19, tipo: "shot-on-target", lado: "away" },
+];
+const semRelogio = calcularWinProb(atrasados); // cai no último lance = 19
+const comRelogio = calcularWinProb(atrasados, { minuto: 26 });
+ok("minuto explícito substitui o último lance", semRelogio.minuto === 19 && comRelogio.minuto === 26, `${semRelogio.minuto} → ${comRelogio.minuto}`);
+ok("minuto do relógio entra na série como último ponto", comRelogio.minuto === 26 && serieWinProb(atrasados, { minuto: 26, passo: 5 }).pop().min === 26);
+ok("acréscimo de tempo não estoura o modelo", calcularWinProb(atrasados, { minuto: 92 }).minuto === 92);
+
+// 11. Placar oficial do cabeçalho ganha da narração incompleta
+const semGol = calcularWinProb(atrasados, { minuto: 26 });
+const comPlacar = calcularWinProb(atrasados, { minuto: 26, placar: { casa: 1, fora: 0 } });
+ok("narração sem o gol → placar derivado fica 0-0", semGol.placar.casa === 0 && semGol.placar.fora === 0, JSON.stringify(semGol.placar));
+ok("placar informado é usado no card", comPlacar.placar.casa === 1 && comPlacar.placar.fora === 0, JSON.stringify(comPlacar.placar));
+ok("placar informado muda a probabilidade", comPlacar.casa > semGol.casa, `${comPlacar.casa} vs ${semGol.casa}`);
+ok("série usa o placar informado no ponto atual", serieWinProb(atrasados, { minuto: 26, passo: 5, placar: { casa: 1, fora: 0 } }).pop().casa === comPlacar.casa);
+
 if (falhas) {
   console.log(`\n${falhas} falha(s).`);
   process.exit(1);

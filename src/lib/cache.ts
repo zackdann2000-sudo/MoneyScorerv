@@ -73,6 +73,20 @@ export function cacheBust(prefix: string) {
 }
 
 /**
+ * Cabeçalhos de uma rota que serve dado de partida AO VIVO.
+ *
+ * Ao vivo → `no-store`: o snapshot interno da ESPN já espera 30 s
+ * (`getSummaryRaw` com state "in"), e somar cache de navegador/CDN em cima disso
+ * fazia placar e minuto divergirem entre o topo da tela e os cards. Encerrado →
+ * o dado não muda mais, então pode ser cacheado pelo cliente.
+ */
+export function headersAoVivo(aoVivo: boolean, ttlParadoSec = 600): Record<string, string> {
+  return aoVivo
+    ? { "Cache-Control": "no-store, max-age=0" }
+    : { "Cache-Control": `private, max-age=${ttlParadoSec}, stale-while-revalidate=60` };
+}
+
+/**
  * Leitura **não-bloqueante** do cache: devolve o que já está fresco, sem
  * disparar nenhuma requisição.
  *

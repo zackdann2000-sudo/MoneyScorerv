@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
+import { headersAoVivo } from "@/lib/cache";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
-import { extrairLances, pressao, seriePressao, sinalPressao, appm, JANELA_GRAFICO, JANELA_SINAL } from "@/lib/momentum";
+import { extrairLances, minutoDoRelogio, pressao, seriePressao, sinalPressao, appm, JANELA_GRAFICO, JANELA_SINAL } from "@/lib/momentum";
 import { calcularWinProb, serieWinProb } from "@/lib/winProb";
 
 export const dynamic = "force-dynamic";
@@ -32,29 +33,55 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!sm) return NextResponse.json({ error: "Sem resumo da ESPN." }, { status: 502 });
 
     const m = matchFromSummary(sm, league, id);
+    /* A partida ao vivo nunca é cacheada pelo cliente/CDN: o único cache no
+       caminho é o snapshot da ESPN, de 30 s (getSummaryRaw state="in"). */
+    const headers = headersAoVivo(m.live);
     const lances = extrairLances(sm?.commentary || [], m.home, m.away);
     if (!lances.length) {
       return NextResponse.json({
         ok: true,
         vazio: true,
-        minuto: 0,
+        minuto: minutoDoRelogio(m.clock) ?? 0,
         pressao: null,
         sinal: { nivel: null, lado: null, pct: null, rotulo: "" },
         serie: [],
         appm: null,
         prob: null,
         fonte: "ESPN",
-      });
+      }, { headers });
     }
 
-    const minutoAtual = lances.reduce((mx, l) => Math.max(mx, l.minuto), 0);
+    /*
+     * Minuto do cálculo = RELÓGIO da partida, não o último lance narrado.
+     *
+     * A narração da ESPN chega com atraso: com o cronômetro em 26' o último
+     * lance podia ser dos 19', e aí o card de probabilidade e o gráfico de
+     * momentum ficavam parados em 19' enquanto o placar no topo marcava 26'.
+     * Ordem de confiança: minuto que o cliente já mostra (`?minuto=`, derivado
+     * do estado global) → relógio do resumo → último lance (fallback).
+     */
+    const minutoLances = lances.reduce((mx, l) => Math.max(mx, l.minuto), 0);
+    const pedido = Number(req.nextUrl.searchParams.get("minuto"));
+    const minutoCliente = Number.isFinite(pedido) && pedido > 0 ? Math.min(120, Math.floor(pedido)) : 0;
+    const minutoRelogio = m.live ? (minutoDoRelogio(m.clock) ?? 0) : 0;
+    const minutoAtual = Math.max(minutoLances, minutoRelogio, minutoCliente);
+
     const p15 = pressao(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO });
     const p10 = pressao(lances, { minuto: minutoAtual, janela: JANELA_SINAL });
 
+    /* Placar oficial do cabeçalho: a narração pode não ter o gol mais recente. */
+    const placar =
+      typeof m.home.score === "number" && typeof m.away.score === "number"
+        ? { casa: m.home.score, fora: m.away.score }
+        : undefined;
+
     // Probabilidade 1X2 ao vivo: mesma narração, nenhuma chamada extra à ESPN.
-    const probAtual = calcularWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO });
+    const probAtual = calcularWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, placar });
     const prob = probAtual
-      ? { atual: probAtual, serie: serieWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, passo: 5 }) }
+      ? {
+          atual: probAtual,
+          serie: serieWinProb(lances, { minuto: minutoAtual, janela: JANELA_GRAFICO, passo: 5, placar }),
+        }
       : null;
 
     return NextResponse.json({
@@ -68,7 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       appm: appm(lances, { minuto: minutoAtual }),
       prob,
       fonte: "ESPN",
-    });
+    }, { headers });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no momentum." }, { status: 502 });
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, matchFromSummary } from "@/lib/espn";
 import { getOracleData } from "@/lib/engine";
+import { headersAoVivo } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const sm = await getSummaryRaw(league, id, "in");
     const match = matchFromSummary(sm, league, id);
     const data = await getOracleData(match);
-    return NextResponse.json(data);
+    /* Ao vivo → no-store: o placar/xG do Oracle não pode ficar mais velho que o
+       snapshot de 30 s da ESPN, senão o card contradiz o topo da tela. */
+    return NextResponse.json(data, { headers: headersAoVivo(match.live) });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Oracle indisponível." }, { status: 502 });
   }
