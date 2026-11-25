@@ -1,0 +1,5 @@
+Contact: mailto:security@greenscore.com.br
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: pt-BR, en
+Canonical: https://greenscore.com.br/.well-known/security.txt
+Policy: https://greenscore.com.br/seguranca
