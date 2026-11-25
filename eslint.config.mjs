@@ -35,7 +35,16 @@ export default defineConfig([
   // às cegas no celular, sem poder rodar `next build` localmente. Como aviso, o
   // CI fica verde e a dívida continua visível nas anotações do check run.
   // TODO(pós-lançamento): refatorar caso a caso e voltar para "error".
+  //
+  // O `files` NÃO é opcional aqui. O eslint-config-next 16 registra o plugin
+  // `react-hooks` num objeto limitado a `**/*.{js,jsx,mjs,ts,tsx,mts,cts}` —
+  // `.cjs` fica de fora (os 48 `*.test.cjs` e scripts `*.cjs` do projeto).
+  // Sem `files`, este override valia também para `.cjs`, onde o plugin não
+  // existe, e o ESLint abortava com exit 2 (erro de configuração) antes de
+  // lintar qualquer coisa: nenhum relatório era escrito e o único sintoma no
+  // CI era "relatório ausente". Por isso o glob tem de espelhar o do Next.
   {
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     rules: {
       "react-hooks/set-state-in-effect": "warn",
     },

@@ -55,11 +55,63 @@ jobs:
 
       # O relatório JSON vira anotação via scripts/eslint-annotate.mjs: as
       # anotações do check run são legíveis publicamente, o log do job não.
+      #
+      # Por que não é mais um one-liner com `|| true`: com o `|| true` um erro
+      # FATAL do ESLint (exit 2: config, plugin, crash) passava como "step ok"
+      # e só sobrava a mensagem "relatório ausente" na etapa seguinte — foi o
+      # que escondeu por 4 rodadas o `react-hooks/set-state-in-effect` sem
+      # plugin. Agora o exit code é explícito, o stderr vira anotação (logs de
+      # job não são públicos) e a ausência do relatório falha aqui.
+      #
+      # Contrato de saída:
+      #   0 -> relatório escrito, sem erros
+      #   1 -> relatório escrito, com erros de lint (as anotações dizem quais)
+      #   2 -> fatal: nada foi lintado (falha neste step, com o stderr anotado)
       - name: ESLint (relatório JSON)
-        run: npx eslint . --format json --output-file eslint-report.json || true
+        run: |
+          set +e
+          npx eslint . --format json --output-file eslint-report.json \
+            > eslint-stdout.log 2> eslint-stderr.log
+          status=$?
+          set -e
+          echo "ESLint exit: $status"
+
+          anota() {
+            # % , CR e LF são reservados nos comandos de workflow do Actions.
+            tr '\r\n' '  ' < eslint-stderr.log | tail -c 1200 | sed 's/%/%25/g'
+          }
+
+          if [ ! -s eslint-report.json ]; then
+            echo "::error title=ESLint não lintou nada (exit $status)::$(anota)"
+            {
+              echo "### ESLint não gerou o relatório (exit $status)"
+              echo '```'
+              tail -c 3000 eslint-stderr.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then
+            echo "::error title=ESLint exit inesperado ($status)::$(anota)"
+            exit 1
+          fi
 
       - name: Publicar as anotações do ESLint
         run: node scripts/eslint-annotate.mjs eslint-report.json
+
+      # Quando o step acima quebra, o relatório e o stderr são a evidência.
+      - name: Guardar relatório e logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: |
+            eslint-report.json
+            eslint-stdout.log
+            eslint-stderr.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   typecheck:
     name: tsc --noEmit
