@@ -175,11 +175,14 @@ export function MomentumChart({
   away,
   onSinal,
   onWinProb,
+  finished = false,
 }: {
   matchId: string;
   league: string;
   home: string;
   away: string;
+  /** Jogo encerrado: título vira "Momentum final" e o selo FIRE sai da tela. */
+  finished?: boolean;
   /** Avisa a aba qual é o selo atual, para ele ficar no topo do jogo. */
   onSinal?: (s: Sinal | null) => void;
   /** Entrega a probabilidade 1X2 para o gráfico, sem uma segunda requisição. */
@@ -204,12 +207,18 @@ export function MomentumChart({
         })
         .catch(() => vivo.current && setErro(true));
     carregar();
+    /* Jogo encerrado não muda mais: uma busca basta, sem polling contínuo. */
+    if (finished) {
+      return () => {
+        vivo.current = false;
+      };
+    }
     const t = setInterval(carregar, POLL_MS);
     return () => {
       vivo.current = false;
       clearInterval(t);
     };
-  }, [matchId, league, onSinal, onWinProb]);
+  }, [matchId, league, onSinal, onWinProb, finished]);
 
   const serie = dados?.serie || [];
   const p = dados?.pressao || null;
@@ -255,7 +264,8 @@ export function MomentumChart({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wide text-mut">
-          Momentum · últimos {p.janela} min {dados.minuto ? `· ${dados.minuto}'` : ""}
+          {finished ? "Momentum final" : `Momentum · últimos ${p.janela} min`}
+          {finished ? "" : dados.minuto ? ` · ${dados.minuto}'` : ""}
         </p>
         <span className="text-[9px] font-bold text-mut">{p.lances} lances</span>
       </div>

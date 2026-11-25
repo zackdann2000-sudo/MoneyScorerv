@@ -20,10 +20,13 @@ export default function WinProbChart({
   dados,
   home,
   away,
+  finished = false,
 }: {
   dados: WinProbPayload | null;
   home: string;
   away: string;
+  /** Jogo encerrado: congela em "Probabilidade final" e mostra o placar final. */
+  finished?: boolean;
 }) {
   const serie = dados?.serie || [];
   const atual = dados?.atual || null;
@@ -44,20 +47,38 @@ export default function WinProbChart({
       <div>
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-acc" />
-          <p className="text-[10px] font-bold uppercase tracking-wide text-mut">Probabilidade ao vivo</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide text-mut">
+            {finished ? "Probabilidade final" : "Probabilidade ao vivo"}
+          </p>
         </div>
         <p className="mt-1 text-[11px] leading-snug text-mut">
-          Aparece no apito inicial. Antes do jogo não existe placar nem pressão para recalcular — e inventar um número
-          aqui seria vender certeza que a fonte não tem.
+          {finished
+            ? "O modelo não chegou a calcular probabilidades nesta partida (sem lance a lance da fonte)."
+            : "Aparece no apito inicial. Antes do jogo não existe placar nem pressão para recalcular — e inventar um número aqui seria vender certeza que a fonte não tem."}
         </p>
       </div>
     );
   }
 
+  /*
+   * Jogo encerrado: "ao vivo" deixa de fazer sentido. Com o placar final
+   * definido, a probabilidade não é mais estimativa — é o resultado: 100% para
+   * quem venceu, 100% no empate se terminou igual. É o valor do modelo no apito
+   * final, só que travado (o gráfico abaixo continua sendo a série histórica).
+   */
+  const congelado = ((): { casa: number; empate: number; fora: number } | null => {
+    if (!finished) return null;
+    const c = Number(atual.placar?.casa ?? 0);
+    const f = Number(atual.placar?.fora ?? 0);
+    if (c > f) return { casa: 100, empate: 0, fora: 0 };
+    if (f > c) return { casa: 0, empate: 0, fora: 100 };
+    return { casa: 0, empate: 100, fora: 0 };
+  })();
+
   const linhas: { id: "casa" | "empate" | "fora"; nome: string; valor: number }[] = [
-    { id: "casa", nome: home, valor: atual.casa },
-    { id: "empate", nome: "Empate", valor: atual.empate },
-    { id: "fora", nome: away, valor: atual.fora },
+    { id: "casa", nome: home, valor: congelado ? congelado.casa : atual.casa },
+    { id: "empate", nome: "Empate", valor: congelado ? congelado.empate : atual.empate },
+    { id: "fora", nome: away, valor: congelado ? congelado.fora : atual.fora },
   ];
 
   return (
@@ -66,11 +87,12 @@ export default function WinProbChart({
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-acc" />
           <p className="text-[10px] font-bold uppercase tracking-wide text-mut">
-            Probabilidade ao vivo · {atual.minuto}&apos;
+            {congelado ? "Probabilidade final" : `Probabilidade ao vivo · ${atual.minuto}'`}
           </p>
         </div>
         <span className="text-[9px] font-bold text-mut">
           {atual.placar.casa}–{atual.placar.fora}
+          {congelado ? " · encerrado" : ""}
         </span>
       </div>
 

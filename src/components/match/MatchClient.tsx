@@ -74,6 +74,9 @@ export default function MatchClient({ id, league }: { id: string; league: string
   }, [d?.match?.live, load]);
 
   const m = d?.match;
+  /* Jogo encerrado: a aba LIVE passa a se chamar RESUMO, e os componentes de
+     análise recebem a flag para não falarem em "ao vivo" nem mostrar FIRE. */
+  const encerrado = !!m?.finished;
   const saveBell = () => {
     setFlags(flags);
     if (m) {
@@ -161,7 +164,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
       <div className="sticky top-14 z-40 bg-bg pt-2 pb-1 -mx-3 px-3">
         <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-line">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`shrink-0 px-3 py-2 text-[11px] font-extrabold tracking-wide border-b-2 -mb-px transition-colors ${tab === t.id ? "text-acc border-acc" : "text-mut border-transparent"}`}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={`shrink-0 px-3 py-2 text-[11px] font-extrabold tracking-wide border-b-2 -mb-px transition-colors ${tab === t.id ? "text-acc border-acc" : "text-mut border-transparent"}`}>{t.id === "live" && encerrado ? "RESUMO" : t.label}</button>
           ))}
         </div>
         {/* Chips secundários — mantém IA, Formações, Classificação e Money acessíveis */}
@@ -179,7 +182,7 @@ export default function MatchClient({ id, league }: { id: string; league: string
         {tab === "mercados" && <MercadosTab matchId={id} league={league} home={m.home} away={m.away} odds={d.odds} />}
         {tab === "ia" && <TipsGate><IaTab matchId={id} league={league} odds={d.odds} /></TipsGate>}
         {tab === "prelive" && <PreLiveTab home={m.home} away={m.away} league={league} officials={d.officials} h2h={d.h2h} matchId={id} />}
-        {tab === "live" && <LiveTab d={d} matchId={id} league={league} />}
+        {tab === "live" && <LiveTab d={d} matchId={id} league={league} finished={encerrado} />}
         {tab === "h2h" && <H2HTab d={d} league={league} />}
         {tab === "h2hreal" && <H2HRealTab games={d.h2h?.games} oddPlacarComum={(d as any).odds?.placarComum ?? null} />}
         {tab === "jogadores" && <JogadoresTab matchId={id} league={league} home={m.home} away={m.away} lineups={d.lineups} vip={d.vip} />}

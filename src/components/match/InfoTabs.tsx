@@ -67,7 +67,18 @@ export function Timeline({ events, vip }: { events: any[]; vip: boolean }) {
 }
 
 /* ================= LIVE + ORACLE ================= */
-export function LiveTab({ d, matchId, league }: { d: any; matchId: string; league: string }) {
+export function LiveTab({
+  d,
+  matchId,
+  league,
+  finished = false,
+}: {
+  d: any;
+  matchId: string;
+  league: string;
+  /** Jogo encerrado: aba vira RESUMO, sem FIRE e sem "ao vivo" nos títulos. */
+  finished?: boolean;
+}) {
   const [oracle, setOracle] = useState<any>(null);
   const [sinal, setSinal] = useState<{ nivel: "fire" | "ball" | null; lado: "home" | "away" | null; pct: number | null; rotulo: string } | null>(null);
   const [winProb, setWinProb] = useState<WinProbPayload | null>(null);
@@ -75,9 +86,11 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
     let on = true;
     const load = () => fetch(`/api/matches/${matchId}/oracle?league=${league}`).then((r) => r.json()).then((j) => on && setOracle(j)).catch(() => {});
     load();
+    /* Jogo encerrado não muda mais: um fetch basta, sem polling de 45s. */
+    if (finished) return () => { on = false; };
     const t = setInterval(load, 45000);
     return () => { on = false; clearInterval(t); };
-  }, [matchId, league]);
+  }, [matchId, league, finished]);
 
   const nomeCasa = d.match?.home?.name || "Casa";
   const nomeFora = d.match?.away?.name || "Fora";
@@ -86,8 +99,9 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
 
   return (
     <div className="space-y-3">
-      {/* Sinal de pressão (FIRE/BALL) — topo da aba ao vivo */}
-      {sinal?.nivel && (
+      {/* Sinal de pressão (FIRE/BALL) — só durante o jogo. Com a partida
+          encerrada o selo sai: FIRE significa "pressão agora". */}
+      {sinal?.nivel && !finished && (
         <div className="flex justify-end">
           <PressureBadge sinal={sinal} nomeCasa={nomeCasa} nomeFora={nomeFora} />
         </div>
@@ -113,14 +127,14 @@ export function LiveTab({ d, matchId, league }: { d: any; matchId: string; leagu
         )}
       </div>
 
-      {/* Probabilidade de vitória ao vivo — placar + tempo + momentum */}
+      {/* Probabilidade de vitória — ao vivo durante o jogo, final depois do apito */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <WinProbChart dados={winProb} home={nomeCasa} away={nomeFora} />
+        <WinProbChart dados={winProb} home={nomeCasa} away={nomeFora} finished={finished} />
       </div>
 
-      {/* Momentum ao vivo — lances reais da ESPN */}
+      {/* Momentum — janela móvel ao vivo, "final" quando encerrado */}
       <div className="bg-panel border border-line rounded-2xl p-4">
-        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} onWinProb={setWinProb} />
+        <MomentumChart matchId={matchId} league={league} home={nomeCasa} away={nomeFora} onSinal={setSinal} onWinProb={setWinProb} finished={finished} />
       </div>
 
       {/* Timeline */}
@@ -527,7 +541,7 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
           {d.stats.map((s: any) => (
             <StatCompareRow key={s.key} label={s.label} home={s.home} away={s.away} />
           ))}
-          <SourceFoot fonte="ESPN ao vivo" extra="Acesso gratuito" />
+          <SourceFoot fonte={d.match?.finished ? "ESPN" : "ESPN ao vivo"} extra="Acesso gratuito" />
         </div>
       )}
 
