@@ -110,11 +110,20 @@ async function gravarCache(key: string, p: PayloadTime) {
 
 /** Converte a linha crua de `/fixtures/players` nas chaves do motor. */
 function valoresDoJogo(st: any): JogoValores {
+  const passesTotal = Number(st?.passes?.total);
+  const accuracy = Number(st?.passes?.accuracy);
   return {
     gols: num(st?.goals?.total),
     assistencias: num(st?.goals?.assists),
     finalizacoes: num(st?.shots?.total),
     chutesNoGol: num(st?.shots?.on),
+    passes: Number.isFinite(passesTotal) ? passesTotal : undefined,
+    /* Passes certos é DERIVADO (total × precisão). Sem a precisão o campo fica
+       ausente — e o Screener pula o jogo em vez de contar como 0 passe. */
+    passesCertos:
+      Number.isFinite(passesTotal) && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 100
+        ? Math.round((passesTotal * accuracy) / 100)
+        : undefined,
     faltasCometidas: num(st?.fouls?.committed),
     faltasSofridas: num(st?.fouls?.drawn),
     cartoes: num(st?.cards?.yellow) + num(st?.cards?.red),

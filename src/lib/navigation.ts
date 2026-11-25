@@ -72,6 +72,7 @@ export const GRUPOS: NavGroup[] = [
       { href: "/palpites-ia", label: "Palpites IA", icon: BrainCircuit },
       { href: "/money-tips", label: "Money Tips", icon: Gem },
       { href: "/ev", label: "Oportunidades +EV", icon: CircleDollarSign },
+      { href: "/screener", label: "Screener avançado", icon: BarChart3 },
       { href: "/gameread", label: "Props (GameRead)", icon: Radar },
       { href: "/edge", label: "Edge (picks + radar)", icon: TrendingUp },
     ],

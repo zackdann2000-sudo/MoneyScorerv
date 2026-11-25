@@ -1,0 +1,95 @@
+# E2E do Screener avançado (Playwright) — roda SÓ no GitHub Actions.
+#
+# Por que não localmente: o projeto é desenvolvido em um celular (Termux/arm64),
+# onde baixar o Chromium do Playwright não cabe em memória. Aqui, no runner
+# linux x64, sobra folga.
+#
+# O @playwright/test NÃO fica em devDependencies de propósito: ele entraria no
+# package-lock e quebraria o `npm ci` de quem não tem o pacote. O job instala na
+# hora, com versão fixa, sem tocar em package.json nem no lock.
+#
+# O teste é de CONTRATO DE TELA e intercepta /api/screener/props com
+# `page.route()`: não precisa de banco real, de chave de fornecedor nem de cota.
+# `DATABASE_URL` existe apenas porque `src/db/index.ts` lança erro se ela faltar
+# no import — nada é consultado nesse banco.
+name: e2e
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/app/screener/**"
+      - "src/components/screener/**"
+      - "src/app/api/screener/**"
+      - "src/lib/screenerProps.ts"
+      - "e2e/**"
+      - "playwright.config.ts"
+      - "tsconfig.e2e.json"
+      - ".github/workflows/e2e.yml"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    paths:
+      - "src/app/screener/**"
+      - "src/components/screener/**"
+      - "src/app/api/screener/**"
+      - "src/lib/screenerProps.ts"
+      - "e2e/**"
+      - "playwright.config.ts"
+  workflow_dispatch:
+
+# Um job por vez no mesmo ref: o dev server ocupa a porta 3100.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screener:
+    name: screener (chromium mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Dummy: só satisfaz o guard de import do módulo de banco. O teste não lê banco.
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Instalar o Playwright (fora do package.json/lock)
+        run: npm install --no-save --no-package-lock @playwright/test@1.65.1
+
+      - name: Instalar Chromium do Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Checar tipos do teste (projeto tsconfig.e2e.json)
+        run: npx tsc --noEmit -p tsconfig.e2e.json
+
+      - name: Rodar o e2e
+        run: npx playwright test
+
+      - name: Guardar o relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Guardar traces das falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

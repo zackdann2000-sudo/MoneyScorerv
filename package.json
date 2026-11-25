@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:unit": "./scripts/unit-tests.sh",
+    "test:e2e": "playwright test",
     "test:ligas": "node scripts/test-ligas-filter.mjs",
     "check:tz": "node scripts/check-timestamptz.mjs",
     "seo:check": "tsx scripts/seo-check.ts",

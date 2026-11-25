@@ -17,6 +17,8 @@ export type StatKey =
   | "assistencias"
   | "finalizacoes"
   | "chutesNoGol"
+  | "passes"
+  | "passesCertos"
   | "faltasCometidas"
   | "faltasSofridas"
   | "cartoes"
@@ -27,6 +29,8 @@ export const STAT_LABEL: Record<StatKey, string> = {
   assistencias: "Assistências",
   finalizacoes: "Finalizações",
   chutesNoGol: "Chutes no gol",
+  passes: "Passes",
+  passesCertos: "Passes certos",
   faltasCometidas: "Faltas cometidas",
   faltasSofridas: "Faltas sofridas",
   cartoes: "Cartões",
