@@ -81,3 +81,7 @@ replica/overlyzer/.raw/
 
 # artefatos visuais gerados (create_artifact) — não versionar
 artifacts/
+
+# relatório do ESLint gerado no CI (scripts/eslint-annotate.mjs consome)
+eslint-report.json
+.eslintcache

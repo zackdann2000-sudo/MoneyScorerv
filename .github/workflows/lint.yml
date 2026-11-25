@@ -53,8 +53,13 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: ESLint
-        run: npx eslint .
+      # O relatório JSON vira anotação via scripts/eslint-annotate.mjs: as
+      # anotações do check run são legíveis publicamente, o log do job não.
+      - name: ESLint (relatório JSON)
+        run: npx eslint . --format json --output-file eslint-report.json || true
+
+      - name: Publicar as anotações do ESLint
+        run: node scripts/eslint-annotate.mjs eslint-report.json
 
   typecheck:
     name: tsc --noEmit
