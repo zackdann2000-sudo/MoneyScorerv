@@ -83,17 +83,15 @@ export function Momentum({ data, illustrative }: { data: { min: number; home: nu
         </AreaChart>
       </ResponsiveContainer>
 
-      {/* Sem dados reais minuto a minuto: escurece o gráfico e bloqueia a leitura,
-          em vez de mostrar uma curva sintética como se fosse real. */}
+      {/* Sem dados reais minuto a minuto: o véu impede ler a curva sintética
+          como se fosse do jogo. Sem cadeado — cadeado significa bloqueio de
+          plano; aqui o dado simplesmente não existe na fonte. */}
       {illustrative && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/70 backdrop-blur-[1px]">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-mut" aria-hidden>
-            <rect x="3" y="11" width="18" height="11" rx="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <p className="text-[10px] font-bold text-ink text-center px-3 leading-snug">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 rounded-lg bg-black/60 backdrop-blur-[1px]">
+          <p className="text-[10px] font-bold text-mut text-center px-3 leading-snug">
             Dados minuto a minuto indisponíveis
           </p>
+          <p className="text-[9px] text-mut/60 text-center px-3">curva ilustrativa, não deste jogo</p>
         </div>
       )}
     </div>

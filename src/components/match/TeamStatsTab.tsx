@@ -188,17 +188,31 @@ export default function TeamStatsTab({
     };
   }, [matchId, league]);
 
-  /* 1º/2º tempo só existem quando a fonte entregou o split (5Dollar).
+  /* 1º/2º tempo só existem quando a fonte entregou o split (ESPN ou 5Dollar).
      Sem split, os toggles ficam travados — nunca inventamos o valor. */
   const temSplits = !!data?.temSplits;
+
+  /*
+   * "Médias" só faz sentido quando existe amostra de jogos (>1) para dividir.
+   * O comparativo por tempo vem de UM jogo, então média não é um dado que
+   * temos — e é por isso que a opção fica indisponível, NÃO bloqueada.
+   * Cadeado aqui era um placeholder fixo (`disabled`), sem nenhuma checagem de
+   * acesso: nem owner nem admin mudavam nada. Permissão de verdade é resolvida
+   * na rota (isAdmin/acesso ativo) e, nesta aba, ninguém perde dado por ser Free.
+   */
+  const amostra = Number(data?.sample) || 0;
+  const mediasDisponiveis = amostra > 1;
+  /* Estado não vaza: em "1º/2º tempo" a opção não existe, então o modo cai
+     para "total" em vez de aplicar uma divisão sem amostra. */
+  const modoEfetivo = mediasDisponiveis ? modo : "total";
 
   const metricas: TeamStatMetric[] = useMemo(() => {
     let base: TeamStatMetric[] = data?.metrics || [];
     if (temSplits && tempo === "1t") base = data?.primeiroTempo || [];
     if (temSplits && tempo === "2t") base = data?.segundoTempo || [];
-    const comMedia = modo === "medias" ? comMedias(base, data?.sample || 0) : base;
+    const comMedia = modoEfetivo === "medias" ? comMedias(base, amostra) : base;
     return buscar(filtrar(comMedia, filtro), busca);
-  }, [data, filtro, busca, modo, tempo, temSplits]);
+  }, [data, filtro, busca, modoEfetivo, tempo, temSplits, amostra]);
 
   const loading = !data && !erro;
 
@@ -232,8 +246,9 @@ export default function TeamStatsTab({
           </span>
         </div>
 
-        {/* Toggles de tempo: liberados quando a fonte entrega o split (5Dollar);
-            caso contrário seguem travados para não mostrar número inventado. */}
+        {/* Toggles de tempo: liberados quando a fonte entrega o split (ESPN ou
+            5Dollar). Sem split, o rótulo fica apagado e SEM cadeado: cadeado é
+            bloqueio de plano, e aqui o dado simplesmente não existe na fonte. */}
         <div className="flex gap-1.5">
           <button
             onClick={() => setTempo("total")}
@@ -247,18 +262,14 @@ export default function TeamStatsTab({
             const rotulo = t === "1t" ? "1º tempo" : "2º tempo";
             if (!temSplits) {
               return (
-                <button
+                <span
                   key={t}
-                  disabled
-                  title="Disponível quando a fonte publica o split do intervalo"
-                  className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line bg-panel2 text-mut/50 cursor-not-allowed flex items-center justify-center gap-1"
+                  aria-disabled="true"
+                  title="A fonte não publicou o recorte por tempo desta partida"
+                  className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line/60 bg-panel2 text-mut/45 text-center select-none"
                 >
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                    <rect x="3" y="11" width="18" height="11" rx="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
                   {rotulo}
-                </button>
+                </span>
               );
             }
             const ativo = tempo === t;
@@ -277,29 +288,44 @@ export default function TeamStatsTab({
           })}
         </div>
 
-        {/* Total / Médias — "Médias" travado até termos a amostra real de jogos;
-            deixá-lo clicável devolveria os mesmos números de "Total". */}
+        {/* Total / Médias. "Médias" só aparece ativa quando há amostra real de
+            jogos; sem amostra vira aviso (sem cadeado) — o cadeado é reservado
+            para bloquear Free de dado VIP que NÓS temos, e não é o caso aqui. */}
         <div className="flex gap-1.5 mt-1.5">
           <button
             onClick={() => setModo("total")}
+            aria-pressed={modoEfetivo === "total"}
             className={`flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border ${
-              modo === "total" ? "bg-panel2 border-acc text-acc" : "bg-panel2 border-line text-mut"
+              modoEfetivo === "total" ? "bg-panel2 border-acc text-acc" : "bg-panel2 border-line text-mut"
             }`}
           >
             Total
           </button>
-          <button
-            disabled
-            title="Disponível em breve"
-            className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line bg-panel2 text-mut/50 cursor-not-allowed flex items-center justify-center gap-1"
-          >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            Médias
-          </button>
+          {mediasDisponiveis ? (
+            <button
+              onClick={() => setModo("medias")}
+              aria-pressed={modoEfetivo === "medias"}
+              className={`flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border ${
+                modoEfetivo === "medias" ? "bg-panel2 border-acc text-acc" : "bg-panel2 border-line text-mut"
+              }`}
+            >
+              Médias
+            </button>
+          ) : (
+            <span
+              aria-disabled="true"
+              title="A fonte publica o total deste período, não a média por jogo"
+              className="flex-1 px-2 py-1.5 rounded-full text-[10px] font-extrabold border border-line/60 bg-panel2 text-mut/45 text-center select-none"
+            >
+              Médias
+            </span>
+          )}
         </div>
+        {!mediasDisponiveis && (
+          <p className="text-[9px] text-mut/70 text-center mt-1">
+            Médias indisponíveis para este período.
+          </p>
+        )}
       </div>
 
       {/* Busca */}
@@ -368,13 +394,13 @@ export default function TeamStatsTab({
         <SplitTempos primeiro={serie1} segundo={serie2} casa={home.name} fora={away.name} />
       )}
 
-      {data?.source && (
-        <p className="text-[9px] text-mut/70 text-center">
-          Fonte: {data.source}
-          {modo === "medias" && data?.sample ? ` · média sobre ${data.sample} jogos` : ""}
-          {data.cache === "hit" ? " · do cache" : ""}
-        </p>
-      )}
+          {data?.source && (
+            <p className="text-[9px] text-mut/70 text-center">
+              Fonte: {data.source}
+              {modoEfetivo === "medias" && amostra ? ` · média sobre ${amostra} jogos` : ""}
+              {data.cache === "hit" ? " · do cache" : ""}
+            </p>
+          )}
     </div>
   );
 }
