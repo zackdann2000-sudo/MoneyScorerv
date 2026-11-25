@@ -1,0 +1,78 @@
+# Lint + checagem de tipos — roda SÓ no GitHub Actions.
+#
+# Por que não localmente: o projeto é desenvolvido num celular (Termux/arm64).
+# Um `eslint .` local no repositório inteiro passou de 18 minutos e travou a
+# sessão; o mesmo comando roda em ~1 minuto num runner linux x64, com cache do
+# npm entre execuções. Também é o único lugar onde o lint roda hoje: nenhum
+# outro workflow chama o ESLint.
+#
+# Dois jobs, independentes de propósito — se o lint reclamar de um arquivo e o
+# tsc estiver limpo, você vê qual dos dois quebrou sem esperar o outro:
+#
+#   lint       -> npx eslint .   (flat config em eslint.config.mjs)
+#   typecheck  -> npx tsc --noEmit
+#
+# O `eslint.config.mjs` ignora os dumps de recon (`replica`, `apk_extracted`,
+# `reverse_engineering`, `.tmp`) e os artefatos (`.next`, `build`,
+# `drizzle/meta`): são centenas de MB que não são o app.
+#
+# Sem segredos: nenhum dos dois jobs abre conexão com banco, então não há
+# DATABASE_URL aqui. Se um dia um passo passar a importar `src/db/index.ts` em
+# runtime, ponha um valor dummy como no e2e.yml.
+
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Um push novo no mesmo ref cancela a rodada anterior: lint velho não interessa.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: eslint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: ESLint
+        run: npx eslint .
+
+  typecheck:
+    name: tsc --noEmit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Checar tipos do app
+        run: npx tsc --noEmit
