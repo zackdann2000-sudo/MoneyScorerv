@@ -6,7 +6,7 @@ import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash
 import { useApp } from "@/context/AppContext";
 import { mensagemAcesso } from "@/lib/accessMessage";
 import { VENDAS_ATIVAS } from "@/lib/vendas";
-import { Toggle, Crest } from "@/components/ui";
+import { Toggle, Crest, Modal, PremiumSoonNotice } from "@/components/ui";
 
 function urlB64ToUint8(base64: string) {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -25,6 +25,8 @@ export default function Config() {
   const [delConfirm, setDelConfirm] = useState(false);
   const [delMsg, setDelMsg] = useState("");
   const [portalCarregando, setPortalCarregando] = useState(false);
+  /* Modo gratuito: o CTA de assinatura só abre um aviso "Em breve" — nunca o Stripe. */
+  const [vipModal, setVipModal] = useState(false);
 
   /* Portal do Stripe: cancelar/trocar cartão/faturas sem passar pelo suporte. */
   const abrirPortal = async () => {
@@ -180,6 +182,17 @@ export default function Config() {
               Criar conta grátis
             </Link>
           )}
+          {!VENDAS_ATIVAS && user && (
+            <button
+              onClick={() => setVipModal(true)}
+              className="mt-3 h-10 rounded-xl bg-panel2 border border-acc/40 text-acc text-xs font-extrabold inline-flex items-center justify-center gap-1.5 px-4"
+            >
+              <Crown size={14} /> Assinar VIP — em breve
+            </button>
+          )}
+          <Modal open={vipModal} onClose={() => setVipModal(false)} title="VIP — em breve">
+            <PremiumSoonNotice />
+          </Modal>
         </div>
       </div>
 

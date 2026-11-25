@@ -1,3 +1,5 @@
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Função pura e testada,
+   executada só pelo webhook quando a venda estiver ativa. */
 /**
  * Política de acesso por evento do Stripe — módulo PURO (sem rede, sem banco).
  *

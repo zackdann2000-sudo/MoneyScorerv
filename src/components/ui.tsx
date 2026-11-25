@@ -53,8 +53,33 @@ export function SourceFoot({ fonte = "ESPN", amostra, extra }: { fonte?: string;
   );
 }
 
+/**
+ * Corpo do aviso "Premium em breve".
+ *
+ * Monetização pausada por decisão de produto: o app é 100% gratuito enquanto
+ * validamos o uso. Nada aqui redireciona para o Stripe — só explica o modelo
+ * atual (24h no cadastro + 1 análise/dia). Reaproveitado pelo `VipLock` e por
+ * `/config`. Reativar a venda é trocar `VENDAS_ATIVAS` em `src/lib/vendas.ts`.
+ */
+export function PremiumSoonNotice() {
+  return (
+    <div className="space-y-2 text-sm text-mut">
+      <p className="font-bold text-ink">A versão Premium está em desenvolvimento.</p>
+      <p>
+        Por enquanto o app é <strong className="text-ink">100% gratuito</strong>: o cadastro libera 24h de acesso
+        completo e, depois, 1 análise grátis por dia (o contador zera à meia-noite).
+      </p>
+      <p>
+        Recursos como IA Analista, escalações completas e props ainda não têm plano pago. Quando a assinatura abrir,
+        avisamos por aqui.
+      </p>
+    </div>
+  );
+}
+
 export function VipLock({ label = "Recurso VIP", children }: { label?: string; children?: React.ReactNode }) {
   const { user } = useApp();
+  const [open, setOpen] = useState(false);
   if (user?.isAdmin || user?.email === "admin@greenscore.app") return <>{children}</>;
   return (
     <div className="relative rounded-xl overflow-hidden border border-line">
@@ -62,8 +87,11 @@ export function VipLock({ label = "Recurso VIP", children }: { label?: string; c
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-bg/60 backdrop-blur-[2px] p-4 text-center">
         <span className="w-10 h-10 rounded-full bg-acc/15 border border-acc/40 flex items-center justify-center"><Lock size={18} className="text-acc" /></span>
         <p className="font-display font-bold uppercase tracking-wide">{label}</p>
-        <p className="text-xs text-mut max-w-55">Assine o VIP para desbloquear IA Analista, escalações e análises completas.</p>
-        <Link href="/config#planos" className="px-4 py-1.5 rounded-full bg-acc text-black text-xs font-extrabold">SEJA VIP ⚡</Link>
+        <p className="text-xs text-mut max-w-55">Recurso Premium em desenvolvimento. Por enquanto, o app é gratuito — 1 análise por dia.</p>
+        <button onClick={() => setOpen(true)} className="px-4 py-1.5 rounded-full bg-acc text-black text-xs font-extrabold">VIP em breve ⚡</button>
+        <Modal open={open} onClose={() => setOpen(false)} title="VIP — em breve">
+          <PremiumSoonNotice />
+        </Modal>
       </div>
     </div>
   );

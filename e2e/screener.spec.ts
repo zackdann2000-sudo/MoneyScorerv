@@ -127,6 +127,9 @@ test("monta a consulta e envia os filtros escolhidos", async ({ page }) => {
 test("mostra taxa, contagem, sequência e a série de cada candidato", async ({ page }) => {
   await interceptar(page);
   await abrir(page);
+  /* Janela de 10: a descrição da consulta cita a janela enviada (a última
+     asserção checa "últimos 10 jogos") e a série mockada tem 10 bolinhas. */
+  await page.getByTestId("janela-10").click();
   await page.getByTestId("filtrar").click();
 
   const cards = page.getByTestId("resultado");

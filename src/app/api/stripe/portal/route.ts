@@ -1,3 +1,5 @@
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Botão do portal só existe
+   dentro do bloco VENDAS_ATIVAS da tela /config. */
 /**
  * Portal do Cliente do Stripe.
  *

@@ -1,3 +1,5 @@
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Sem checkout não há evento
+   vindo do Stripe; a rota fica no ar, isolada, para quando a venda voltar. */
 /**
  * Webhook do Stripe.
  *

@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Só age no retorno de um
+   checkout que hoje não acontece (?assinou nunca é gerado). */
 /**
  * Ponte de retorno do Stripe.
  *

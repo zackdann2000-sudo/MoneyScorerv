@@ -1,3 +1,6 @@
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Nenhuma tela chama esta
+   integração enquanto VENDAS_ATIVAS=false; o código fica isolado e testado
+   para quando a venda voltar. Não remova sem ler aquele arquivo. */
 /**
  * Integração Stripe do GreenScore.
  *

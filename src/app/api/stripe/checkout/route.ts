@@ -1,3 +1,6 @@
+/* DORMENTE (modo gratuito): ver src/lib/vendas.ts. Rota mantida isolada; o
+   front nunca a chama enquanto VENDAS_ATIVAS=false. Não altere sem ler aquele
+   arquivo. */
 /**
  * Cria a sessão de checkout do Stripe.
  *

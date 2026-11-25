@@ -34,7 +34,10 @@ export default defineConfig({
     /* `next dev --webpack`: no runner linux o Turbopack também funciona, mas o
        dev server evita pré-renderizar (e tocar no banco) páginas fora do teste. */
     command: `npx next dev --webpack -p ${PORT}`,
-    url: `http://127.0.0.1:${PORT}/api/health`,
+    /* Prontidão NÃO usa `/api/health`: ele faz `select 1` e, no CI, o Postgres é
+       um dummy (a env só satisfaz o import) — devolvia 500 e o webServer nunca
+       ficava pronto. A rota abaixo responde 200 só com metadados, sem banco. */
+    url: `http://127.0.0.1:${PORT}/api/screener/props`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     stdout: "pipe",
