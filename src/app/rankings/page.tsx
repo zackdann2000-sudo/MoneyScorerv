@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Crest, SourceFoot, EmptyState } from "@/components/ui";
 import { LIGAS_RANKING, dadosRankingsComIdade } from "@/lib/rankingsData";
 import { leagueInfo } from "@/lib/espn";
+import { idadeDoDado } from "@/lib/idadeDado";
 import SeloFrescor from "@/components/SeloFrescor";
 import {
   MERCADOS,
@@ -69,9 +70,10 @@ export default async function RankingsPage({ searchParams }: { searchParams?: Pr
   const liga = leagueInfo(ligaAtiva);
 
   /* Selo "Atualizado há X": a idade vem do campo atualizado_em do Neon.
-     `Math.max(0, …)` porque o relógio do Neon pode estar alguns ms à frente do
-     da função — idade negativa por microssegundos não é dado ausente. */
-  const idadeMs = atualizadoEm ? Math.max(0, Date.now() - atualizadoEm.getTime()) : null;
+     `idadeDoDado` já trata relógio adiantado como "agora" (nunca idade
+     negativa) — e mantém o `Date.now()` fora do corpo do render, que é o que
+     a regra `react-hooks/purity` do React Compiler proíbe. */
+  const idadeMs = idadeDoDado(atualizadoEm ? atualizadoEm.getTime() : null)?.ms ?? null;
 
   return (
     <main className="mx-auto max-w-screen-md px-3 py-4 space-y-3">
