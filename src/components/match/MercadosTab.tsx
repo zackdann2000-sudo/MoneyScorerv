@@ -223,7 +223,7 @@ export default function MercadosTab({
           <p className="text-[12px] font-bold text-ink">Nenhum mercado passou o filtro.</p>
           <p className="text-[10px] text-mut mt-1">
             Nenhuma linha ficou acima de {Math.round(PISO_PROB_MERCADO * 100)}% e não há odd de mercado
-            para calcular EV. Toque em "Ver todos" para inspecionar as probabilidades.
+            para calcular EV. Toque em “Ver todos” para inspecionar as probabilidades.
           </p>
         </div>
       ) : (

@@ -298,7 +298,7 @@ export default async function ForebetPage({
           <p className="text-[8px] text-mut px-3 py-2 border-t border-line/60">
             Destaque em cor = resultado mais provável do modelo. Placar = resultado exato mais provável.
             Gols = média esperada (λ casa + λ fora), com xG mesclado 50/50 quando disponível.
-            "Justa" = a odd do mercado sem a comissão da casa (de-vig). TRUST = nota de confiança
+            “Justa” = a odd do mercado sem a comissão da casa (de-vig). TRUST = nota de confiança
             0–10 (probabilidade + EV + amostra). Probabilidades estatísticas, não garantia.
           </p>
         </div>

@@ -340,8 +340,8 @@ export function MomentumChart({
             <path d={caminhos.fora} fill="none" stroke="#ff5d73" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           <div className="mt-0.5 flex justify-between text-[8px] font-bold text-mut">
-            <span>{serie[0]?.min}'</span>
-            <span>{serie[serie.length - 1]?.min}'</span>
+            <span>{serie[0]?.min}{'′'}</span>
+            <span>{serie[serie.length - 1]?.min}{'′'}</span>
           </div>
         </div>
       )}
