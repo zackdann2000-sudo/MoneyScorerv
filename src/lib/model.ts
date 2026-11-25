@@ -112,7 +112,34 @@ export function teamRates(games: HistGame[]): TeamRates {
 
 const fact = (n: number): number => (n <= 1 ? 1 : n * fact(n - 1));
 // Peso da mescla gols/xG no λ (50% gols reais + 50% xG quando disponível).
-const K_GOALS = 0.5, K_XG = 0.5;
+export const K_GOALS = 0.5, K_XG = 0.5;
+// Mescla DENTRO do λ: 65% da média já mesclada com xG + 35% do recorte do lado
+// (casa/fora). São pesos diferentes dos de `teamRates` de propósito.
+export const W_BASE_XG = 0.65, W_BASE_LADO = 0.35;
+// Jogos "virtuais" da média da liga usados como prior na regressão à média.
+export const PRIOR_JOGOS = 4;
+// Ajuste de mando aplicado ao λ de cada lado.
+export const HOME_ADV = 1.18, AWAY_ADJ = 0.92;
+
+/** Regressão à média: amostra curta fica perto do prior (a média da liga). */
+export function shrink(v: number, n: number, prior: number): number {
+  return (n * v + PRIOR_JOGOS * prior) / (n + PRIOR_JOGOS);
+}
+
+/**
+ * Forças de cada lado em relação à média da liga (1,00 = média).
+ *
+ * Exportada porque os **pilares** da tela de análise precisam abrir exatamente
+ * a mesma conta que o λ usa. Se a fórmula mudar aqui, ela muda nos dois lugares
+ * — um teste garante que `lambda ≈ leagueHalf × atk × def × mando`.
+ */
+export function forcasRelativas(rh: TeamRates, ra: TeamRates, leagueHalf: number) {
+  const atkH = shrink(W_BASE_XG * rh.weightedGfXg + W_BASE_LADO * rh.gfHome, rh.games, leagueHalf) / leagueHalf;
+  const defA = shrink(W_BASE_XG * ra.weightedGaXg + W_BASE_LADO * ra.gaAway, ra.games, leagueHalf) / leagueHalf;
+  const atkA = shrink(W_BASE_XG * ra.weightedGfXg + W_BASE_LADO * ra.gfAway, ra.games, leagueHalf) / leagueHalf;
+  const defH = shrink(W_BASE_XG * rh.weightedGaXg + W_BASE_LADO * rh.gaHome, rh.games, leagueHalf) / leagueHalf;
+  return { atkH, defA, atkA, defH };
+}
 const pois = (k: number, l: number) => (Math.pow(l, k) * Math.exp(-l)) / fact(k);
 /** P(X > linha) para X ~ Poisson(lambda). */
 export function caudaPoisson(linha: number, lambda: number): number {
@@ -190,12 +217,7 @@ export function runModel(homeName: string, awayName: string, homeGames: HistGame
   const fallback = rh.games < 5 || ra.games < 5;
   const leagueHalf = leagueAvgGoals / 2;
   // Força relativa à média da liga, com regressão à média para amostras pequenas
-  const shrink = (v: number, n: number, prior: number) => (n * v + 4 * prior) / (n + 4);
-  const atkH = shrink(0.65 * rh.weightedGfXg + 0.35 * rh.gfHome, rh.games, leagueHalf) / leagueHalf;
-  const defA = shrink(0.65 * ra.weightedGaXg + 0.35 * ra.gaAway, ra.games, leagueHalf) / leagueHalf;
-  const atkA = shrink(0.65 * ra.weightedGfXg + 0.35 * ra.gfAway, ra.games, leagueHalf) / leagueHalf;
-  const defH = shrink(0.65 * rh.weightedGaXg + 0.35 * rh.gaHome, rh.games, leagueHalf) / leagueHalf;
-  const HOME_ADV = 1.18, AWAY_ADJ = 0.92;
+  const { atkH, defA, atkA, defH } = forcasRelativas(rh, ra, leagueHalf);
   let lh = Math.max(0.15, Math.min(4.5, leagueHalf * atkH * defA * HOME_ADV));
   let la = Math.max(0.12, Math.min(4.2, leagueHalf * atkA * defH * AWAY_ADJ));
   if (fallback) { lh = Math.max(0.2, (rh.gfAvg + ra.gaAvg) / 2 * HOME_ADV); la = Math.max(0.15, (ra.gfAvg + rh.gaAvg) / 2 * AWAY_ADJ); }

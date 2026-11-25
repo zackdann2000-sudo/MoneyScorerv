@@ -4,6 +4,8 @@ import { BrainCircuit, ShieldAlert, Info } from "lucide-react";
 import { VipLock, SourceFoot } from "@/components/ui";
 import { VereditoDoJogo } from "./VereditoCard";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
+import PilaresAnalise from "./PilaresAnalise";
+import { decomporPilares, oddDoMercado, type MercadoPilarId } from "@/lib/pilares";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -81,6 +83,34 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
   const ev = (prob: number, odd: number | null) => odd ? +(prob * odd - 1).toFixed(3) : null;
   const evHome = ev(p.home, odds?.home), evDraw = ev(p.draw, odds?.draw), evAway = ev(p.away, odds?.away);
 
+  /* ---- Pilares: abre a conta do λ (mesma origem de `a.lambdaHome/Away`) ----
+     O mercado explicado é o mesmo do card do Veredito; a odd só entra quando a
+     fonte publica o par Over/Under da MESMA linha (senão o Value fica sem base). */
+  const ver: any = a.veredito ?? null;
+  const mercadoPilar = (() => {
+    if (!ver) return null;
+    const mp = ver.melhorPalpite ?? null;
+    const taxas: any[] = Array.isArray(ver.taxas) ? ver.taxas : [];
+    const alvo = mp?.mercadoId ?? taxas[0]?.id ?? null;
+    const taxa = (alvo && taxas.find((t) => t.id === alvo)) || taxas[0] || null;
+    if (!taxa && !mp) return null;
+    return {
+      id: (alvo as MercadoPilarId | null) ?? null,
+      rotulo: mp?.mercado ?? taxa?.mercado ?? "Mercado",
+      final: mp?.porcentagem ?? taxa?.final ?? null,
+      observado: taxa?.observado ?? null,
+    };
+  })();
+  const pilares = decomporPilares({
+    modelType: a.model_type,
+    leagueAvg: a.sample?.leagueAvg ?? null,
+    rates: a.rates ?? null,
+    h2h: a.h2hAjuste ?? null,
+    mercado: mercadoPilar,
+    odd: oddDoMercado(mercadoPilar?.id ?? null, odds),
+    temJogador: false,
+  });
+
   return (
     <div className="space-y-3">
       {/* Veredito em destaque: um mercado, um número, uma explicação. */}
@@ -120,6 +150,10 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
           jogos={a.h2h.map((g: any) => ({ golsCasa: Number(g.homeScore) || 0, golsFora: Number(g.awayScore) || 0 }))}
         />
       )}
+
+      {/* Pilares decompostos: por que o modelo chegou neste número. Fica logo
+          depois do ajuste de H2H, antes dos mercados. */}
+      <PilaresAnalise decomp={pilares} />
 
       {/* 1X2 */}
       <div className="bg-panel border border-line rounded-2xl p-4">

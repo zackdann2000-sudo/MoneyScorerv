@@ -45,6 +45,7 @@ SUITES+=(
   "duelosEngine|src/lib/duelosEngine.test.cjs"
   "h2hEngine|src/lib/h2hEngine.test.cjs"
   "vereditoEngine|src/lib/vereditoEngine.test.cjs"
+  "pilares|src/lib/pilares.test.cjs"
   "valueBet|src/lib/valueBet.test.cjs"
   "acertosRecentes|src/lib/acertosRecentes.test.cjs"
   "golsLadder|src/lib/golsLadder.test.cjs"

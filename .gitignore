@@ -78,3 +78,6 @@ replica/overlyzer/.raw/
 # artefatos temporários de recon (não versionar)
 .tmp/
 /.recon/
+
+# artefatos visuais gerados (create_artifact) — não versionar
+artifacts/
