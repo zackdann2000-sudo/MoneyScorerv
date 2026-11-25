@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registrarOportunidadesDoDia, liquidarPendentes, estatisticas } from "@/lib/trackRecord";
+import { registrarOportunidadesDoDia, liquidarPendentes, estatisticas, faixasDeOdd } from "@/lib/trackRecord";
 import { motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +43,9 @@ export async function GET(req: NextRequest) {
       out.liquidacao = await liquidarPendentes({ dias: Number(req.nextUrl.searchParams.get("dias") ?? 10) });
     }
     out.estatisticas = await estatisticas();
+    // Faixas de odd + CLV: é o que a tela /desempenho mostra, devolvido aqui
+    // para dar para conferir a captura de fechamento sem abrir o banco.
+    out.clv = await faixasDeOdd();
     return NextResponse.json(out);
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no track record." }, { status: 502 });
@@ -72,6 +75,9 @@ export async function POST(req: NextRequest) {
       out.liquidacao = await liquidarPendentes({ dias: Number(body?.dias ?? sp.get("dias") ?? 10) });
     }
     out.estatisticas = await estatisticas();
+    // Faixas de odd + CLV: é o que a tela /desempenho mostra, devolvido aqui
+    // para dar para conferir a captura de fechamento sem abrir o banco.
+    out.clv = await faixasDeOdd();
     return NextResponse.json(out);
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Falha no track record." }, { status: 502 });

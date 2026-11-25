@@ -11,12 +11,15 @@
  */
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, isNull } from "drizzle-orm";
 import { getAllMatches, getSummaryRaw, normStats, type Match } from "./espn";
 import { analisarOportunidades } from "./opportunitiesEngine";
 import { calcularStats, type TrackStats } from "./trackStats";
 import { diasCandidatos } from "./semana";
 import { montarSeries, serieDoPalpite, rotuloSerie, type SerieAcertos } from "./acertosRecentes";
+import { ancorasPinnaclePorEspnId } from "./oddsPinnacle";
+import { chaveAncora } from "./comboBuilder";
+import { clvPct as calcularClv, agruparPorFaixa, type ResumoFaixas } from "./clv";
 
 export type { TrackStats, SerieAcertos };
 export { calcularStats, montarSeries, serieDoPalpite, rotuloSerie };
@@ -27,7 +30,44 @@ type Row = {
   odd: number; evPct: number; stake: number; probModelo: number; matchDate: string;
   homeName: string; awayName: string; leagueName: string; status: string;
   homeScore: number | null; awayScore: number | null;
+  oddAbertura: number | null; oddFechamento: number | null; clvPct: number | null;
 };
+
+/* ------------------------------------------------------------------ */
+/* 0. CLV — odd da Pinnacle (abertura e fechamento)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Mercado nosso → chave (market|selection) da odd da Pinnacle no Hub.
+ *
+ * Só entra o que a Pinnacle realmente cota (`hub_bookmaker_odd`). Cartões e
+ * escanteios ficam de fora de propósito: sem par Pinnacle não existe CLV, e
+ * estimar com outra casa contradiz a regra do projeto.
+ */
+const MERCADO_PINNACLE: Record<string, { market: string; selection: string }> = {
+  home: { market: "1X2", selection: "Home" },
+  draw: { market: "1X2", selection: "Draw" },
+  away: { market: "1X2", selection: "Away" },
+  btts: { market: "BTTS", selection: "Yes" },
+  over25: { market: "Over/Under", selection: "Over 2.5" },
+  under25: { market: "Over/Under", selection: "Under 2.5" },
+};
+
+/**
+ * Odd da Pinnacle para um pick, lida só do banco (nenhum fornecedor é chamado).
+ * `null` quando o jogo não está no Hub, quando a Pinnacle não cotou o mercado
+ * ou quando o mercado não tem par Pinnacle.
+ */
+async function oddPinnacleDoPick(espnId: string, mercado: string): Promise<number | null> {
+  const alvo = MERCADO_PINNACLE[mercado];
+  if (!alvo || !espnId) return null;
+  const mapa = await ancorasPinnaclePorEspnId(espnId);
+  const odd = mapa[chaveAncora(alvo.market, alvo.selection)];
+  return Number.isFinite(odd) && odd > 1.01 ? odd : null;
+}
+
+/** Teto de leituras de âncora por execução (protege a lambda e o banco). */
+const MAX_ANCORAS = 60;
 
 const dataSP = (iso: string) =>
   new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); // YYYY-MM-DD
@@ -44,7 +84,7 @@ export async function registrarOportunidadesDoDia(opts: {
     maxMatches: opts.maxMatches ?? 8,
     maxXgApi: opts.maxXgApi ?? 6,
   });
-  const rows = r.oportunidades.map((o) => ({
+  const rows: (typeof valueBetHistory.$inferInsert)[] = r.oportunidades.map((o) => ({
     matchId: o.matchId,
     mercado: o.mercado,
     rotulo: o.rotulo,
@@ -62,6 +102,21 @@ export async function registrarOportunidadesDoDia(opts: {
   let novos = 0;
   /** Motivos visíveis para o `registrados: 0` — antes todos viravam silêncio. */
   const avisos: string[] = [];
+
+  /**
+   * Opening line: a odd da Pinnacle no instante em que o pick nasce.
+   * É a metade que ninguém pode recuperar depois — o Hub sobrescreve a cotação.
+   * Sem âncora Pinnacle a coluna fica nula e o pick simplesmente não terá CLV.
+   */
+  let comAncora = 0;
+  for (const row of rows.slice(0, MAX_ANCORAS)) {
+    const odd = await oddPinnacleDoPick(String(row.matchId ?? ""), String(row.mercado ?? ""));
+    if (odd != null) {
+      row.oddAbertura = odd;
+      comAncora++;
+    }
+  }
+
   if (rows.length) {
     try {
       const ins = await db.insert(valueBetHistory).values(rows).onConflictDoNothing();
@@ -76,7 +131,15 @@ export async function registrarOportunidadesDoDia(opts: {
       console.error("[track-record] insert falhou:", msg);
     }
   }
-  return { geradoEm: new Date().toISOString(), oportunidades: r.oportunidades.length, registrados: novos, avisos };
+  return {
+    geradoEm: new Date().toISOString(),
+    oportunidades: r.oportunidades.length,
+    registrados: novos,
+    /** Quantos picks nasceram com odd de abertura da Pinnacle (base do CLV). */
+    comOddAbertura: comAncora,
+    semOddAbertura: rows.length - comAncora,
+    avisos,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,6 +185,10 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
   const falhas: string[] = [];
   const avisos: string[] = [];
   const resumo = { green: 0, red: 0 };
+  /** Quantas closing lines (CLV) foram gravadas nesta passagem. */
+  let capturados = 0;
+  let semFonte = 0;
+  let leituras = 0;
 
   // Jogos por dia, buscados no máximo uma vez cada. `null` = a fonte falhou.
   const jogosCache = new Map<string, Match[] | null>();
@@ -164,7 +231,43 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
 
     for (const row of rows) {
       const m = row.matchId ? await acharJogo(row.matchId, data) : undefined;
-      if (!m || m.state !== "post" || m.home.score == null || m.away.score == null) continue;
+      if (!m) continue;
+
+      /**
+       * CLOSING LINE. Assim que o jogo saiu do "pré", a cotação que está no Hub
+       * é a última leitura da Pinnacle que existe — é o fechamento possível sem
+       * histórico de odds. Gravamos na primeira passagem do cron e nunca
+       * sobrescrevemos (o primeiro valor é o mais próximo do apito inicial).
+       */
+      let fechamento: { oddFechamento: number; clvPct: number | null; fechamentoEm: Date } | null = null;
+      if (m.state !== "pre" && row.oddFechamento == null && leituras < MAX_ANCORAS) {
+        leituras++;
+        const odd = await oddPinnacleDoPick(row.matchId, row.mercado);
+        if (odd != null) {
+          fechamento = {
+            oddFechamento: odd,
+            clvPct: calcularClv(row.oddAbertura, odd),
+            fechamentoEm: new Date(),
+          };
+        } else {
+          semFonte++;
+        }
+      }
+
+      if (m.state !== "post" || m.home.score == null || m.away.score == null) {
+        // Jogo em andamento: a closing line já pode ser registrada mesmo sem
+        // resultado. `isNull` na condição garante que ninguém regrava.
+        if (fechamento) {
+          try {
+            await db.update(valueBetHistory).set(fechamento)
+              .where(and(eq(valueBetHistory.id, row.id), isNull(valueBetHistory.oddFechamento)));
+            capturados++;
+          } catch (e) {
+            avisos.push(`fechamento ${row.id} falhou: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        continue;
+      }
 
       const golsCasa = m.home.score, golsFora = m.away.score;
       let cartoes: number | null = null, escanteios: number | null = null;
@@ -201,7 +304,11 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
           homeScore: golsCasa,
           awayScore: golsFora,
           settledAt: new Date(),
+          // Uma única UPDATE leva o resultado e o fechamento quando os dois
+          // chegam na mesma passagem do cron.
+          ...(fechamento ?? {}),
         }).where(and(eq(valueBetHistory.id, row.id), eq(valueBetHistory.status, "pendente")));
+        if (fechamento) capturados++;
         liquidados++;
         resumo[status]++;
       } catch {
@@ -210,7 +317,14 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
     }
   }
 
-  return { liquidados, resumo, falhas, avisos };
+  return {
+    liquidados,
+    resumo,
+    falhas,
+    avisos,
+    /** CLV: fechamentos gravados nesta passagem / jogos sem cotação Pinnacle. */
+    clv: { fechamentos: capturados, semOddPinnacle: semFonte },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -220,6 +334,28 @@ export async function liquidarPendentes(opts: { dias?: number } = {}) {
 export async function estatisticas(): Promise<TrackStats> {
   const rows = (await db.select().from(valueBetHistory)) as Row[];
   return calcularStats(rows);
+}
+
+/**
+ * Track record por FAIXA DE ODD, com CLV médio por faixa.
+ *
+ * Só leitura: a conta toda está em `clv.ts` (puro, testado). Falha de banco
+ * devolve o resumo vazio — a tela mostra o estado vazio, nunca número fake.
+ */
+export async function faixasDeOdd(): Promise<ResumoFaixas> {
+  try {
+    const rows = await db
+      .select({
+        odd: valueBetHistory.odd,
+        status: valueBetHistory.status,
+        clvPct: valueBetHistory.clvPct,
+      })
+      .from(valueBetHistory);
+    return agruparPorFaixa(rows);
+  } catch (e) {
+    console.error("[track-record] faixasDeOdd falhou:", e instanceof Error ? e.message : String(e));
+    return agruparPorFaixa([]);
+  }
 }
 
 /* ------------------------------------------------------------------ */

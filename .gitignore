@@ -77,3 +77,4 @@ replica/overlyzer/.raw/
 
 # artefatos temporários de recon (não versionar)
 .tmp/
+/.recon/

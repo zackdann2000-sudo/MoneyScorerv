@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TrendingUp, Target, ArrowRight, Lock, LineChart } from "lucide-react";
+import { TrendingUp, Target, ArrowRight, Lock, LineChart, Activity } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Donut } from "@/components/charts";
 import { SourceFoot } from "@/components/ui";
@@ -85,9 +85,11 @@ export default function Desempenho() {
         )}
       </div>
 
-      {semHistorico ? (
-        <TrackRecordVazio />
-      ) : (
+      <FaixasOdd clv={d.clv} />
+
+      {semHistorico && <TrackRecordVazio />}
+
+      {!semHistorico && (
         <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
         <p className="text-[10px] font-bold text-mut uppercase text-center">Taxa de acerto global · últimos 30 dias (favorito do modelo 1X2)</p>
         <Donut greens={s.greens || 0} reds={s.reds || 0} pending={s.pending || 0} />
@@ -206,6 +208,119 @@ function Audit({ audit, period, setPeriod, league, setLeague, market, setMarket 
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Track record por faixa de odd + CLV da Pinnacle.
+ *
+ * Por que essa tabela existe: acerto agregado esconde tudo o que importa. Um
+ * modelo que acerta 76% só em odds de 1.30 tem ROI diferente de um que acerta
+ * 36% em odds de 3.00, e nenhum dos dois aparece no número global. A faixa
+ * separa os dois mundos — e o CLV mostra se o preço que publicamos era melhor
+ * que o preço de fechamento da Pinnacle, que é a única prova que não depende
+ * do resultado do jogo.
+ *
+ * Regra de honestidade: sem as duas pontas da Pinnacle, CLV é `null` e a tela
+ * mostra "—". Nunca estimamos com outra casa, nunca interpolamos.
+ */
+function FaixasOdd({ clv }: { clv: any }) {
+  if (!clv || !Array.isArray(clv.faixas)) return null;
+
+  const faixas = clv.faixas.filter((f: any) => (f.liquidadas ?? 0) > 0 || (f.comClv ?? 0) > 0);
+  const t = clv.total ?? {};
+
+  const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
+  const comSinal = (v: number | null, sufixo = "%") =>
+    v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}${sufixo}`;
+  const cor = (v: number | null) => (v == null ? "text-mut" : v > 0 ? "text-acc" : v < 0 ? "text-danger" : "text-mut");
+
+  return (
+    <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-acc">
+          <Activity size={12} /> Por faixa de odd · CLV
+        </p>
+        <p className="text-[9px] font-bold text-mut">
+          {(t.comClv ?? 0)} pick{(t.comClv ?? 0) === 1 ? "" : "s"} com as 2 pontas
+        </p>
+      </div>
+
+      <p className="mt-1 text-[10px] leading-snug text-mut">
+        CLV = odd de abertura ÷ odd de fechamento − 1, sempre na Pinnacle. Positivo
+        significa que o mercado andou na nossa direção depois do pick — não é acerto
+        do jogo, é preço melhor que o de fechamento.
+      </p>
+
+      {!faixas.length ? (
+        <p className="mt-3 rounded-xl bg-panel2 p-3 text-[11px] leading-snug text-mut">
+          Ainda não há pick liquidada com odd publicada. A faixa usa a odd que o pick
+          tinha no momento em que foi gravado; o CLV aparece quando a Pinnacle tiver
+          cotado o mesmo mercado no fechamento.
+        </p>
+      ) : (
+        <>
+          <div className="mt-3 hidden grid-cols-[1.2fr_repeat(4,1fr)] gap-1 text-[9px] font-bold uppercase text-mut sm:grid">
+            <span>Faixa</span>
+            <span className="text-center">Picks</span>
+            <span className="text-center">Acerto</span>
+            <span className="text-center">ROI</span>
+            <span className="text-center">CLV médio</span>
+          </div>
+          {faixas.map((f: any) => (
+            <div
+              key={f.key}
+              className="mt-1 grid grid-cols-[1.2fr_repeat(4,1fr)] items-center gap-1 rounded-lg bg-panel2/70 px-2 py-1.5 text-[11px] tabular-nums"
+            >
+              <span className="font-bold">{f.rotulo}</span>
+              <span className="text-center text-mut">
+                {f.liquidadas}
+                {f.greens > 0 || f.liquidadas > 0 ? (
+                  <span className="text-[9px] text-mut/70"> · {f.greens}G</span>
+                ) : null}
+              </span>
+              <span className="text-center font-bold">{pct(f.acerto)}</span>
+              <span className={`text-center font-bold ${cor(f.roi)}`}>{pct(f.roi)}</span>
+              <span className={`text-center font-bold ${cor(f.clvMedio)}`}>
+                {comSinal(f.clvMedio)}
+                {f.comClv > 0 && (
+                  <span className="block text-[8px] font-normal text-mut">
+                    {f.comClv} pick{f.comClv === 1 ? "" : "s"} · {pct(f.clvPositivoPct)} &gt; 0
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+
+          <div className="mt-2 grid grid-cols-[1.2fr_repeat(4,1fr)] items-center gap-1 border-t border-line pt-2 text-[11px] font-black tabular-nums">
+            <span>Total</span>
+            <span className="text-center text-mut">{t.liquidadas ?? 0}</span>
+            <span className="text-center">{pct(t.acerto)}</span>
+            <span className={`text-center ${cor(t.roi)}`}>{pct(t.roi)}</span>
+            <span className={`text-center ${cor(t.clvMedio)}`}>{comSinal(t.clvMedio)}</span>
+          </div>
+
+          {(t.comClv ?? 0) === 0 ? (
+            <p className="mt-3 text-[10px] leading-snug text-warn">
+              As picks acima ainda não têm CLV: falta a cotação da Pinnacle em uma das
+              pontas. O acerto e o ROI da faixa continuam valendo — só o CLV fica em “—”.
+            </p>
+          ) : (t.comClv ?? 0) < 20 ? (
+            <p className="mt-3 text-[10px] leading-snug text-warn">
+              Amostra de {t.comClv} pick{(t.comClv as number) === 1 ? "" : "s"} com CLV:
+              ainda é pouco para tratar a média como prova. O número ganha peso conforme
+              o histórico fecha.
+            </p>
+          ) : (
+            <p className="mt-3 text-[10px] leading-snug text-mut">
+              ROI por faixa = lucro com stake fixa de 1 unidade ÷ picks liquidadas. CLV médio
+              usa só as picks com abertura e fechamento da Pinnacle.
+              {(clv.semOdd ?? 0) > 0 && ` ${clv.semOdd} pick(s) sem odd válida ficaram fora das faixas.`}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

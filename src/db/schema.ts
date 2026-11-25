@@ -485,6 +485,21 @@ export const valueBetHistory = pgTable("value_bet_history", {
   rotulo: text("rotulo").notNull().default(""),
   linha: real("linha"),
   odd: real("odd").notNull().default(0),
+  /**
+   * CLV — o par de odds da Pinnacle que prova se batemos o mercado.
+   *
+   * `oddAbertura` é gravada no instante do pick (é a odd que a publicação usa).
+   * `oddFechamento` é lida pelo cron de liquidação, na primeira passagem depois
+   * do apito inicial — o Hub guarda só o último snapshot da Pinnacle, então
+   * essa é a leitura mais próxima do fechamento que existe sem histórico.
+   * `clvPct = (abertura / fechamento − 1) × 100`; positiva = mercado andou na
+   * nossa direção. Sem as duas pontas da MESMA casa, os três campos ficam
+   * nulos e a tela mostra "—" (nunca uma média inventada).
+   */
+  oddAbertura: real("odd_abertura"),
+  oddFechamento: real("odd_fechamento"),
+  clvPct: real("clv_pct"),
+  fechamentoEm: timestamp("fechamento_em", { withTimezone: true }),
   evPct: real("ev_pct").notNull().default(0),
   stake: real("stake").notNull().default(0),
   probModelo: real("prob_modelo").notNull().default(0),
@@ -502,6 +517,7 @@ export const valueBetHistory = pgTable("value_bet_history", {
   uniqueIndex("vbh_match_mercado").on(t.matchId, t.mercado),
   index("vbh_status_idx").on(t.status),
   index("vbh_date_idx").on(t.matchDate),
+  index("vbh_clv_idx").on(t.clvPct),
   // Só os 3 que `resultadoDoMercado()` devolve (trackRecord.ts) + o inicial.
   check("vbh_status_chk", sql`${t.status} in ('pendente', 'green', 'red')`),
 ]);

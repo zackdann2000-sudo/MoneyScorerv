@@ -66,6 +66,7 @@ SUITES+=(
   "apitou-analises|src/lib/apitou/analises.test.cjs"
   "nerdytips-fonte|src/lib/nerdytips/fonte.test.cjs"
   "smTempos|src/lib/smTempos.test.cjs"
+  "clv|src/lib/clv.test.cjs"
   "espnTempos|src/lib/espnTempos.test.cjs"
 )
 

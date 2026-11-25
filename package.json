@@ -18,6 +18,7 @@
     "db:clean-tz": "node scripts/db-clean-tz.mjs",
     "db:migrate-tz": "node scripts/apply-tz-migration.mjs",
     "db:migrate-referees": "node scripts/apply-referees-migration.mjs",
+    "db:migrate-clv": "node scripts/apply-clv-migration.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:baseline": "node scripts/db-baseline-migrations.mjs",
