@@ -353,6 +353,10 @@ function Competencia({ competencia }: { competencia: any }) {
 
   const grade = "grid grid-cols-[1.7fr_repeat(4,1fr)] items-center gap-1";
 
+  /* Sem nenhum par publicado, a lista em coleta já abre: senão a seção inteira
+     nasce como uma caixa vazia, e o leitor não vê que existe medição em curso. */
+  const verColeta = abrirAguardando || linhas.length === 0;
+
   return (
     <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -428,14 +432,16 @@ function Competencia({ competencia }: { competencia: any }) {
 
       {aguardando.length > 0 && (
         <div className="mt-3 border-t border-line pt-2">
-          <button
-            onClick={() => setAbrirAguardando((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-bold uppercase text-mut"
-          >
-            <span>Aguardando dados · {aguardando.length}</span>
-            <span className="text-acc">{abrirAguardando ? "ocultar" : "ver"}</span>
-          </button>
-          {abrirAguardando && (
+          {linhas.length > 0 && (
+            <button
+              onClick={() => setAbrirAguardando((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-bold uppercase text-mut"
+            >
+              <span>Aguardando dados · {aguardando.length}</span>
+              <span className="text-acc">{abrirAguardando ? "ocultar" : "ver"}</span>
+            </button>
+          )}
+          {verColeta && (
             <div className="mt-1">
               {aguardando.map((l: any) => (
                 <div
