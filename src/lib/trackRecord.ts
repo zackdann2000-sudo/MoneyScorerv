@@ -11,7 +11,7 @@
  */
 import { db } from "@/db";
 import { valueBetHistory } from "@/db/schema";
-import { eq, and, inArray, desc, isNull } from "drizzle-orm";
+import { eq, and, inArray, desc, asc, isNull } from "drizzle-orm";
 import { getAllMatches, getSummaryRaw, normStats, type Match } from "./espn";
 import { analisarOportunidades } from "./opportunitiesEngine";
 import { calcularStats, type TrackStats } from "./trackStats";
@@ -22,6 +22,7 @@ import { chaveAncora } from "./comboBuilder";
 import { clvPct as calcularClv, agruparPorFaixa, type ResumoFaixas } from "./clv";
 import { agruparCompetencia, type ResumoCompetencia } from "./competencia";
 import { montarMotivo, type MotivoPick } from "./motivoPick";
+import type { PickBacktest } from "./backtest";
 
 export type { TrackStats, SerieAcertos, ResumoCompetencia };
 export type { MotivoPick };
@@ -477,6 +478,46 @@ export async function ultimasPicksComMotivo(limite = 20): Promise<PickComMotivo[
     return rows.map((r) => ({ ...r, motivo: (r.motivo as MotivoPick | null) ?? null }));
   } catch (e) {
     console.error("[track-record] ultimasPicksComMotivo falhou:", e instanceof Error ? e.message : String(e));
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3d. Backtest — o ledger cru para o Validador                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Picks liquidadas em ordem cronológica, para o backtest.
+ *
+ * Devolve o ledger cru (sem agregar): o recorte por liga/mercado/janela é feito
+ * em `backtest.ts` (puro, testado), e a tela precisa das mesmas linhas para
+ * montar as opções do seletor.
+ *
+ * `limite` protege a lambda: 3.000 liquidações cobrem anos de operação com o
+ * ritmo atual do registro diário.
+ */
+export async function picksParaBacktest(limite = 3000): Promise<PickBacktest[]> {
+  try {
+    const rows = await db
+      .select({
+        id: valueBetHistory.id,
+        data: valueBetHistory.matchDate,
+        status: valueBetHistory.status,
+        odd: valueBetHistory.odd,
+        leagueName: valueBetHistory.leagueName,
+        mercado: valueBetHistory.mercado,
+        rotulo: valueBetHistory.rotulo,
+        linha: valueBetHistory.linha,
+        homeName: valueBetHistory.homeName,
+        awayName: valueBetHistory.awayName,
+      })
+      .from(valueBetHistory)
+      .where(inArray(valueBetHistory.status, ["green", "red"]))
+      .orderBy(asc(valueBetHistory.matchDate), asc(valueBetHistory.id))
+      .limit(Math.min(Math.max(1, limite), 10_000));
+    return rows;
+  } catch (e) {
+    console.error("[track-record] picksParaBacktest falhou:", e instanceof Error ? e.message : String(e));
     return [];
   }
 }

@@ -83,6 +83,7 @@ export const GRUPOS: NavGroup[] = [
     itens: [
       { href: "/favoritos", label: "Favoritos", icon: Star },
       { href: "/desempenho", label: "Track Record", icon: Scale },
+      { href: "/validador", label: "Validador", icon: BarChart3 },
       { href: "/config", label: "Conta e alertas", icon: CircleHelp },
       { href: "/metodologia", label: "Metodologia", icon: BookOpen },
     ],

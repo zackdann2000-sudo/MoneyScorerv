@@ -70,6 +70,7 @@ SUITES+=(
   "clv|src/lib/clv.test.cjs"
   "competencia|src/lib/competencia.test.cjs"
   "motivoPick|src/lib/motivoPick.test.cjs"
+  "backtest|src/lib/backtest.test.cjs"
   "espnTempos|src/lib/espnTempos.test.cjs"
   "tendencias|src/lib/tendencias.test.cjs"
   "screener|src/lib/screener.test.cjs"

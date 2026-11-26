@@ -34,6 +34,12 @@ export default function Desempenho() {
           <h1 className="font-display font-bold text-2xl uppercase tracking-wide leading-none">Track Record</h1>
           <p className="text-[10px] text-mut">Picks e modelo — só resultado real, inclusive os erros</p>
         </div>
+        <Link
+          href="/validador"
+          className="ml-auto shrink-0 rounded-full bg-panel2 px-3 py-1.5 text-[10px] font-extrabold text-acc"
+        >
+          Validador →
+        </Link>
       </div>
 
       <Audit audit={d.audit} period={period} setPeriod={setPeriod} league={league} setLeague={setLeague} market={market} setMarket={setMarket} />
