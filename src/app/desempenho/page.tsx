@@ -5,6 +5,7 @@ import { TrendingUp, Target, ArrowRight, Lock, LineChart, Activity } from "lucid
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Donut } from "@/components/charts";
 import { SourceFoot } from "@/components/ui";
+import { camposDoMotivo, motivoEmUmaLinha, quandoCongelou } from "@/lib/motivoPick";
 
 export default function Desempenho() {
   const [d, setD] = useState<any>(null);
@@ -88,6 +89,8 @@ export default function Desempenho() {
       <FaixasOdd clv={d.clv} />
 
       <Competencia competencia={d.competencia} />
+
+      <MotivoCongelado historico={d.historico} />
 
       {semHistorico && <TrackRecordVazio />}
 
@@ -322,6 +325,137 @@ function FaixasOdd({ clv }: { clv: any }) {
             </p>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Motivo congelado por pick.
+ *
+ * Cada linha mostra o resumo do instante (`motivoEmUmaLinha`) e abre o retrato
+ * completo: probabilidade, odd justa, edge, EV, stake, TRUST, amostra, λ, xG,
+ * probabilidades do jogo e a frase que o motor escreveu. Pick antigo (sem
+ * snapshot) diz que não foi gravado — não reconstruímos o passado.
+ */
+function MotivoCongelado({ historico }: { historico: any }) {
+  const [aberto, setAberto] = useState<number | null>(null);
+  const [verTodas, setVerTodas] = useState(false);
+  if (!Array.isArray(historico)) return null;
+
+  const lista = historico as any[];
+  const visiveis = verTodas ? lista : lista.slice(0, 5);
+  const comMotivo = lista.filter((p) => p.motivo).length;
+
+  const badge = (status: string) =>
+    status === "green"
+      ? "bg-acc/15 text-acc"
+      : status === "red"
+        ? "bg-danger/15 text-danger"
+        : "bg-panel2 text-mut";
+  const rotuloStatus = (status: string) =>
+    status === "green" ? "GREEN" : status === "red" ? "RED" : "PENDENTE";
+
+  return (
+    <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-acc">
+          <Lock size={12} /> Motivo congelado · por pick
+        </p>
+        <p className="text-[9px] font-bold text-mut">
+          {comMotivo}/{lista.length} com retrato
+        </p>
+      </div>
+
+      <p className="mt-1 text-[10px] leading-snug text-mut">
+        O retrato é gravado no instante do pick e nunca é reescrito: probabilidade do
+        modelo, odd, odd justa, edge, EV, stake, TRUST, amostra, λ e xG usados. Depois do
+        apito a odd fecha e o xG é recalculado — por isso “como estava” só existe se foi
+        congelado antes.
+      </p>
+
+      {!lista.length ? (
+        <p className="mt-3 rounded-xl bg-panel2 p-3 text-[11px] leading-snug text-mut">
+          Nenhuma pick registrada no ledger ainda. O primeiro pick gravado já entra aqui
+          com o motivo completo.
+        </p>
+      ) : (
+        <div className="mt-2">
+          {visiveis.map((p) => {
+            const campos = camposDoMotivo(p.motivo);
+            const temMotivo = campos.length > 0;
+            const expandido = aberto === p.id;
+            return (
+              <div key={p.id} className="mt-1 rounded-xl bg-panel2/60 px-2 py-1.5">
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="shrink-0 text-[9px] font-bold text-mut tabular-nums">
+                    {p.matchDate ? `${p.matchDate.slice(8, 10)}/${p.matchDate.slice(5, 7)}` : "—"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold leading-tight">
+                      {p.homeName} × {p.awayName}
+                      {p.homeScore != null && p.awayScore != null && (
+                        <span className="ml-1 text-mut tabular-nums">
+                          {p.homeScore}–{p.awayScore}
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-[9px] text-mut">
+                      {p.leagueName} · {p.rotulo}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-extrabold ${badge(p.status)}`}>
+                    {rotuloStatus(p.status)}
+                  </span>
+                </div>
+
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="truncate text-[9px] text-mut tabular-nums">
+                    {temMotivo ? motivoEmUmaLinha(p.motivo) : "Motivo não gravado (pick anterior ao registro)"}
+                  </p>
+                  {temMotivo && (
+                    <button
+                      onClick={() => setAberto(expandido ? null : p.id)}
+                      aria-expanded={expandido}
+                      className="shrink-0 rounded-full bg-panel px-2 py-0.5 text-[9px] font-extrabold text-acc"
+                    >
+                      {expandido ? "Ocultar" : "Ver detalhes"}
+                    </button>
+                  )}
+                </div>
+
+                {expandido && (
+                  <div className="mt-1.5 border-t border-line pt-1.5">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3">
+                      {campos.map((c) => (
+                        <div key={c.chave} className={c.chave === "porque" ? "col-span-2 sm:col-span-3" : ""}>
+                          <p className="text-[8px] uppercase leading-tight text-mut">{c.rotulo}</p>
+                          <p className={`text-[10px] font-bold leading-snug ${c.chave === "porque" ? "font-normal text-mut" : "tabular-nums"}`}>
+                            {c.valor}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {p.motivo?.registradoEm && (
+                      <p className="mt-1 text-[8px] text-mut">
+                        Congelado em {quandoCongelou(p.motivo.registradoEm)} · nada aqui é recalculado depois do jogo
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {lista.length > 5 && (
+            <button
+              onClick={() => setVerTodas((v) => !v)}
+              className="mt-2 w-full rounded-lg bg-panel2/50 py-1 text-[10px] font-bold text-mut"
+            >
+              {verTodas ? "Ver menos" : `Ver as ${lista.length} picks`}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

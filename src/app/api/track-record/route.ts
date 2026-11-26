@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settleAndReport } from "@/lib/engine";
 import { auditPicks } from "@/lib/credibility";
-import { faixasDeOdd, competenciaPorLigaMercado } from "@/lib/trackRecord";
+import { faixasDeOdd, competenciaPorLigaMercado, ultimasPicksComMotivo } from "@/lib/trackRecord";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
  *   · `audit`       → auditoria das picks publicadas (Money Tips)
  *   · `clv`         → faixas de odd + CLV médio da Pinnacle (value_bet_history)
  *   · `competencia` → acerto, Brier e ROI por liga × mercado (competencia.ts)
+ *   · `historico`   → últimas picks com o MOTIVO CONGELADO (motivoPick.ts)
  *
  * Os quatro rodam em paralelo e nenhum derruba a rota: se uma tabela ainda não
  * tiver os dados, o bloco volta vazio e a tela mostra o estado explícito
@@ -21,13 +22,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   try {
-    const [model, audit, clv, competencia] = await Promise.all([
+    const [model, audit, clv, competencia, historico] = await Promise.all([
       settleAndReport(),
       auditPicks({ period: sp.get("period") || "30", league: sp.get("league") || "all", market: sp.get("market") || "all" }),
       faixasDeOdd(),
       competenciaPorLigaMercado(),
+      ultimasPicksComMotivo(20),
     ]);
-    return NextResponse.json({ ...model, audit, clv, competencia });
+    return NextResponse.json({ ...model, audit, clv, competencia, historico });
   } catch (e: any) {
     return NextResponse.json({
       error: e?.message,
@@ -37,6 +39,7 @@ export async function GET(req: NextRequest) {
       audit: null,
       clv: null,
       competencia: null,
+      historico: [],
     });
   }
 }

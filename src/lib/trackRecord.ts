@@ -21,8 +21,10 @@ import { ancorasPinnaclePorEspnId } from "./oddsPinnacle";
 import { chaveAncora } from "./comboBuilder";
 import { clvPct as calcularClv, agruparPorFaixa, type ResumoFaixas } from "./clv";
 import { agruparCompetencia, type ResumoCompetencia } from "./competencia";
+import { montarMotivo, type MotivoPick } from "./motivoPick";
 
 export type { TrackStats, SerieAcertos, ResumoCompetencia };
+export type { MotivoPick };
 export { calcularStats, montarSeries, serieDoPalpite, rotuloSerie };
 
 type Status = "pendente" | "green" | "red";
@@ -85,21 +87,47 @@ export async function registrarOportunidadesDoDia(opts: {
     maxMatches: opts.maxMatches ?? 8,
     maxXgApi: opts.maxXgApi ?? 6,
   });
-  const rows: (typeof valueBetHistory.$inferInsert)[] = r.oportunidades.map((o) => ({
-    matchId: o.matchId,
-    mercado: o.mercado,
-    rotulo: o.rotulo,
-    linha: o.linha,
-    odd: o.odd,
-    evPct: o.evPct,
-    stake: o.stake,
-    probModelo: o.probModelo,
-    matchDate: dataSP(o.kickoff),
-    homeName: o.home.name,
-    awayName: o.away.name,
-    leagueName: o.leagueName,
-    status: "pendente" as Status,
-  }));
+  /*
+   * Motivo congelado: o snapshot é montado com a análise do MESMO instante em
+   * que o pick nasce. `analisados` traz o λ e o xG que aquele jogo recebeu
+   * (inclusive o upgrade de xG oficial do passo 2), então o retrato bate com a
+   * probabilidade gravada — não é reconstrução posterior.
+   */
+  const analises = new Map(r.analisados.map((a) => [a.matchId, a]));
+  const agoraIso = new Date().toISOString();
+  const rows: (typeof valueBetHistory.$inferInsert)[] = r.oportunidades.map((o) => {
+    const a = analises.get(o.matchId);
+    return {
+      matchId: o.matchId,
+      mercado: o.mercado,
+      rotulo: o.rotulo,
+      linha: o.linha,
+      odd: o.odd,
+      evPct: o.evPct,
+      stake: o.stake,
+      probModelo: o.probModelo,
+      matchDate: dataSP(o.kickoff),
+      homeName: o.home.name,
+      awayName: o.away.name,
+      leagueName: o.leagueName,
+      status: "pendente" as Status,
+      motivo: montarMotivo(
+        o,
+        a
+          ? {
+              lambdaHome: a.lambdaHome,
+              lambdaAway: a.lambdaAway,
+              xgHome: a.xgHome,
+              xgAway: a.xgAway,
+              xgFonte: a.xgFonte,
+              xgCoverage: a.xgCoverage,
+              probs: a.probs,
+            }
+          : {},
+        agoraIso,
+      ),
+    };
+  });
   let novos = 0;
   /** Motivos visíveis para o `registrados: 0` — antes todos viravam silêncio. */
   const avisos: string[] = [];
@@ -390,6 +418,66 @@ export async function competenciaPorLigaMercado(): Promise<ResumoCompetencia> {
   } catch (e) {
     console.error("[track-record] competenciaPorLigaMercado falhou:", e instanceof Error ? e.message : String(e));
     return agruparCompetencia([]);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3c. Motivo congelado — últimas picks com o retrato da decisão        */
+/* ------------------------------------------------------------------ */
+
+export type PickComMotivo = {
+  id: number;
+  matchDate: string;
+  homeName: string;
+  awayName: string;
+  leagueName: string;
+  mercado: string;
+  rotulo: string;
+  linha: number | null;
+  odd: number;
+  probModelo: number;
+  evPct: number;
+  stake: number;
+  status: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  /** `null` = pick registrado antes da coluna existir. */
+  motivo: MotivoPick | null;
+};
+
+/**
+ * Últimas picks do ledger com o motivo congelado, mais recentes primeiro.
+ * Alimenta o bloco "Ver detalhes" do Track Record. Falha de banco devolve
+ * lista vazia (a tela mostra o estado vazio, nunca um motivo inventado).
+ */
+export async function ultimasPicksComMotivo(limite = 20): Promise<PickComMotivo[]> {
+  try {
+    const rows = await db
+      .select({
+        id: valueBetHistory.id,
+        matchDate: valueBetHistory.matchDate,
+        homeName: valueBetHistory.homeName,
+        awayName: valueBetHistory.awayName,
+        leagueName: valueBetHistory.leagueName,
+        mercado: valueBetHistory.mercado,
+        rotulo: valueBetHistory.rotulo,
+        linha: valueBetHistory.linha,
+        odd: valueBetHistory.odd,
+        probModelo: valueBetHistory.probModelo,
+        evPct: valueBetHistory.evPct,
+        stake: valueBetHistory.stake,
+        status: valueBetHistory.status,
+        homeScore: valueBetHistory.homeScore,
+        awayScore: valueBetHistory.awayScore,
+        motivo: valueBetHistory.motivo,
+      })
+      .from(valueBetHistory)
+      .orderBy(desc(valueBetHistory.id))
+      .limit(Math.min(Math.max(1, limite), 100));
+    return rows.map((r) => ({ ...r, motivo: (r.motivo as MotivoPick | null) ?? null }));
+  } catch (e) {
+    console.error("[track-record] ultimasPicksComMotivo falhou:", e instanceof Error ? e.message : String(e));
+    return [];
   }
 }
 

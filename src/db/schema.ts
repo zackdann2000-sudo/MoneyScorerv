@@ -536,6 +536,16 @@ export const valueBetHistory = pgTable("value_bet_history", {
   homeName: text("home_name").notNull().default(""),
   awayName: text("away_name").notNull().default(""),
   leagueName: text("league_name").notNull().default(""),
+  /**
+   * Motivo congelado: retrato do cenário no instante em que a pick foi
+   * registrada (probabilidade, odd, odd justa, edge, EV, stake, TRUST, amostra,
+   * λ, xG, probs do jogo e a frase do motor). Ver `lib/motivoPick.ts`.
+   *
+   * `null` = pick anterior a esta coluna. A tela diz "Motivo não gravado" em
+   * vez de reconstruir o passado com os dados de hoje — auditoria que se
+   * reescreve não é auditoria.
+   */
+  motivo: jsonb("motivo"),
   status: text("status").notNull().default("pendente"), // pendente | green | red
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),

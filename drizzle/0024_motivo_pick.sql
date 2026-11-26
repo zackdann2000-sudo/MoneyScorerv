@@ -1,0 +1,14 @@
+-- Motivo congelado do pick (Item 2 do backlog).
+--
+-- Guarda o retrato do cenário no instante em que a pick foi registrada:
+-- probabilidade do modelo, odd, odd justa, edge, EV, stake, TRUST, amostra,
+-- λ e xG usados, probabilidades do jogo e a frase `porque` do motor.
+--
+-- Por que jsonb e não 12 colunas: o snapshot é um documento (o formato pode
+-- ganhar campos sem migração nova) e nunca é usado em WHERE/JOIN — a leitura é
+-- "abre o pick e mostra o que estava congelado". Quem precisa agregar usa as
+-- colunas já existentes (prob_modelo, odd, status, league_name, mercado).
+--
+-- Nulo = pick registrado antes desta coluna existir. A tela mostra
+-- "Motivo não gravado" em vez de reconstruir o passado com dados de hoje.
+ALTER TABLE "value_bet_history" ADD COLUMN IF NOT EXISTS "motivo" jsonb;
