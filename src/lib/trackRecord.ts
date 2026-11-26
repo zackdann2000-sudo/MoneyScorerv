@@ -20,8 +20,9 @@ import { montarSeries, serieDoPalpite, rotuloSerie, type SerieAcertos } from "./
 import { ancorasPinnaclePorEspnId } from "./oddsPinnacle";
 import { chaveAncora } from "./comboBuilder";
 import { clvPct as calcularClv, agruparPorFaixa, type ResumoFaixas } from "./clv";
+import { agruparCompetencia, type ResumoCompetencia } from "./competencia";
 
-export type { TrackStats, SerieAcertos };
+export type { TrackStats, SerieAcertos, ResumoCompetencia };
 export { calcularStats, montarSeries, serieDoPalpite, rotuloSerie };
 
 type Status = "pendente" | "green" | "red";
@@ -355,6 +356,40 @@ export async function faixasDeOdd(): Promise<ResumoFaixas> {
   } catch (e) {
     console.error("[track-record] faixasDeOdd falhou:", e instanceof Error ? e.message : String(e));
     return agruparPorFaixa([]);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3b. Competência do modelo por liga × mercado                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Acerto, Brier e ROI de cada par liga × mercado do ledger.
+ *
+ * Só leitura: a conta toda está em `competencia.ts` (puro, testado). Um par com
+ * menos de `MIN_AMOSTRA` liquidações volta em `aguardando` — a tela mostra
+ * "Aguardando dados" em vez de publicar 2 acertos em 3 como se fosse taxa.
+ *
+ * Falha de banco devolve o resumo vazio (a tela mostra o estado vazio, nunca
+ * número fake) e deixa rastro no log — mesmo contrato de `faixasDeOdd`.
+ */
+export async function competenciaPorLigaMercado(): Promise<ResumoCompetencia> {
+  try {
+    const rows = await db
+      .select({
+        leagueName: valueBetHistory.leagueName,
+        mercado: valueBetHistory.mercado,
+        rotulo: valueBetHistory.rotulo,
+        linha: valueBetHistory.linha,
+        status: valueBetHistory.status,
+        probModelo: valueBetHistory.probModelo,
+        odd: valueBetHistory.odd,
+      })
+      .from(valueBetHistory);
+    return agruparCompetencia(rows);
+  } catch (e) {
+    console.error("[track-record] competenciaPorLigaMercado falhou:", e instanceof Error ? e.message : String(e));
+    return agruparCompetencia([]);
   }
 }
 

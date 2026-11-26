@@ -68,6 +68,7 @@ SUITES+=(
   "nerdytips-fonte|src/lib/nerdytips/fonte.test.cjs"
   "smTempos|src/lib/smTempos.test.cjs"
   "clv|src/lib/clv.test.cjs"
+  "competencia|src/lib/competencia.test.cjs"
   "espnTempos|src/lib/espnTempos.test.cjs"
   "tendencias|src/lib/tendencias.test.cjs"
   "screener|src/lib/screener.test.cjs"

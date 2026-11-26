@@ -87,6 +87,8 @@ export default function Desempenho() {
 
       <FaixasOdd clv={d.clv} />
 
+      <Competencia competencia={d.competencia} />
+
       {semHistorico && <TrackRecordVazio />}
 
       {!semHistorico && (
@@ -321,6 +323,145 @@ function FaixasOdd({ clv }: { clv: any }) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Competência do modelo por liga × mercado.
+ *
+ * É o bloco que responde "o modelo é bom NESTA liga, NESTE mercado?" sem
+ * depender do total agregado — e sem publicar 2 acertos em 3 como se fosse
+ * taxa. Abaixo da amostra mínima o par fica retido em "Aguardando dados".
+ */
+function Competencia({ competencia }: { competencia: any }) {
+  const [abrirAguardando, setAbrirAguardando] = useState(false);
+  if (!competencia || !Array.isArray(competencia.linhas)) return null;
+
+  const t = competencia.total ?? {};
+  const linhas: any[] = competencia.linhas ?? [];
+  const aguardando: any[] = competencia.aguardando ?? [];
+  const min = competencia.minAmostra ?? 10;
+
+  const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
+  const cor = (v: number | null) =>
+    v == null ? "text-mut" : v > 0 ? "text-acc" : v < 0 ? "text-danger" : "text-mut";
+  /** Brier: menor é melhor. 0,25 é o chute 50/50 — abaixo disso está calibrado. */
+  const corBrier = (v: number | null) =>
+    v == null ? "text-mut" : v < 0.25 ? "text-acc" : v < 0.3 ? "text-ink" : "text-warn";
+  const num = (v: number | null) => (v == null ? "—" : v.toFixed(3).replace(".", ","));
+
+  const grade = "grid grid-cols-[1.7fr_repeat(4,1fr)] items-center gap-1";
+
+  return (
+    <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-acc">
+          <Target size={12} /> Competência do modelo · liga × mercado
+        </p>
+        <p className="text-[9px] font-bold text-mut">
+          {t.paresProntos ?? 0} par{(t.paresProntos ?? 0) === 1 ? "" : "es"} medido
+          {(t.paresProntos ?? 0) === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      <p className="mt-1 text-[10px] leading-snug text-mut">
+        Acerto sozinho engana: acertar muito com odd baixa ainda dá prejuízo. Por isso a
+        tabela mostra também o ROI (lucro ÷ apostado, stake fixa de 1 unidade) e o Brier
+        — a nota de calibração: média de (probabilidade publicada − resultado)², menor é
+        melhor, e 0,25 é o chute 50/50.
+      </p>
+
+      {!linhas.length ? (
+        <p className="mt-3 rounded-xl bg-panel2 p-3 text-[11px] leading-snug text-mut">
+          Nenhum par liga × mercado chegou a {min} picks liquidadas ainda. Preferimos
+          mostrar “Aguardando dados” a transformar 2 acertos em 3 num percentual.
+          {aguardando.length > 0 && ` ${aguardando.length} par${aguardando.length === 1 ? "" : "es"} em coleta.`}
+        </p>
+      ) : (
+        <>
+          <div className={`${grade} mt-3 hidden text-[9px] font-bold uppercase text-mut sm:grid`}>
+            <span>Liga · mercado</span>
+            <span className="text-center">Picks</span>
+            <span className="text-center">Acerto</span>
+            <span className="text-center">Brier</span>
+            <span className="text-center">ROI</span>
+          </div>
+
+          {linhas.map((l: any) => (
+            <div key={l.key} className={`${grade} mt-1 rounded-lg bg-panel2/70 px-2 py-1.5 text-[11px] tabular-nums`}>
+              <div className="min-w-0">
+                <p className="truncate font-bold leading-tight">{l.liga}</p>
+                <p className="truncate text-[9px] text-mut">{l.rotulo}</p>
+              </div>
+              <span className="text-center text-mut">
+                {l.liquidadas}
+                <span className="text-[9px] text-mut/70"> · {l.greens}G</span>
+              </span>
+              <span className="text-center font-bold">
+                {pct(l.acerto)}
+                {l.esperado != null && (
+                  <span className="block text-[8px] font-normal text-mut">esp. {pct(l.esperado)}</span>
+                )}
+              </span>
+              <span className={`text-center font-bold ${corBrier(l.brier)}`}>{num(l.brier)}</span>
+              <span className={`text-center font-bold ${cor(l.roi)}`}>
+                {pct(l.roi)}
+                {l.comOdd != null && (
+                  <span className="block text-[8px] font-normal text-mut">
+                    {l.comOdd} com odd
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+
+          <div className={`${grade} mt-2 border-t border-line pt-2 text-[11px] font-black tabular-nums`}>
+            <span>Total</span>
+            <span className="text-center text-mut">{t.liquidadas ?? 0}</span>
+            <span className="text-center">{pct(t.acerto)}</span>
+            <span className={`text-center ${corBrier(t.brier)}`}>{num(t.brier)}</span>
+            <span className={`text-center ${cor(t.roi)}`}>{pct(t.roi)}</span>
+          </div>
+        </>
+      )}
+
+      {aguardando.length > 0 && (
+        <div className="mt-3 border-t border-line pt-2">
+          <button
+            onClick={() => setAbrirAguardando((v) => !v)}
+            className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-bold uppercase text-mut"
+          >
+            <span>Aguardando dados · {aguardando.length}</span>
+            <span className="text-acc">{abrirAguardando ? "ocultar" : "ver"}</span>
+          </button>
+          {abrirAguardando && (
+            <div className="mt-1">
+              {aguardando.map((l: any) => (
+                <div
+                  key={l.key}
+                  className="mt-1 flex items-center justify-between gap-2 rounded-lg bg-panel2/50 px-2 py-1.5 text-[11px]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-bold leading-tight text-mut">{l.liga}</p>
+                    <p className="truncate text-[9px] text-mut/70">{l.rotulo}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-panel2 px-2 py-0.5 text-[9px] font-extrabold uppercase text-warn">
+                    Aguardando dados · {l.liquidadas}/{min}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="mt-3 text-[10px] leading-snug text-mut">
+        Só green e red contam: pendente, ao vivo e anulada ficam fora de qualquer
+        denominador. “esp.” é a probabilidade média que o modelo publicou — se ela está
+        longe do acerto, a calibração desse mercado é que precisa de revisão
+        {(competencia.semLiga ?? 0) > 0 && ` ${competencia.semLiga} pick(s) sem liga ficaram fora dos pares`}.
+      </p>
     </div>
   );
 }

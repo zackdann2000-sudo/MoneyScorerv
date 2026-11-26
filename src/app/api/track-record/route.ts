@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settleAndReport } from "@/lib/engine";
 import { auditPicks } from "@/lib/credibility";
-import { faixasDeOdd } from "@/lib/trackRecord";
+import { faixasDeOdd, competenciaPorLigaMercado } from "@/lib/trackRecord";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET → Track Record da tela `/desempenho`.
  *
- * Devolve três blocos independentes:
- *   · `...model`  → KPIs e previsões (engine.ts)
- *   · `audit`     → auditoria das picks publicadas (Money Tips)
- *   · `clv`       → faixas de odd + CLV médio da Pinnacle (value_bet_history)
+ * Devolve quatro blocos independentes:
+ *   · `...model`    → KPIs e previsões (engine.ts)
+ *   · `audit`       → auditoria das picks publicadas (Money Tips)
+ *   · `clv`         → faixas de odd + CLV médio da Pinnacle (value_bet_history)
+ *   · `competencia` → acerto, Brier e ROI por liga × mercado (competencia.ts)
  *
- * `clv` roda em paralelo e nunca derruba a rota: se a tabela ainda não tiver as
- * colunas de CLV, `faixasDeOdd` devolve o resumo vazio e a tela mostra "—".
+ * Os quatro rodam em paralelo e nenhum derruba a rota: se uma tabela ainda não
+ * tiver os dados, o bloco volta vazio e a tela mostra o estado explícito
+ * ("—" / "Aguardando dados"), nunca um número inventado.
  */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   try {
-    const [model, audit, clv] = await Promise.all([
+    const [model, audit, clv, competencia] = await Promise.all([
       settleAndReport(),
       auditPicks({ period: sp.get("period") || "30", league: sp.get("league") || "all", market: sp.get("market") || "all" }),
       faixasDeOdd(),
+      competenciaPorLigaMercado(),
     ]);
-    return NextResponse.json({ ...model, audit, clv });
+    return NextResponse.json({ ...model, audit, clv, competencia });
   } catch (e: any) {
     return NextResponse.json({
       error: e?.message,
@@ -33,6 +36,7 @@ export async function GET(req: NextRequest) {
       picks: [],
       audit: null,
       clv: null,
+      competencia: null,
     });
   }
 }
