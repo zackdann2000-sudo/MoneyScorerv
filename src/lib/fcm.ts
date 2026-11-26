@@ -21,8 +21,28 @@
  */
 import crypto from "crypto";
 
-const PROJECT_ID = (process.env.FCM_PROJECT_ID || "").trim();
-const CLIENT_EMAIL = (process.env.FCM_CLIENT_EMAIL || "").trim();
+/**
+ * Quanto de espaço/quebra invisível foi removido de cada variável.
+ *
+ * A Vercel grava o que recebe: colar o valor do painel, usar `vercel env add`
+ * com pipe (`echo x | vercel env add Y`) ou copiar de um arquivo `.env` costuma
+ * levar um `\n` ou um espaço no fim. O painel mostra o valor "certo", mas o
+ * processo recebe `"meu-projeto "` — e aí a URL da API sai com espaço, o
+ * `iss` do JWT não casa e o erro final é um 400 opaco do Google.
+ */
+const espacosRemovidos: Record<string, number> = {};
+
+/** Lê a variável e aplica `.trim()`, registrando se havia espaço oculto. */
+function limparVar(nome: string, bruto: string | undefined): string {
+  const v = bruto ?? "";
+  const limpo = v.trim();
+  const removidos = v.length - limpo.length;
+  if (removidos > 0) espacosRemovidos[nome] = removidos;
+  return limpo;
+}
+
+const PROJECT_ID = limparVar("FCM_PROJECT_ID", process.env.FCM_PROJECT_ID);
+const CLIENT_EMAIL = limparVar("FCM_CLIENT_EMAIL", process.env.FCM_CLIENT_EMAIL);
 
 /**
  * Normaliza a chave privada da service account.
@@ -33,6 +53,8 @@ const CLIENT_EMAIL = (process.env.FCM_CLIENT_EMAIL || "").trim();
 function normalizarChavePrivada(bruta: string): string {
   let k = (bruta || "").trim();
   if (!k) return "";
+  // registra espaço/quebra escondido na chave (afeta o PEM e o JWT)
+  if (bruta.length !== k.length) espacosRemovidos.FCM_PRIVATE_KEY = bruta.length - k.length;
   // 1) chave/meta colada com aspas pelo painel da Vercel
   if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
     k = k.slice(1, -1).trim();
@@ -106,6 +128,11 @@ export type DiagnosticoFcm = {
   clientEmail: string;
   ambiente: string;
   commit: string;
+  /**
+   * Variáveis que chegaram com espaço/quebra invisível e foram corrigidas pelo
+   * `.trim()` — valor = quantos caracteres saíram. Vazio = ambiente limpo.
+   */
+  espacosRemovidos: Record<string, number>;
 };
 
 /** Diagnóstico do FCM sem vazar segredo (booleanos, tamanho e domínio). */
@@ -135,6 +162,7 @@ export function fcmDiagnostico(): DiagnosticoFcm {
     clientEmail: email,
     ambiente: process.env.VERCEL_ENV || process.env.NODE_ENV || "local",
     commit: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7),
+    espacosRemovidos: { ...espacosRemovidos },
   };
 }
 

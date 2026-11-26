@@ -58,7 +58,20 @@ export type ResultadoPush = {
 };
 
 /* ------------------------------ config ---------------------------------- */
+/**
+ * `.trim()` no valor de TODA variável pública.
+ *
+ * O valor é inlinado no bundle no momento do build, exatamente como está no
+ * painel. Uma quebra de linha colada junto (`NEXT_PUBLIC_FIREBASE_APP_ID` com
+ * `\n` no fim) quebra o `initializeApp` do Firebase com erro obscuro de
+ * "app/invalid-api-key" — e no servidor `Boolean("\n")` é `true`, então o
+ * diagnóstico jurava que estava configurado. Limpar na leitura resolve os dois.
+ */
 function env(nome: string): string {
+  return envBruto(nome).trim();
+}
+
+function envBruto(nome: string): string {
   // Acesso indireto: o Next só faz inline de `process.env.NEXT_PUBLIC_*` quando a
   // chave aparece literal no código; listamos todas abaixo, sem índice dinâmico.
   switch (nome) {
@@ -99,7 +112,7 @@ export const firebaseConfig: FirebaseWebConfig = {
  * Aceita também `NEXT_PUBLIC_VAPID_PUBLIC_KEY` como plano B: é a MESMA chave que
  * o Web Push do servidor usa — se o FCM estiver apontado para ela, funciona.
  */
-export const VAPID_KEY = env("NEXT_PUBLIC_FIREBASE_VAPID_KEY") || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+export const VAPID_KEY = env("NEXT_PUBLIC_FIREBASE_VAPID_KEY") || (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "").trim();
 
 export const FCM_CONFIGURADO = Boolean(
   firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagingSenderId && firebaseConfig.appId && VAPID_KEY,
