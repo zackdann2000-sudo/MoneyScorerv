@@ -19,10 +19,12 @@ import {
 } from "@/db/hub-schema";
 import {
   amostraUtilizavel,
+  assinaturaAnalise,
   ESTADOS_FINALIZADOS,
   mediaLiga,
   MEDIA_LIGA_PADRAO,
   MEDIA_MANDANTE_PADRAO,
+  preferirAnalise,
   resumoDeGenerado,
 } from "./amostra";
 import { pickOpportunity, runHubModel, type MatchSample, type OddsIndex, type SquadPlayer, type TeamInput } from "./model";
@@ -34,7 +36,11 @@ import { pickOpportunity, runHubModel, type MatchSample, type OddsIndex, type Sq
  *  - `Preview` pode ser gerada a qualquer momento e não cria oportunidade.
  *  - `Final` exige lineup confirmado dos dois lados (é o que o produto promete)
  *    e é a ÚNICA análise que cria linha em `hub_opportunity`.
- *  - Publicar de novo cria versão nova; nada é sobrescrito.
+ *  - Publicar de novo cria versão nova; nada é sobrescrito — MAS gerar o mesmo
+ *    conteúdo de novo não cria linha: o UPSERT é idempotente por assinatura
+ *    (`assinaturaAnalise`). Sem isso, duas execuções concorrentes do cron sobre
+ *    a mesma fixture (ou um job que se auto-regera) enchiam a tabela de versões
+ *    clones com o resumo idêntico.
  */
 
 const PREVIEW_WINDOW_HOURS = 48;
@@ -272,6 +278,16 @@ export async function lineupsConfirmed(fixtureId: number): Promise<boolean> {
   return Boolean(row?.confirmed);
 }
 
+/** Oportunidade que JÁ existe para uma análise (usada quando nada é gravado). */
+async function oportunidadeDaAnalise(analysisId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ id: hubOpportunity.id })
+    .from(hubOpportunity)
+    .where(eq(hubOpportunity.analysisId, analysisId))
+    .limit(1);
+  return row?.id ?? null;
+}
+
 export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Final"): Promise<{ analysisId: number; opportunityId: number | null }> {
   if (kind === "Final" && !(await lineupsConfirmed(fixtureId))) {
     throw new Error("Análise final exige escalação confirmada dos dois times.");
@@ -309,14 +325,42 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
     ? output.riskFactors
     : [...output.riskFactors, "Sem odds no mercado para este jogo — a análise traz só probabilidade, sem valor esperado."].slice(0, 5);
 
-  const [latest] = await db
-    .select({ version: hubAnalysis.version })
+  /**
+   * PORTÃO DA IDEMPOTÊNCIA — versão é só para conteúdo NOVO.
+   *
+   * Duas execuções do mesmo job sobre o mesmo estado do mundo (mesmo histórico,
+   * mesmas odds) produzem exatamente o mesmo conteúdo, então não deve nascer
+   * outra linha: devolve a análise que já está lá. Antes, cada chamada fazia
+   * `version = max + 1` e inseria — foi assim que `hub_analysis` acumulou
+   * dezenas de linhas com 4 resumos distintos.
+   */
+  const ultima = await db
+    .select()
     .from(hubAnalysis)
     .where(and(eq(hubAnalysis.fixtureId, fixtureId), eq(hubAnalysis.analysisType, kind)))
     .orderBy(desc(hubAnalysis.version))
     .limit(1);
-  const version = (latest?.version ?? 0) + 1;
 
+  const novo = {
+    summary: resumo,
+    confidence: output.confidence,
+    predictedHomeGoals: output.xgHome,
+    predictedAwayGoals: output.xgAway,
+    keyFactors: output.keyFactors,
+    riskFactors: riscos,
+  };
+  const assinatura = assinaturaAnalise(novo);
+
+  if (ultima[0] && assinaturaAnalise(ultima[0]) === assinatura) {
+    return { analysisId: ultima[0].id, opportunityId: await oportunidadeDaAnalise(ultima[0].id) };
+  }
+
+  const version = (ultima[0]?.version ?? 0) + 1;
+
+  /* `onConflictDoNothing` no índice único (fixture, tipo, versão): dois jobs
+     concorrentes calculam a MESMA próxima versão, um grava e o outro cai
+     aqui — em vez de estourar erro e abortar a análise, reaproveita a linha
+     que existe, com os filhos já gravados por quem chegou primeiro. */
   const [inserted] = await db
     .insert(hubAnalysis)
     .values({
@@ -333,7 +377,24 @@ export async function generateAnalysis(fixtureId: number, kind: "Preview" | "Fin
       labInsights: output.labInsights,
       modelVersion: "v1",
     })
+    .onConflictDoNothing({ target: [hubAnalysis.fixtureId, hubAnalysis.analysisType, hubAnalysis.version] })
     .returning({ id: hubAnalysis.id });
+
+  if (!inserted) {
+    const [existente] = await db
+      .select({ id: hubAnalysis.id })
+      .from(hubAnalysis)
+      .where(
+        and(
+          eq(hubAnalysis.fixtureId, fixtureId),
+          eq(hubAnalysis.analysisType, kind),
+          eq(hubAnalysis.version, version),
+        ),
+      )
+      .limit(1);
+    if (existente) return { analysisId: existente.id, opportunityId: await oportunidadeDaAnalise(existente.id) };
+    throw new Error(`hub_analysis: conflito de versão ${version} (${kind}) para a fixture ${fixtureId} sem linha existente.`);
+  }
 
   const analysisId = inserted.id;
 
@@ -433,14 +494,9 @@ export async function runAnalysisJob(options: { refreshDegenerate?: boolean } = 
    * detectada pelo `sampleHome/sampleAway` do resumo e regerada como versão
    * nova, sem sobrescrever histórico.
    */
-  const escolhida = new Map<number, { analysisType: string; summary: unknown }>();
+  const escolhida = new Map<number, { fixtureId: number; analysisType: string; version: number; summary: unknown }>();
   for (const e of existing) {
-    const atual = escolhida.get(e.fixtureId);
-    if (!atual) {
-      escolhida.set(e.fixtureId, e);
-      continue;
-    }
-    if (atual.analysisType !== "Final" && e.analysisType === "Final") escolhida.set(e.fixtureId, e);
+    escolhida.set(e.fixtureId, preferirAnalise(escolhida.get(e.fixtureId), e));
   }
 
   const degenerada = (fixtureId: number): boolean => {

@@ -1,11 +1,12 @@
 /**
  * Job de sincronização do módulo Hub (CLI) — SISTEMA DE CASCATA.
  *
- *   npx tsx scripts/hub-sync.ts --dates=3 --history=10 --odds=6 --lineups=3 --analyze --settle
+ *   npx tsx scripts/hub-sync.ts --dates=2 --history=2 --odds=6 --lineups=3 --analyze --settle
  *
  * `--history=N` ingere os N dias PASSADOS (placar finalizado). Sem isso o banco
  * não acumula resultado e o motor publica a média da liga para todo jogo — a
- * análise fica igual em toda a competição.
+ * análise fica igual em toda a competição. Padrão: janela simétrica
+ * `hoje - 2 ... hoje + 2`.
  *
  * A orquestração vive em `src/lib/hub/sync-runner.ts` e é a MESMA usada pela
  * rota `/api/hub/sync`. Este arquivo só lê os argumentos da linha de comando,
@@ -38,8 +39,8 @@ const num = (v: string | undefined, def: number) => {
 
 async function main() {
   const report = await runHubSync({
-    dates: num(arg("dates"), 3),
-    historyDays: num(arg("history"), 7),
+    dates: num(arg("dates"), 2),
+    historyDays: num(arg("history"), 2),
     odds: num(arg("odds"), 6),
     lineups: num(arg("lineups"), 3),
     context: num(arg("context"), 24),

@@ -20,6 +20,7 @@ import {
 } from "@/db/hub-schema";
 import type { TopScore } from "./model";
 import { compararCasas, SELECOES_COMPARATIVO, type ComparativoSelecao, type OddsIndex } from "./model";
+import { preferirAnalise } from "./amostra";
 import { gerarRelatorio, type RelatorioIA } from "./aiReport";
 import { DEMO_GAMES, demoProbabilities, demoValue, type DemoGame } from "./demo";
 
@@ -168,6 +169,7 @@ type AnalysisPick = {
   id: number;
   fixtureId: number;
   analysisType: string;
+  version: number;
   summary: HubAnalysisSummary | null;
   confidence: number | null;
   analysisText: string;
@@ -178,8 +180,10 @@ type AnalysisPick = {
 };
 
 /**
- * Última análise publicada por jogo: `Final` ganha de `Preview`; entre duas do
- * mesmo tipo, a mais recente. É a mesma regra que o site expõe publicamente.
+ * Última análise publicada por jogo: a de MAIOR VERSÃO ganha; empate fica com
+ * `Final`. É a mesma regra do job (`preferirAnalise`), de propósito: quando a
+ * tela e o job discordavam de qual análise era "a atual", a tela mostrava uma
+ * degenerada antiga enquanto o job regerava a mesma fixture para sempre.
  */
 async function latestAnalysesFor(fixtureIds: number[]): Promise<Map<number, AnalysisPick>> {
   const escolhidas = new Map<number, AnalysisPick>();
@@ -190,6 +194,7 @@ async function latestAnalysesFor(fixtureIds: number[]): Promise<Map<number, Anal
       id: hubAnalysis.id,
       fixtureId: hubAnalysis.fixtureId,
       analysisType: hubAnalysis.analysisType,
+      version: hubAnalysis.version,
       summary: hubAnalysis.summary,
       confidence: hubAnalysis.confidence,
       analysisText: hubAnalysis.analysisText,
@@ -200,18 +205,11 @@ async function latestAnalysesFor(fixtureIds: number[]): Promise<Map<number, Anal
     })
     .from(hubAnalysis)
     .where(inArray(hubAnalysis.fixtureId, fixtureIds))
-    .orderBy(desc(hubAnalysis.createdAt));
+    .orderBy(desc(hubAnalysis.version), desc(hubAnalysis.createdAt));
 
   for (const row of rows) {
     if (row.analysisType !== "Preview" && row.analysisType !== "Final") continue;
-    const atual = escolhidas.get(row.fixtureId);
-    if (!atual) {
-      escolhidas.set(row.fixtureId, row);
-      continue;
-    }
-    // `rows` vem do mais novo para o mais antigo: só uma Final mais antiga
-    // pode destronar uma Preview já escolhida.
-    if (atual.analysisType === "Preview" && row.analysisType === "Final") escolhidas.set(row.fixtureId, row);
+    escolhidas.set(row.fixtureId, preferirAnalise(escolhidas.get(row.fixtureId), row));
   }
   return escolhidas;
 }

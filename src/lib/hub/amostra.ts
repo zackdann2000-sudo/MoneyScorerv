@@ -57,6 +57,52 @@ export function resumoDeGenerado(resumo: { sampleHome?: number | null; sampleAwa
 }
 
 /**
+ * Qual análise vale para o jogo: a de MAIOR VERSÃO; empate vai para `Final`.
+ *
+ * Antes de existir esta função, job e tela usavam regras diferentes e as duas
+ * erravam do mesmo jeito: davam prioridade ao TIPO (`Final` manda) sem olhar a
+ * versão. Numa fixture com `Final v2` degenerada e `Preview v3` regerada, a
+ * escolhida era a Final v2 velha — `resumoDeGenerado` voltava `true` para
+ * sempre e o job inseria uma `Preview` nova a cada execução. Era daí que saíam
+ * dezenas de linhas em `hub_analysis` com o mesmo resumo. Maior versão ganha:
+ * versão só sobe quando o conteúdo é regerado, então a mais alta é a atual.
+ */
+export function preferirAnalise<T extends { analysisType: string; version: number }>(atual: T | undefined, candidata: T): T {
+  if (!atual) return candidata;
+  if (candidata.version !== atual.version) return candidata.version > atual.version ? candidata : atual;
+  if (atual.analysisType !== "Final" && candidata.analysisType === "Final") return candidata;
+  return atual;
+}
+
+/**
+ * Impressão digital do que a análise publica — sem `version`, `createdAt` nem
+ * `id`, que mudam a cada gravação.
+ *
+ * Serve para o UPSERT ser idempotente: rodar o job duas vezes sobre o mesmo
+ * estado do mundo (mesmo histórico, mesmas odds) gera o MESMO conteúdo e não
+ * deve criar uma versão nova. As reais (float) são arredondadas para não
+ * duplicar por diferença de último dígito na serialização.
+ */
+export function assinaturaAnalise(input: {
+  summary?: unknown;
+  confidence?: number | null;
+  predictedHomeGoals?: number | null;
+  predictedAwayGoals?: number | null;
+  keyFactors?: unknown;
+  riskFactors?: unknown;
+}): string {
+  const r = (n: number | null | undefined) => (typeof n === "number" && Number.isFinite(n) ? Number(n.toFixed(6)) : null);
+  return JSON.stringify([
+    input.summary ?? null,
+    r(input.confidence),
+    r(input.predictedHomeGoals),
+    r(input.predictedAwayGoals),
+    input.keyFactors ?? null,
+    input.riskFactors ?? null,
+  ]);
+}
+
+/**
  * Média de gols a partir de soma e contagem.
  *
  * Devolve `null` — e não zero — quando a amostra é pequena ou quando não houve

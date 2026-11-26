@@ -65,6 +65,26 @@ async function main() {
     })
     .from(hubAnalysis);
 
+  /**
+   * Clones de verdade: mesma fixture, MESMO tipo e MESMO resumo em mais de uma
+   * linha. É o sintoma do job que se auto-regenera (ou de duas execuções
+   * concorrentes) — e o único caso em que a tabela está duplicada.
+   *
+   * A conta antiga era `distintas < total`, que acusava falso positivo: um
+   * jogo tem `Preview v1` e `Final v2` legítimos, e quando o XI não muda a
+   * entrada, os dois resumos saem iguais. O alarme tocava sem haver duplicata.
+   */
+  const [clones] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(
+      db
+        .select({ fixtureId: hubAnalysis.fixtureId, tipo: hubAnalysis.analysisType })
+        .from(hubAnalysis)
+        .groupBy(hubAnalysis.fixtureId, hubAnalysis.analysisType, sql`${hubAnalysis.summary}::text`)
+        .having(sql`count(*) > 1`)
+        .as("clones"),
+    );
+
   const [ultimaFixture] = await db
     .select({ quando: hubFixture.updatedAt })
     .from(hubFixture)
@@ -76,18 +96,25 @@ async function main() {
     : null;
   const totalFinalizadas = status.reduce((s, l) => s + l.finalizadas, 0);
   const totalFixtures = status.reduce((s, l) => s + l.fixtures, 0);
-  const degeneradas = analises && Number(analises.distintas) < Number(analises.total);
+  const analisesClonadas = Number(clones?.n ?? 0);
 
   const problemas: string[] = [];
   if (horasSync == null) problemas.push("hub_fixture vazio: nenhum sync gravou fixture ainda");
   else if (horasSync > LIMITE_HORAS) problemas.push(`sync parado há ${horasSync}h (limite ${LIMITE_HORAS}h)`);
   if (totalFinalizadas === 0) problemas.push("nenhuma fixture finalizada: o motor não tem histórico (xG = média da liga)");
-  if (degeneradas) problemas.push(`análises degeneradas: ${analises!.total} linhas, só ${analises!.distintas} resumo(s) distinto(s)`);
+  if (analisesClonadas > 0)
+    problemas.push(`${analisesClonadas} análise(s) duplicada(s): mesma fixture, tipo e resumo em mais de uma linha`);
   const semHistorico = status.filter((l) => l.finalizadas === 0 && l.futuras > 0);
   if (semHistorico.length) problemas.push(`${semHistorico.length} liga(s) com jogo futuro e ZERO finalizada(s): ${semHistorico.map((l) => l.slug).join(", ")}`);
 
   if (JSON_OUT) {
-    console.log(JSON.stringify({ horasSync, limiteHoras: LIMITE_HORAS, totalFixtures, totalFinalizadas, analises, ligas: status, problemas }, null, 2));
+    console.log(
+      JSON.stringify(
+        { horasSync, limiteHoras: LIMITE_HORAS, totalFixtures, totalFinalizadas, analises, analisesClonadas, ligas: status, problemas },
+        null,
+        2,
+      ),
+    );
     process.exit(problemas.length ? 1 : 0);
   }
 
@@ -105,6 +132,7 @@ async function main() {
   console.log("── Análises ────────────────────────────────────────────────");
   console.log(
     `  ${analises?.total ?? 0} linha(s), ${analises?.distintas ?? 0} resumo(s) distinto(s)` +
+      `, ${analisesClonadas} clone(s)` +
       `, última em ${analises?.ultima ? new Date(analises.ultima).toISOString().slice(0, 16).replace("T", " ") : "—"}`,
   );
 

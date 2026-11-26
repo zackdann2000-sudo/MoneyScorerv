@@ -35,6 +35,12 @@ export type HubSyncOptions = {
    * `recentMatches` devolve lista vazia para todo time e a análise de todos os
    * jogos da liga sai igual (média da liga pura). O sync antigo só olhava para
    * frente (`dates`), então a base nunca acumulava resultado.
+   *
+   * PADRÃO HOJE: 2 — a janela é `hoje - 2 ... hoje + 2` (ver `dates`). Ligas
+   * com rodada espaçada (Premier League, Libertadores, Europa League, Conference
+   * League) passam dias sem jogo: com 1 dia para trás a base delas ficava com
+   * ZERO finalizada e o motor publicava a média da liga. Dois dias cobrem o
+   * fim de semana inteiro sem estourar o tempo do agendador.
    */
   historyDays?: number;
   /** janela de odds em horas a partir de agora. */
@@ -90,9 +96,23 @@ function agregar(attempts: Attempt[]): SyncProviderStats {
   return out;
 }
 
+/**
+ * Deslocamentos de dia a buscar: PASSADO primeiro, depois hoje e o futuro.
+ *
+ * Uma janela só (`-historyDays ... +dates`) em vez de dois laços separados:
+ * antes o passado era uma lista à parte, com o futuro incondicional, e a janela
+ * real dependia de quem chamava (a fase `fixtures` do cron pedia só 1 dia para
+ * trás). Com a janela única o relatório mostra exatamente de onde até onde foi.
+ */
+export function janelaDeDatas(historyDays: number, dates: number): number[] {
+  const out: number[] = [];
+  for (let i = -Math.max(0, historyDays); i <= Math.max(0, dates); i += 1) out.push(i);
+  return out;
+}
+
 export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<string, unknown>> {
-  const dates = opts.dates ?? 3;
-  const historyDays = Math.max(0, opts.historyDays ?? 0);
+  const dates = opts.dates ?? 2;
+  const historyDays = Math.max(0, opts.historyDays ?? 2);
   const oddsWindow = opts.odds ?? 6;
   const lineupsWindow = opts.lineups ?? 3;
   const contextWindow = opts.context ?? 24;
@@ -120,41 +140,44 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   let descartadosPorLiga = 0;
 
   /**
-   * HISTÓRICO PRIMEIRO. Os dias passados entram antes dos futuros porque é
-   * deles que sai o insumo do motor (placar finalizado por time). Rodar só o
-   * que está à frente é o que deixou a base sem nenhum resultado.
+   * JANELA ÚNICA, PASSADO PRIMEIRO: `hoje - historyDays` até `hoje + dates`.
+   *
+   * O passado entra primeiro porque é dele que sai o insumo do motor (placar
+   * finalizado por time); o futuro entra incondicionalmente, porque sem ele a
+   * tela fica vazia. O passado cede para o orçamento de tempo (`podeRodar`) —
+   * e é o que o relatório mostra em `skipped`.
    */
-  if (historyDays > 0) {
-    for (let i = historyDays; i >= 1; i -= 1) {
-      if (!podeRodar()) {
-        skipped.push("fixtures:historico");
-        fixtures.push({ date: isoDate(-i), skipped: true, reason: "orçamento de tempo esgotado" });
-        continue;
-      }
-      const day = isoDate(-i);
-      try {
-        const r = await syncFixturesCascade(day);
-        fixtureAttempts.push(...r.attempts);
-        descartadosPorLiga += r.discarded;
-        fixtures.push({ date: day, source: r.source, fixtures: r.created, discarded: r.discarded, history: true, attempts: r.attempts });
-      } catch (e) {
-        fixtures.push({ date: day, history: true, error: erro(e) });
-      }
+  const janela = janelaDeDatas(historyDays, dates);
+  for (const offset of janela) {
+    const dia = isoDate(offset);
+    const passado = offset < 0;
+    if (passado && !podeRodar()) {
+      skipped.push("fixtures:historico");
+      fixtures.push({ date: dia, skipped: true, reason: "orçamento de tempo esgotado" });
+      continue;
     }
-  }
-
-  for (let i = 0; i <= dates; i += 1) {
-    const day = isoDate(i);
     try {
-      const r = await syncFixturesCascade(day);
+      const r = await syncFixturesCascade(dia);
       fixtureAttempts.push(...r.attempts);
       descartadosPorLiga += r.discarded;
-      fixtures.push({ date: day, source: r.source, fixtures: r.created, discarded: r.discarded, attempts: r.attempts });
+      fixtures.push({
+        date: dia,
+        source: r.source,
+        fixtures: r.created,
+        discarded: r.discarded,
+        ...(passado ? { history: true } : {}),
+        attempts: r.attempts,
+      });
     } catch (e) {
-      fixtures.push({ date: day, error: erro(e) });
+      fixtures.push({ date: dia, error: erro(e), ...(passado ? { history: true } : {}) });
     }
   }
-  report.fixtures = { byDate: fixtures, historyDays, discardedNonMainLeague: descartadosPorLiga, providers: agregar(fixtureAttempts) };
+  report.fixtures = {
+    window: { from: isoDate(-historyDays), to: isoDate(dates), historyDays, futureDays: dates },
+    byDate: fixtures,
+    discardedNonMainLeague: descartadosPorLiga,
+    providers: agregar(fixtureAttempts),
+  };
 
   /* ---------- 2) placar ao vivo ---------- */
   try {

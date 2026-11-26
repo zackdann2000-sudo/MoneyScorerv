@@ -20,8 +20,8 @@ export const maxDuration = 300;
  *   - Manual: header `x-cron-secret: <CRON_SECRET>` ou `?secret=<CRON_SECRET>`
  *
  * Query/body opcionais (todos com teto para caber no maxDuration):
- *   dates=3   dias futuros de fixtures (0 = só hoje)
- *   history=3 dias PASSADOS de fixtures — histórico que o motor usa
+ *   dates=2   dias futuros de fixtures (0 = só hoje)
+ *   history=2 dias PASSADOS de fixtures — histórico que o motor usa
  *   odds=6    janela de odds em horas
  *   lineups=3 janela de escalações em horas
  *   context=24 janela de stats/H2H em horas
@@ -50,10 +50,12 @@ function montarOpcoes(body: Record<string, unknown>, sp: URLSearchParams): HubSy
   const pick = (k: string) => body?.[k] ?? sp.get(k) ?? undefined;
 
   return {
-    dates: Math.max(0, num(pick("dates"), 3)),
+    dates: Math.max(0, num(pick("dates"), 2)),
     // Dias passados: histórico que o motor precisa para não repetir a média da
-    // liga em todos os jogos. Teto baixo (7) porque cada dia é um scoreboard.
-    historyDays: Math.max(0, num(pick("history"), 3)),
+    // liga em todos os jogos. 2 para trás fecha `hoje - 2 ... hoje + 2` — o
+    // mínimo que cobre rodadas de fim de semana de liga e copa. Teto baixo (7)
+    // porque cada dia é um scoreboard.
+    historyDays: Math.max(0, num(pick("history"), 2)),
     odds: Math.max(0, num(pick("odds"), 6)),
     lineups: Math.max(0, num(pick("lineups"), 3)),
     context: Math.max(0, num(pick("context"), 24)),

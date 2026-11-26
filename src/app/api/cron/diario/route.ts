@@ -18,7 +18,7 @@
  *     13:00 UTC  /api/track-record/run → ledger de picks de valor
  *
  *   No cron-job.org (ou qualquer agendador externo):
- *     04:00 UTC  ?acao=hub&fase=fixtures   → Hub: ontem + hoje/amanhã/depois
+ *     04:00 UTC  ?acao=hub&fase=fixtures   → Hub: hoje-2 … hoje+2
  *     05:00 UTC  ?acao=rankings           → rankings das 6 ligas no Neon
  *     06:00 UTC  ?acao=hub&fase=context   → stats, H2H e contexto do dia
  *     07:00 UTC  ?acao=hub&fase=analyze   → análise + liquidação
@@ -39,13 +39,14 @@
  * é exatamente "o app abriu vazio". Dividido em fases, cada invocação faz uma
  * coisa, com orçamento de 45s, e cada uma é idempotente: se cair, roda de novo.
  *
- * POR QUE `fixtures` SÓ BUSCA ONTEM NO DIÁRIO: buscar 3 dias passados + 4 à
- * frente dava 7 chamadas ao fornecedor e ~44s, perto do corte de 60s do
- * agendador externo. Ontem é o único dia passado que muda a cada dia (é onde
- * estão os resultados recém-finalizados que alimentam `recentMatches`); os
- * outros dois são reposição, e ficaram na fase `historico`, semanal. Com isso o
- * diário faz 5 chamadas. Para voltar ao comportamento antigo numa execução só:
- * `&historyDays=3`.
+ * POR QUE `fixtures` BUSCA `hoje - 2 ... hoje + 2`: buscar 3 dias passados + 4
+ * à frente dava 7 chamadas ao fornecedor e ~44s, perto do corte de 60s do
+ * agendador externo. Dois dias para trás é o mínimo que cobre rodada de fim de
+ * semana (com 1 dia, as ligas de rodada espaçada ficaram com ZERO jogo
+ * finalizado) e dois para frente mantém a tela cheia; dá 5 chamadas, o mesmo
+ * custo do desenho anterior. Os 3 dias passados completos ficam na fase
+ * `historico`, semanal, como reposição. Para voltar ao passado mais fundo numa
+ * execução só: `&historyDays=3`.
  *
  * SONDA: `?acao=pipeline` lê só o banco (e a fonte, com `&ping=1`) e diz se há
  * fixture para hoje/amanhã — é como saber se a tela vai abrir vazia antes do
@@ -192,14 +193,16 @@ export async function GET(req: NextRequest) {
 
       /** Opções parciais por fase; o resto vem do padrão abaixo. */
       const FASES: Record<string, Partial<Parameters<typeof runHubSync>[0]>> = {
-        /* DIÁRIO, o que precisa ser rápido: ontem + hoje/amanhã/depois.
-           Ontem é o único dia passado que muda todo dia (é onde estão os
-           resultados recém-finalizados que alimentam `recentMatches`) e ainda
-           assim é o que garante 5 chamadas em vez de 7. Os outros dois dias
-           passados são reposição e estão na fase `historico`. */
+        /* DIÁRIO, o que precisa ser rápido: 2 dias atrás + hoje/amanhã/depois.
+           O passado é o único insumo que o motor não pode inventar: sem placar
+           finalizado, `recentMatches` volta vazio e a análise de toda a liga
+           vira a média da liga. Antes era 1 dia atrás, e as ligas de rodada
+           espaçada (Premier League, Libertadores, Europa e Conference League)
+           ficavam com ZERO finalizada. A janela agora é `hoje - 2 ... hoje + 2`
+           — mesmo número de chamadas (5) que a configuração anterior. */
         fixtures: {
-          dates: 3,
-          historyDays: 1,
+          dates: 2,
+          historyDays: 2,
           contextEnabled: false,
           oddsEnabled: false,
           lineupsEnabled: false,
@@ -270,12 +273,11 @@ export async function GET(req: NextRequest) {
 
         try {
           out.hub = await runHubSync({
-            // Padrão (Hub inteiro): hoje, amanhã e depois de amanhã — sem isto
-            // uma liga de elite sem jogo hoje ficava ausente do hub. E 3 dias
-            // passados alimentam `recentMatches` (motor sem histórico analisa
-            // todos os jogos da liga igual).
+            // Padrão (Hub inteiro): janela `hoje - 2 ... hoje + 3` — 3 dias à
+            // frente para uma liga de elite sem jogo hoje não desaparecer do
+            // hub, e 2 atrás porque são eles que alimentam `recentMatches`.
             dates: 3,
-            historyDays: 3,
+            historyDays: 2,
             context: 24,
             // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
             oddsEnabled: false,
