@@ -274,6 +274,9 @@ export default function Config() {
         {fcmErro && fcmState !== "granted" && <p className="text-[10px] text-danger mt-1 break-words">{fcmErro}</p>}
         {fcmToken && <p className="text-[9px] text-mut mt-1 break-all">{fcmToken.slice(0, 22)}…</p>}
         {!FCM_CONFIGURADO && <p className="text-[10px] text-warn mt-1">Firebase não configurado neste ambiente (faltam as chaves NEXT_PUBLIC_FIREBASE_*). Enquanto isso, use o Push Nativo (VAPID) abaixo.</p>}
+        {/* O cliente só GERA o token. Quem ENTREGA é o servidor, que precisa das
+            3 variáveis FCM_* — confundir os dois é o erro mais comum. */}
+        <p className="text-[9px] text-mut mt-1">O envio no servidor usa outras 3 variáveis (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY), independentes destas. Diagnóstico: <code>/api/push/status?secret=…</code></p>
 
         <button onClick={askOneSignal} className={`w-full mt-2 py-3 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 ${osState === "granted" ? "bg-acc/15 text-acc border border-acc/40" : "bg-acc text-black"}`}>
           <BellRing size={16} />

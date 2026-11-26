@@ -6,19 +6,137 @@
  * `POST /api/push/fcm-token` e o servidor passa a enviar por aqui.
  *
  * Auth: conta de serviço → JWT RS256 → access token do Google (cache até expirar).
- * Variáveis de ambiente:
+ * Variáveis de ambiente (SERVIDOR — não são as NEXT_PUBLIC_* do front):
  *   FCM_PROJECT_ID        ex.: greenscore-xxxxx
  *   FCM_CLIENT_EMAIL      service account → service-account@greenscore.iam.gserviceaccount.com
- *   FCM_PRIVATE_KEY       PEM da service account (com \n literais é aceito)
+ *   FCM_PRIVATE_KEY       PEM da service account (aceita \n literais, aspas do painel,
+ *                         JSON inteiro da service account e base64)
+ *
+ * ATENÇÃO: as 8 variáveis `NEXT_PUBLIC_FIREBASE_*` configuram SÓ o cliente
+ * (gerar o token no navegador). Elas NÃO ativam o envio no servidor — quem
+ * ativa é o trio acima. Confundir os dois é o motivo clássico de
+ * `fcmConfigurado: false` com o app "todo configurado".
+ *
+ * Use `GET /api/push/status` para ver exatamente qual nome está faltando.
  */
 import crypto from "crypto";
 
-const PROJECT_ID = process.env.FCM_PROJECT_ID || "";
-const CLIENT_EMAIL = process.env.FCM_CLIENT_EMAIL || "";
-const PRIVATE_KEY = (process.env.FCM_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+const PROJECT_ID = (process.env.FCM_PROJECT_ID || "").trim();
+const CLIENT_EMAIL = (process.env.FCM_CLIENT_EMAIL || "").trim();
 
-/** true quando o FCM está configurado no ambiente. */
-export const FCM_ENABLED = Boolean(PROJECT_ID && CLIENT_EMAIL && PRIVATE_KEY);
+/**
+ * Normaliza a chave privada da service account.
+ *
+ * Cada painel guarda o PEM de um jeito (aspas, `\n` literais, uma linha só,
+ * JSON completo); sem isso o envio falha com um erro de OpenSSL ilegível.
+ */
+function normalizarChavePrivada(bruta: string): string {
+  let k = (bruta || "").trim();
+  if (!k) return "";
+  // 1) chave/meta colada com aspas pelo painel da Vercel
+  if ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'"))) {
+    k = k.slice(1, -1).trim();
+  }
+  // 2) JSON inteiro da service account em uma única variável
+  if (k.startsWith("{")) {
+    try {
+      const j = JSON.parse(k) as { private_key?: string };
+      if (typeof j?.private_key === "string") k = j.private_key;
+    } catch {
+      /* não é JSON: segue como PEM */
+    }
+  }
+  // 3) base64 (comum em secret manager / cópia de CI)
+  if (!k.includes("BEGIN") && /^[A-Za-z0-9+/=\r\n]+$/.test(k)) {
+    try {
+      const decodificada = Buffer.from(k, "base64").toString("utf8");
+      if (decodificada.includes("BEGIN")) k = decodificada;
+    } catch {
+      /* não é base64: segue */
+    }
+  }
+  // 4) `\n` literais → quebras reais (o caso mais frequente)
+  return k.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").trim();
+}
+
+const PRIVATE_KEY = normalizarChavePrivada(process.env.FCM_PRIVATE_KEY || "");
+
+/**
+ * A chave realmente assina?
+ *
+ * Só checar `PRIVATE_KEY !== ""` marcava FCM como configurado com a chave
+ * truncada/colada errada, e o erro só aparecia depois, no envio, como
+ * "error:1E08010C:DECODER routines::unsupported". Um teste de assinatura no
+ * boot custa ~1ms e devolve um diagnóstico verdadeiro.
+ *
+ * A chave NUNCA sai daqui: só o booleano é exportado.
+ */
+function chaveAssina(pem: string): boolean {
+  if (!pem || !pem.includes("BEGIN") || !pem.includes("PRIVATE KEY")) return false;
+  try {
+    crypto.createSign("RSA-SHA256").update("gs-diagnostico").sign(pem);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const CHAVE_OK = chaveAssina(PRIVATE_KEY);
+
+/** true quando o FCM está configurado no ambiente (3 vars do servidor + chave válida). */
+export const FCM_ENABLED = Boolean(PROJECT_ID && CLIENT_EMAIL && CHAVE_OK);
+
+export type DiagnosticoFcm = {
+  /** FCM pronto para enviar. */
+  ativo: boolean;
+  /** Nomes de variáveis ausentes ou inválidas no servidor (`FCM_*`). */
+  faltando: string[];
+  variaveis: {
+    FCM_PROJECT_ID: boolean;
+    FCM_CLIENT_EMAIL: boolean;
+    FCM_PRIVATE_KEY: boolean;
+  };
+  /** A chave privada foi normalizada e assina de verdade. */
+  chaveAssina: boolean;
+  /** Formato detectado da chave (ajuda a diagnosticar colagem errada). */
+  chaveFormato: "ausente" | "pem" | "desconhecido";
+  chaveTamanho: number;
+  projeto: string;
+  /** E-mail da service account com o miolo mascarado. */
+  clientEmail: string;
+  ambiente: string;
+  commit: string;
+};
+
+/** Diagnóstico do FCM sem vazar segredo (booleanos, tamanho e domínio). */
+export function fcmDiagnostico(): DiagnosticoFcm {
+  const faltando: string[] = [];
+  if (!PROJECT_ID) faltando.push("FCM_PROJECT_ID");
+  if (!CLIENT_EMAIL) faltando.push("FCM_CLIENT_EMAIL");
+  if (!PRIVATE_KEY) faltando.push("FCM_PRIVATE_KEY");
+  else if (!CHAVE_OK) faltando.push("FCM_PRIVATE_KEY (presente, mas não assina — valor truncado ou com aspas/escapes errados)");
+
+  const email = CLIENT_EMAIL
+    ? `${CLIENT_EMAIL.slice(0, 4)}…@${CLIENT_EMAIL.split("@")[1] || "?"}`
+    : "";
+
+  return {
+    ativo: FCM_ENABLED,
+    faltando,
+    variaveis: {
+      FCM_PROJECT_ID: Boolean(PROJECT_ID),
+      FCM_CLIENT_EMAIL: Boolean(CLIENT_EMAIL),
+      FCM_PRIVATE_KEY: Boolean(PRIVATE_KEY),
+    },
+    chaveAssina: CHAVE_OK,
+    chaveFormato: !PRIVATE_KEY ? "ausente" : PRIVATE_KEY.includes("BEGIN") ? "pem" : "desconhecido",
+    chaveTamanho: PRIVATE_KEY.length,
+    projeto: PROJECT_ID,
+    clientEmail: email,
+    ambiente: process.env.VERCEL_ENV || process.env.NODE_ENV || "local",
+    commit: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7),
+  };
+}
 
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -100,7 +218,13 @@ export type ResultadoFcm = {
 export async function sendFcmToTokens(tokens: string[], msg: MensagemPush): Promise<ResultadoFcm> {
   if (!tokens.length) return { ok: true, enviados: 0, falhas: 0, invalidos: [] };
   if (!FCM_ENABLED) {
-    return { ok: false, enviados: 0, falhas: tokens.length, invalidos: [], erro: "FCM não configurado no ambiente." };
+    return {
+      ok: false,
+      enviados: 0,
+      falhas: tokens.length,
+      invalidos: [],
+      erro: `FCM não configurado no ambiente. Faltando: ${fcmDiagnostico().faltando.join(", ") || "—"}.`,
+    };
   }
   const token = await accessToken();
   const unicos = [...new Set(tokens)];
