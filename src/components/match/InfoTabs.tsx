@@ -8,6 +8,7 @@ import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import { VereditoBlock } from "@/components/match/VereditoBlock";
 import { InsightsCache, type RespostaInsights } from "@/components/match/InsightsCache";
 import { OddsMultiCasaLive } from "@/components/match/OddsMultiCasaLive";
+import { QuentesAuto } from "@/components/match/QuentesBlock";
 import AiReport from "@/components/hub/AiReport";
 import { MomentumChart, PressureBadge } from "@/components/match/MomentumChart";
 import WinProbChart from "@/components/match/WinProbChart";
@@ -519,6 +520,15 @@ export function StatsTab({ d, matchId, league }: { d: any; matchId: string; leag
 
   return (
     <div className="space-y-3">
+      {/* Quentes fica no topo: é a leitura de contexto antes do número frio.
+          Se não houver histórico, o componente devolve null e nada aparece. */}
+      <QuentesAuto
+        matchId={matchId}
+        league={league}
+        homeNome={d.match.home?.name ?? "Casa"}
+        awayNome={d.match.away?.name ?? "Fora"}
+      />
+
       {/* Seletor: comparativo do time (principal) × stats por jogador */}
       <div className="flex gap-1.5 bg-panel border border-line rounded-full p-1">
         {(["time", "jogadores"] as const).map((v) => (

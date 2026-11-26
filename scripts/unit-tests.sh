@@ -69,6 +69,7 @@ SUITES+=(
   "smTempos|src/lib/smTempos.test.cjs"
   "clv|src/lib/clv.test.cjs"
   "espnTempos|src/lib/espnTempos.test.cjs"
+  "tendencias|src/lib/tendencias.test.cjs"
   "screener|src/lib/screener.test.cjs"
   "screenerProps|src/lib/screenerProps.test.cjs"
   "searchIndex|src/lib/searchIndex.test.cjs"

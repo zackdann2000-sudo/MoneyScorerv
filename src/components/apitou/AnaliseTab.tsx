@@ -19,6 +19,7 @@ import {
 } from "./Ui";
 import H2HPalpiteCard from "@/components/H2HPalpiteCard";
 import BlocoAnalises from "./BlocoAnalises";
+import TendenciasApitou from "./TendenciasApitou";
 
 /**
  * Aba "Análise" — o jogo aberto, com o que o modelo calculou.
@@ -37,7 +38,7 @@ export default function AnaliseTab({
   const url = useMemo(() => `/api/apitou/jogo/${jogoId}`, [jogoId]);
   const { data, loading, error, refresh } = useApi<JogoResp>(url, [jogoId]);
 
-  const [modo, setModo] = useState<"desajustes" | "props" | "contexto">("desajustes");
+  const [modo, setModo] = useState<"desajustes" | "props" | "tendencia" | "contexto">("desajustes");
   const [mercado, setMercado] = useState<string>("");
 
   const propsFiltradas = useMemo(() => {
@@ -91,6 +92,7 @@ export default function AnaliseTab({
           [
             ["desajustes", "Desajustes", data.totais.desajustes],
             ["props", "Props", data.totais.props],
+            ["tendencia", "Tendências", 0],
             ["contexto", "Contexto", 0],
           ] as const
         ).map(([key, label, n]) => (
@@ -119,6 +121,14 @@ export default function AnaliseTab({
         />
       )}
       {modo === "contexto" && <Contexto data={data} />}
+      {modo === "tendencia" && (
+        <TendenciasApitou
+          casa={jogo.statsHome}
+          fora={jogo.statsAway}
+          homeNome={jogo.home}
+          awayNome={jogo.away}
+        />
+      )}
 
       <FonteBadge geradoEm={data.geradoEm} atualizadoEm={data.atualizadoEm} revalidando={data.revalidando} />
     </div>

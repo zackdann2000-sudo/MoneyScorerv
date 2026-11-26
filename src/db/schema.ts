@@ -449,6 +449,35 @@ export const teamXgCache = pgTable("team_xg_cache", {
 });
 
 /**
+ * Histórico por time para o motor de tendências ("bateu X de Y").
+ *
+ * Por que existe: `getTeamHistory()` custa 1 chamada de schedule + N de summary
+ * (10 jogos = 11 requisições por time, 22 por partida). O `cached()` de
+ * `lib/cache.ts` é memória de instância — em serverless, cold start zera tudo e
+ * a conta volta do zero. Esta tabela é o cache que sobrevive.
+ *
+ * `id` é "{league}:{teamId}": PK simples, mesmo padrão do resto do schema
+ * (evita PK composta, que nenhuma outra tabela usa aqui).
+ * `payload` guarda o `HistGame[]` já compactado — sem eventos, que é o peso
+ * morto para esta finalidade.
+ * TTL é de LEITURA (12h); a linha vencida continua servindo de fallback.
+ */
+export const teamHistoryCache = pgTable("team_history_cache", {
+  id: text("id").primaryKey(),
+  league: text("league").notNull(),
+  teamId: text("team_id").notNull(),
+  teamName: text("team_name").notNull().default(""),
+  payload: jsonb("payload").notNull().default([]),
+  amostra: integer("amostra").notNull().default(0),
+  baseParcial: boolean("base_parcial").notNull().default(false),
+  source: text("source").notNull().default("espn"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("team_history_fetched_idx").on(t.fetchedAt),
+  index("team_history_league_idx").on(t.league),
+]);
+
+/**
  * Tokens de dispositivo FCM (Firebase Cloud Messaging).
  * Um usuário pode ter vários aparelhos. Token é a chave (único por instalação).
  */

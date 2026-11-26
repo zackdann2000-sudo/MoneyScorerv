@@ -118,6 +118,21 @@ export type StatsTime = {
   amarelosSof?: number;
   impedimentos?: number;
   impedimentosSof?: number;
+  /**
+   * Série dos últimos 10 jogos (mais recente primeiro). Opcional porque o
+   * cache antigo no Neon pode não tê-la; quem lê trata como "sem dado".
+   * É dela que saem as tendências do módulo (/apitou → Tendências).
+   */
+  serie?: {
+    gols: number[];
+    golsSof: number[];
+    faltas: number[];
+    faltasSof: number[];
+    amarelos: number[];
+    amarelosSof: number[];
+    impedimentos: number[];
+    impedimentosSof: number[];
+  };
 };
 
 export type H2HItem = {

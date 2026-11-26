@@ -14,6 +14,7 @@ import ComboTab from "./ComboTab";
 import { H2HRealTab } from "./H2HTab";
 import PropsTab from "./PropsTab";
 import StatsJogoTab from "./StatsJogoTab";
+import { TendenciasTab } from "./TendenciasTab";
 
 const TABS = [
   { id: "oportunidades", label: "OPORTUNIDADES" },
@@ -26,6 +27,7 @@ const TABS = [
   { id: "jogadores", label: "JOGADORES" },
   { id: "props", label: "PROPS" },
   { id: "estatisticas", label: "ESTATÍSTICAS" },
+  { id: "tendencias", label: "TENDÊNCIAS" },
   { id: "cantos-cartoes", label: "CANTOS & CARTÕES" },
 ];
 
@@ -193,6 +195,9 @@ export default function MatchClient({ id, league }: { id: string; league: string
         {tab === "jogadores" && <JogadoresTab matchId={id} league={league} home={m.home} away={m.away} lineups={d.lineups} vip={d.vip} />}
         {tab === "props" && <PropsTab matchId={id} league={league} home={m.home.name} away={m.away.name} />}
         {tab === "estatisticas" && <StatsTab d={d} matchId={id} league={league} />}
+        {tab === "tendencias" && (
+          <TendenciasTab matchId={id} league={league} homeNome={m.home.name} awayNome={m.away.name} />
+        )}
         {tab === "cantos-cartoes" && <StatsJogoTab matchId={id} league={league} home={m.home} away={m.away} />}
         {tab === "formacoes" && <FormacoesTab d={d} matchId={id} league={league} />}
         {tab === "tabela" && <TabelaTab league={league} homeId={m.home.id} awayId={m.away.id} />}
