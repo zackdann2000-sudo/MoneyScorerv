@@ -26,6 +26,22 @@ self.addEventListener("push", function (event) {
   // payload do OneSignal (custom.i / _osp) -> quem mostra é o SDK deles
   if (data && (data.custom || data._osp || data["google.c.a"])) return;
 
+  // payload do FCM (HTTP v1) chega como { notification: {...}, data: {...} }.
+  // Achata aqui para o mesmo formato usado abaixo — assim, se uma mensagem do
+  // Firebase cair NESTE worker (e não no firebase-messaging-sw.js), a
+  // notificação ainda é desenhada pelo sistema operacional.
+  if (data && data.notification) {
+    const n = data.notification || {};
+    const d = data.data || {};
+    data = {
+      title: n.title || d.title || d.titulo,
+      body: n.body || d.body || d.corpo,
+      icon: n.icon || d.icon,
+      url: d.url || (typeof n.click_action === "string" ? n.click_action : ""),
+      tag: d.tag || d.matchId,
+    };
+  }
+
   const title = data.title || "⚽ GreenScore";
   const options = {
     body: data.body || "",

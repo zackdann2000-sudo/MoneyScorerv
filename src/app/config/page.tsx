@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut, Moon, Sun, Bell, BellRing, Star, ShieldCheck, TrendingUp, Trash2, Crown, CreditCard, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { mensagemAcesso } from "@/lib/accessMessage";
+import { requestNotificationPermissionAndToken, statusPermissao, FCM_CONFIGURADO, type PushStatus } from "@/lib/firebaseClient";
 import { VENDAS_ATIVAS } from "@/lib/vendas";
 import { Toggle, Crest, Modal, PremiumSoonNotice } from "@/components/ui";
 
@@ -20,6 +21,10 @@ export default function Config() {
   const router = useRouter();
   const [osState, setOsState] = useState<"idle" | "pending" | "granted" | "denied">("idle");
   const [nativeState, setNativeState] = useState<"idle" | "pending" | "ok" | "fail">("idle");
+  /* Push NATIVO (FCM): status real da permissão + token salvo no banco. */
+  const [fcmState, setFcmState] = useState<PushStatus>("idle");
+  const [fcmErro, setFcmErro] = useState("");
+  const [fcmToken, setFcmToken] = useState("");
   const [pushOk, setPushOk] = useState(false);
   const [delEmail, setDelEmail] = useState("");
   const [delConfirm, setDelConfirm] = useState(false);
@@ -52,6 +57,35 @@ export default function Config() {
     const t = setTimeout(() => setOsState(perm === "granted" ? "granted" : perm === "denied" ? "denied" : "idle"), 0);
     return () => clearTimeout(t);
   }, []);
+
+  // Estado inicial do FCM (permissão já concedida em visita anterior).
+  useEffect(() => {
+    const t = setTimeout(() => setFcmState(statusPermissao()), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  /*
+   * Push NATIVO (FCM) — um clique faz tudo: pede permissão, registra o
+   * firebase-messaging-sw.js, gera o token com a VAPID key e salva em
+   * POST /api/push/fcm-token. É esse caminho que entrega a notificação na TELA
+   * DE BLOQUEIO com o app fechado (o OneSignal/VAPID continuam como plano B).
+   */
+  const ativarPushNativo = async () => {
+    setFcmErro("");
+    setFcmState("pending");
+    const r = await requestNotificationPermissionAndToken();
+    setFcmState(r.status);
+    if (r.token) setFcmToken(r.token);
+    if (r.erro) setFcmErro(r.erro);
+    if (r.status === "granted") {
+      addToast({
+        title: r.salvo ? "Notificações Ativadas ✅" : "Notificações ativadas no aparelho ✅",
+        body: r.salvo
+          ? "Você vai receber o alerta na tela de bloqueio, mesmo com o app fechado."
+          : "Token gerado, mas não confirmamos a gravação no servidor. Veja o aviso abaixo.",
+      });
+    }
+  };
 
   // OneSignal: permissão SOMENTE no clique (nunca automática)
   const askOneSignal = () => {
@@ -212,6 +246,35 @@ export default function Config() {
           <input type="checkbox" checked={pushOk} onChange={(e) => { setPushOk(e.target.checked); if (e.target.checked) fetch("/api/conta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "consent", push: true, terms: true }) }).catch(() => {}); }} className="mt-0.5 accent-[var(--acc)]" />
           <span>Quero receber alertas neste navegador. O botão só funciona com esta caixa marcada.</span>
         </label>
+        {/* PUSH NATIVO (FCM) — notificação do sistema operacional, tela de bloqueio. */}
+        <button
+          onClick={ativarPushNativo}
+          disabled={fcmState === "pending"}
+          className={`w-full mt-2 py-3 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 disabled:opacity-70 ${
+            fcmState === "granted"
+              ? "bg-acc/15 text-acc border border-acc/40"
+              : fcmState === "denied" || fcmState === "error"
+                ? "bg-danger/15 text-danger border border-danger/40"
+                : "bg-acc text-black"
+          }`}
+        >
+          {fcmState === "pending" ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
+          {fcmState === "pending"
+            ? "Ativando…"
+            : fcmState === "granted"
+              ? "Notificações Ativadas ✅"
+              : fcmState === "denied"
+                ? "Bloqueadas ❌"
+                : fcmState === "unsupported"
+                  ? "Este navegador não suporta push"
+                  : "Ativar Notificações Push"}
+        </button>
+        {fcmState === "granted" && <p className="text-[10px] text-acc mt-1">Alerta na tela de bloqueio ativo para este aparelho.</p>}
+        {fcmState === "denied" && <p className="text-[10px] text-danger mt-1">Libere em Notificações › este site › Permitir, e toque no botão de novo.</p>}
+        {fcmErro && fcmState !== "granted" && <p className="text-[10px] text-danger mt-1 break-words">{fcmErro}</p>}
+        {fcmToken && <p className="text-[9px] text-mut mt-1 break-all">{fcmToken.slice(0, 22)}…</p>}
+        {!FCM_CONFIGURADO && <p className="text-[10px] text-warn mt-1">Firebase não configurado neste ambiente (faltam as chaves NEXT_PUBLIC_FIREBASE_*). Enquanto isso, use o Push Nativo (VAPID) abaixo.</p>}
+
         <button onClick={askOneSignal} className={`w-full mt-2 py-3 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 ${osState === "granted" ? "bg-acc/15 text-acc border border-acc/40" : "bg-acc text-black"}`}>
           <BellRing size={16} />
           {osState === "granted" ? "PUSH ONESIGNAL ATIVO ✓" : osState === "pending" ? "Aguardando permissão…" : osState === "denied" ? "BLOQUEADO — LIBERE NO CADEADO" : "NOTIFICAÇÕES NO NAVEGADOR (ONESIGNAL)"}

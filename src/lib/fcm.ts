@@ -73,7 +73,16 @@ export type MensagemPush = {
   body: string;
   /** dados adicionais (ex.: { matchId, mercado }) enviados no payload. */
   data?: Record<string, string>;
+  /** ícone exibido na tela de bloqueio (padrão: /icon-192x192.png). */
+  icon?: string;
+  /** URL aberta no clique (só links absolutos viram `fcm_options.link`). */
+  url?: string;
+  /** agrupa/colapsa notificações do mesmo evento no sistema operacional. */
+  tag?: string;
 };
+
+/** Ícone do app usado nas notificações nativas (bandeja + tela de bloqueio). */
+export const ICONE_NOTIFICACAO = "/icon-192x192.png";
 
 export type ResultadoFcm = {
   ok: boolean;
@@ -104,13 +113,38 @@ export async function sendFcmToTokens(tokens: string[], msg: MensagemPush): Prom
   for (const chunk of chunks) {
     await Promise.all(
       chunk.map(async (t) => {
+        const icone = msg.icon || ICONE_NOTIFICACAO;
+        const linkAbsoluto = msg.url && /^https?:\/\//i.test(msg.url) ? msg.url : undefined;
+        /**
+         * Formato NATIVO: `notification` é o que o SISTEMA OPERACIONAL desenha
+         * (bandeja + tela de bloqueio, com o app fechado). `webpush.notification`
+         * completa o visual no Chrome/Firefox; `data` carrega o que o clique
+         * precisa (`matchId`, `url`). Mensagem data-only NÃO aparece sozinha —
+         * por isso `notification` é sempre obrigatório aqui.
+         */
         const payload = {
           message: {
             token: t,
             notification: { title: msg.title, body: msg.body },
             data: msg.data ?? {},
-            android: { priority: "high", notification: { channelId: "value-alerts", clickAction: "OPEN_APP" } },
-            apns: { payload: { aps: { sound: "default" } } },
+            webpush: {
+              notification: {
+                title: msg.title,
+                body: msg.body,
+                icon: icone,
+                badge: icone,
+                tag: msg.tag || msg.data?.matchId || "greenscore",
+                renotify: true,
+                vibrate: [120, 60, 120],
+                click_action: msg.url || "/",
+              },
+              ...(linkAbsoluto ? { fcm_options: { link: linkAbsoluto } } : {}),
+            },
+            android: {
+              priority: "HIGH",
+              notification: { channelId: "value-alerts", icon: "stock_ticker_update", tag: msg.tag || "greenscore" },
+            },
+            apns: { payload: { aps: { sound: "default", "interruption-level": "time-sensitive" } } },
           },
         };
         const res = await fetch(FCM_URL(PROJECT_ID), {

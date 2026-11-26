@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { alertPrefs, alertState, fcmTokens } from "@/db/schema";
 import { getAllMatches, todayYmd, type Match } from "@/lib/espn";
 import { cronConfigurado, motivoCronAutorizado, respostaNaoAutorizado } from "@/lib/cronAuth";
-import { sendFcmToTokens } from "@/lib/fcm";
+import { enviarAlertaAoVivo, type TipoAlertaAoVivo } from "@/lib/liveAlerts";
 import { enviarNotificacao } from "@/lib/push";
 import {
   chaveEvento,
@@ -187,9 +187,14 @@ export async function GET(req: NextRequest) {
       const alvo = ev.usuarios.flatMap((u) => tokensPorUsuario.get(u) || []);
       if (alvo.length) {
         try {
-          const r = await sendFcmToTokens(alvo, {
-            title: ev.titulo,
-            body: ev.corpo,
+          // Push NATIVO (FCM): `notification` + `webpush.notification.icon`,
+          // para aparecer na tela de bloqueio com o app fechado.
+          const r = await enviarAlertaAoVivo(alvo, {
+            titulo: ev.titulo,
+            corpo: ev.corpo,
+            tipo: (ev.tipo === "kickoff" ? "kickoff" : "gol") as TipoAlertaAoVivo,
+            url: ev.url,
+            tag: ev.match.id,
             data: { matchId: ev.match.id, league: ev.match.league, tipo: ev.tipo },
           });
           enviados += r.enviados;
