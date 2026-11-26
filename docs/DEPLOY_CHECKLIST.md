@@ -183,7 +183,8 @@ de `analyze` — é o que dá conteúdo à análise.
 | 3 | Hub contexto | `/api/cron/diario?acao=hub&fase=context` | 06:00 diário | `hub.context.fixtures > 0` |
 | 4 | Hub análise | `/api/cron/diario?acao=hub&fase=analyze` | 07:00 diário | `hub.analysis.ok` e `hub.settle` |
 | 5 | Sonda | `/api/cron/diario?acao=pipeline` | 09:00 diário | `pipeline.cobertura: "ok"` |
-| 6 | Watcher ao vivo | `/api/cron/live?secret=SEU_LIVE_CRON_SECRET` | a cada 1 min | `ok:true` (ver `docs/SETUP_ALERTAS_CRON.md`) |
+| 6 | Backfill histórico | `/api/cron/diario?acao=hub&fase=historico` | 02:00 **segunda** | `hub.fixtures.byDate` com 3 dias `history: true` |
+| 7 | Watcher ao vivo | `/api/cron/live?secret=SEU_LIVE_CRON_SECRET` | a cada 1 min | `ok:true` (ver `docs/SETUP_ALERTAS_CRON.md`) |
 
 ### Passo a passo (repita para cada job)
 
@@ -202,8 +203,23 @@ de `analyze` — é o que dá conteúdo à análise.
    para sozinha antes do corte e continua na próxima execução.
 7. Marque **Save responses** (histórico) e **Notify on failure** (2 falhas
    seguidas). Sem isso, uma fase falhando é invisível — foi exatamente o que já
-   aconteceu com o Hub.
+   aconteceu com o Hub (93h parado).
 8. **Test run** antes de salvar: precisa voltar **HTTP 200**.
+
+### Por que o status HTTP importa no cron-job.org
+
+O cron-job.org só pinta o job de **vermelho** quando a resposta NÃO é `2xx`. A rota
+devolve três códigos de propósito:
+
+| Código | Significa | No painel |
+|---|---|---|
+| `200` | tudo que foi pedido rodou | verde |
+| `207` | rodou, mas uma etapa foi pulada por tempo (`parciais`) | verde — abra o histórico |
+| `500` | a etapa quebrou (`falhas`) | **vermelho + e-mail** |
+
+Até 2026-11 a falha de `apitou` e de `hub` ainda devolvia `200`, então o job ficava
+verde com o sync parado. É por isso que `falhas`/`parciais` existem no corpo: o
+código diz o que quebrou, o status diz se alguém precisa acordar.
 
 ### Testar cada job na mão (uma vez, sem laço)
 
@@ -211,18 +227,20 @@ de `analyze` — é o que dá conteúdo à análise.
 BASE="https://SEU_DOMINIO/api/cron/diario"
 AUTH="Authorization: Bearer SEU_CRON_SECRET"
 
-curl -sS -H "$AUTH" "$BASE?acao=hub&fase=fixtures" | head -c 400
-curl -sS -H "$AUTH" "$BASE?acao=hub&fase=context"  | head -c 400
-curl -sS -H "$AUTH" "$BASE?acao=hub&fase=analyze"  | head -c 400
-curl -sS -H "$AUTH" "$BASE?acao=rankings"          | head -c 400
-curl -sS -H "$AUTH" "$BASE?acao=pipeline&ping=1"   | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=hub&fase=fixtures"  | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=hub&fase=historico" | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=hub&fase=context"   | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=hub&fase=analyze"   | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=rankings"           | head -c 400
+curl -sS -H "$AUTH" "$BASE?acao=pipeline&ping=1"    | head -c 400
 ```
 
 - `401` → header/segredo errado. `503` → nenhum segredo configurado na Vercel
   (falha fechada de propósito).
+- `500` → olhe `falhas` no corpo: diz exatamente qual etapa quebrou.
 - `hub.skipped` com `reason: "orçamento de tempo esgotado"` → a fase fez mais
   trabalho do que cabia em 45 s; rode de novo (é idempotente) ou aumente o
-  `hubBudget`.
+  `hubBudget`. A resposta vem `207` com a lista em `parciais`.
 - `pipeline.cobertura: "vazia"` → **não divulgue o link**: o `/jogos` vai abrir
   sem partidas. `pipeline.fontes` mostra qual chave falta (a ESPN é pública).
 

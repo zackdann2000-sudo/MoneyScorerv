@@ -18,20 +18,34 @@
  *     13:00 UTC  /api/track-record/run → ledger de picks de valor
  *
  *   No cron-job.org (ou qualquer agendador externo):
- *     04:00 UTC  ?acao=hub&fase=fixtures → Hub: fixtures (histórico primeiro)
- *     05:00 UTC  ?acao=rankings          → rankings das 6 ligas no Neon
- *     06:00 UTC  ?acao=hub&fase=context  → stats, H2H e contexto do dia
- *     07:00 UTC  ?acao=hub&fase=analyze  → análise + liquidação
- *     09:00 UTC  ?acao=pipeline          → sonda: "o app vai abrir vazio?"
+ *     04:00 UTC  ?acao=hub&fase=fixtures   → Hub: ontem + hoje/amanhã/depois
+ *     05:00 UTC  ?acao=rankings           → rankings das 6 ligas no Neon
+ *     06:00 UTC  ?acao=hub&fase=context   → stats, H2H e contexto do dia
+ *     07:00 UTC  ?acao=hub&fase=analyze   → análise + liquidação
+ *     09:00 UTC  ?acao=pipeline           → sonda: "o app vai abrir vazio?"
+ *     seg 02:00  ?acao=hub&fase=historico → backfill de 3 dias passados (semanal)
  *     a cada 1 min  /api/cron/live       → alertas de gol e kickoff
+ *
+ * STATUS HTTP (é o que faz o alarme existir):
+ *   200 tudo rodou · 207 rodou parcial (etapa pulada por tempo) · 500 falhou.
+ *   Antes, falha de apitou/hub ainda devolvia 200: Vercel verde, cron-job.org
+ *   sem e-mail, e o sync podia ficar dias parado sem ninguém ver.
  *
  * Nenhuma etapa depende de estar na Vercel: todas exigem só o segredo e a URL.
  *
  * POR QUE AS FASES: o teto de execução de uma função no Hobby é curto e o Hub
  * inteiro (fixtures + contexto + análise + liquidação) é longo. Rodando tudo
  * numa invocação, a função pode ser morta NO MEIO de uma escrita — e o sintoma
- * é exatamente "o app abriu vazio". Dividido em três, cada invocação faz uma
+ * é exatamente "o app abriu vazio". Dividido em fases, cada invocação faz uma
  * coisa, com orçamento de 45s, e cada uma é idempotente: se cair, roda de novo.
+ *
+ * POR QUE `fixtures` SÓ BUSCA ONTEM NO DIÁRIO: buscar 3 dias passados + 4 à
+ * frente dava 7 chamadas ao fornecedor e ~44s, perto do corte de 60s do
+ * agendador externo. Ontem é o único dia passado que muda a cada dia (é onde
+ * estão os resultados recém-finalizados que alimentam `recentMatches`); os
+ * outros dois são reposição, e ficaram na fase `historico`, semanal. Com isso o
+ * diário faz 5 chamadas. Para voltar ao comportamento antigo numa execução só:
+ * `&historyDays=3`.
  *
  * SONDA: `?acao=pipeline` lê só o banco (e a fonte, com `&ping=1`) e diz se há
  * fixture para hoje/amanhã — é como saber se a tela vai abrir vazia antes do
@@ -89,6 +103,15 @@ export async function GET(req: NextRequest) {
   const acao = req.nextUrl.searchParams.get("acao") ?? "tudo";
   const out: Record<string, unknown> = { acao, motivo };
 
+  /* Coleta de problemas para o status HTTP. Um cron só serve de alarme se o
+     CÓDIGO DE STATUS mudar quando a etapa falha — é isso que faz a Vercel
+     pintar vermelho e o cron-job.org disparar o e-mail "job failed".
+       falhas   → 500: a etapa quebrou, nada (ou pouco) foi gravado
+       parciais → 207: rodou, mas alguma parte foi pulada por orçamento
+       200      → tudo que foi pedido rodou */
+  const falhas: string[] = [];
+  const parciais: string[] = [];
+
   if (acao === "estado") {
     out.apitou = await lerResumo().catch(() => null);
     return NextResponse.json(out);
@@ -102,8 +125,18 @@ export async function GET(req: NextRequest) {
       out.pipeline = await diagnosticarPipeline({ ping });
     } catch (e) {
       out.pipeline = { ok: false, erro: erro(e) };
+      return NextResponse.json({ ...out, ok: false, falhas: ["pipeline"] }, { status: 500 });
     }
-    return NextResponse.json(out, { status: 200 });
+    /* "magra" não é falha de execução, mas o app abre pobre: 207 avisa sem
+       acusar o cron de quebrado. Só "vazia" é alarme de verdade. */
+    const cob = (out.pipeline as { cobertura?: string } | undefined)?.cobertura;
+    if (cob === "vazia") {
+      return NextResponse.json({ ...out, ok: false, falhas: ["pipeline:vazia"] }, { status: 500 });
+    }
+    if (cob === "magra") {
+      return NextResponse.json({ ...out, ok: true, parciais: ["pipeline:magra"] }, { status: 207 });
+    }
+    return NextResponse.json({ ...out, ok: true }, { status: 200 });
   }
 
   if (acao === "tudo" || acao === "apitou") {
@@ -119,6 +152,7 @@ export async function GET(req: NextRequest) {
       };
     } catch (e) {
       out.apitou = { ok: false, duracaoMs: Date.now() - t0, erro: erro(e) };
+      falhas.push("apitou");
     }
 
     /* MÓDULO ÁRBITROS: reaproveita o resumo que acabou de ser gravado. É uma
@@ -141,6 +175,7 @@ export async function GET(req: NextRequest) {
       out.rankings = await aquecerRankings({ ligas: ligas.length ? ligas : undefined });
     } catch (e) {
       out.rankings = { ok: false, erro: erro(e) };
+      falhas.push("rankings");
     }
   }
 
@@ -157,10 +192,14 @@ export async function GET(req: NextRequest) {
 
       /** Opções parciais por fase; o resto vem do padrão abaixo. */
       const FASES: Record<string, Partial<Parameters<typeof runHubSync>[0]>> = {
-        // 3 dias passados (histórico do motor) + hoje, amanhã e depois.
+        /* DIÁRIO, o que precisa ser rápido: ontem + hoje/amanhã/depois.
+           Ontem é o único dia passado que muda todo dia (é onde estão os
+           resultados recém-finalizados que alimentam `recentMatches`) e ainda
+           assim é o que garante 5 chamadas em vez de 7. Os outros dois dias
+           passados são reposição e estão na fase `historico`. */
         fixtures: {
           dates: 3,
-          historyDays: 3,
+          historyDays: 1,
           contextEnabled: false,
           oddsEnabled: false,
           lineupsEnabled: false,
@@ -189,15 +228,45 @@ export async function GET(req: NextRequest) {
           analyze: true,
           settle: true,
         },
+        /* BACKFILL — semanal, não diário.
+           Repõe os 3 dias passados de uma vez (o que a fase `fixtures` deixou de
+           buscar todo dia para caber no timeout). É isto que recupera o buraco
+           de quem perdeu execuções e o começo de temporada. Idempotente: rodar
+           7 vezes seguidas não duplica nada. */
+        historico: {
+          dates: 0,
+          historyDays: 3,
+          contextEnabled: false,
+          oddsEnabled: false,
+          lineupsEnabled: false,
+          analyze: false,
+          settle: false,
+        },
       };
 
       if (fase && !FASES[fase]) {
-        out.hub = { ok: false, erro: `fase desconhecida: ${fase} (use fixtures, context ou analyze)` };
+        out.hub = { ok: false, erro: `fase desconhecida: ${fase} (use fixtures, historico, context ou analyze)` };
+        falhas.push(`hub:fase-invalida:${fase}`);
       } else {
         const budgetHub = (fase ? 45 : acao === "hub" ? 240 : 120) * 1000;
         const budgetParam = Number(req.nextUrl.searchParams.get("hubBudget"));
         const budgetMs = Number.isFinite(budgetParam) && budgetParam > 0 ? budgetParam * 1000 : budgetHub;
         if (fase) out.fase = fase;
+
+        /* Ajuste fino por query, para quando o timeout do agendador for menor
+           que o orçamento: `&dates=0&historyDays=0` roda só as próximas datas.
+           Lido com `!== null` porque `Number(null)` é 0 e viraria override
+           silencioso de um parâmetro que ninguém mandou. */
+        const ajustes: Partial<Parameters<typeof runHubSync>[0]> = {};
+        for (const [chave, nome] of [
+          ["dates", "dates"],
+          ["historyDays", "historyDays"],
+        ] as const) {
+          const bruto = req.nextUrl.searchParams.get(nome);
+          if (bruto !== null && Number.isFinite(Number(bruto)) && Number(bruto) >= 0) {
+            ajustes[chave] = Math.floor(Number(bruto));
+          }
+        }
 
         try {
           out.hub = await runHubSync({
@@ -215,18 +284,38 @@ export async function GET(req: NextRequest) {
             settle: true,
             maxContext: 20,
             ...FASES[fase],
+            ...ajustes,
             budgetMs,
           });
+
+          /* Etapa pulada por tempo não é erro de execução, mas também não é
+             sucesso: 207 deixa isso visível sem pintar o job de vermelho. */
+          const puladas = (out.hub as { skipped?: string[] } | undefined)?.skipped;
+          if (Array.isArray(puladas) && puladas.length) {
+            parciais.push(`hub:${puladas.join(",")}`);
+          }
         } catch (e) {
           out.hub = { ok: false, erro: erro(e) };
+          falhas.push("hub");
         }
       }
     }
   }
 
+  /* Rankings devolve contagem de falhas por liga: >0 é degradação, não morte
+     do cron, então vira 207 (e não 500). */
   const rankings = out.rankings as { falhas?: number; puladas?: string[] } | undefined;
-  const todasOk = acao === "rankings" ? rankings?.falhas === 0 : true;
-  return NextResponse.json(out, { status: todasOk ? 200 : 207 });
+  if (rankings && typeof rankings.falhas === "number" && rankings.falhas > 0) {
+    parciais.push(`rankings:${rankings.falhas}`);
+  }
+
+  if (falhas.length) {
+    return NextResponse.json({ ...out, ok: false, falhas, ...(parciais.length ? { parciais } : {}) }, { status: 500 });
+  }
+  if (parciais.length) {
+    return NextResponse.json({ ...out, ok: true, parciais }, { status: 207 });
+  }
+  return NextResponse.json({ ...out, ok: true }, { status: 200 });
 }
 
 export const POST = GET;
