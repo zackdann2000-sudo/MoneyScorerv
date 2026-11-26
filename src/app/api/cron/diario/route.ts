@@ -18,12 +18,12 @@
  *     13:00 UTC  /api/track-record/run → ledger de picks de valor
  *
  *   No cron-job.org (ou qualquer agendador externo):
- *     04:00 UTC  ?acao=hub&fase=fixtures   → Hub: hoje-2 … hoje+2
+ *     04:00 UTC  ?acao=hub&fase=fixtures   → Hub: hoje-4 … hoje+2
  *     05:00 UTC  ?acao=rankings           → rankings das 6 ligas no Neon
  *     06:00 UTC  ?acao=hub&fase=context   → stats, H2H e contexto do dia
  *     07:00 UTC  ?acao=hub&fase=analyze   → análise + liquidação
  *     09:00 UTC  ?acao=pipeline           → sonda: "o app vai abrir vazio?"
- *     seg 02:00  ?acao=hub&fase=historico → backfill de 3 dias passados (semanal)
+ *     seg 02:00  ?acao=hub&fase=historico → backfill de 7 dias passados (semanal)
  *     a cada 1 min  /api/cron/live       → alertas de gol e kickoff
  *
  * STATUS HTTP (é o que faz o alarme existir):
@@ -39,14 +39,13 @@
  * é exatamente "o app abriu vazio". Dividido em fases, cada invocação faz uma
  * coisa, com orçamento de 45s, e cada uma é idempotente: se cair, roda de novo.
  *
- * POR QUE `fixtures` BUSCA `hoje - 2 ... hoje + 2`: buscar 3 dias passados + 4
- * à frente dava 7 chamadas ao fornecedor e ~44s, perto do corte de 60s do
- * agendador externo. Dois dias para trás é o mínimo que cobre rodada de fim de
- * semana (com 1 dia, as ligas de rodada espaçada ficaram com ZERO jogo
- * finalizado) e dois para frente mantém a tela cheia; dá 5 chamadas, o mesmo
- * custo do desenho anterior. Os 3 dias passados completos ficam na fase
- * `historico`, semanal, como reposição. Para voltar ao passado mais fundo numa
- * execução só: `&historyDays=3`.
+ * POR QUE `fixtures` BUSCA `hoje - 4 ... hoje + 2`: buscar 3 dias passados +
+ * 4 à frente dava 7 chamadas ao fornecedor e ~44s, perto do corte de 60s do
+ * agendador externo. Quatro dias para trás é o mínimo que alcança a rodada de
+ * fim de semana (com 1 ou 2 dias, as ligas que só jogam sábado/domingo ficavam
+ * com ZERO jogo finalizado numa quarta-feira) e dois para frente mantêm a tela
+ * cheia. A semana inteira fica na fase `historico`, semanal, como reposição.
+ * Para mudar a janela numa execução só: `&historyDays=7`.
  *
  * SONDA: `?acao=pipeline` lê só o banco (e a fonte, com `&ping=1`) e diz se há
  * fixture para hoje/amanhã — é como saber se a tela vai abrir vazia antes do
@@ -193,16 +192,18 @@ export async function GET(req: NextRequest) {
 
       /** Opções parciais por fase; o resto vem do padrão abaixo. */
       const FASES: Record<string, Partial<Parameters<typeof runHubSync>[0]>> = {
-        /* DIÁRIO, o que precisa ser rápido: 2 dias atrás + hoje/amanhã/depois.
+        /* DIÁRIO, o que precisa ser rápido: 4 dias atrás + hoje/amanhã/depois.
            O passado é o único insumo que o motor não pode inventar: sem placar
            finalizado, `recentMatches` volta vazio e a análise de toda a liga
-           vira a média da liga. Antes era 1 dia atrás, e as ligas de rodada
-           espaçada (Premier League, Libertadores, Europa e Conference League)
-           ficavam com ZERO finalizada. A janela agora é `hoje - 2 ... hoje + 2`
-           — mesmo número de chamadas (5) que a configuração anterior. */
+           vira a média da liga. Com 2 dias atrás o problema persistia: liga
+           europeia joga no FIM DE SEMANA e, numa quarta-feira, `hoje - 2` só
+           alcança segunda e terça — Premier League, Libertadores, Europa e
+           Conference League ficavam com ZERO finalizada (não é filtro: as
+           quatro passam em `isMainLeague` e têm código próprio na ESPN).
+           4 para trás pegam o sábado/domingo anterior. */
         fixtures: {
           dates: 2,
-          historyDays: 2,
+          historyDays: 4,
           contextEnabled: false,
           oddsEnabled: false,
           lineupsEnabled: false,
@@ -232,13 +233,15 @@ export async function GET(req: NextRequest) {
           settle: true,
         },
         /* BACKFILL — semanal, não diário.
-           Repõe os 3 dias passados de uma vez (o que a fase `fixtures` deixou de
-           buscar todo dia para caber no timeout). É isto que recupera o buraco
-           de quem perdeu execuções e o começo de temporada. Idempotente: rodar
-           7 vezes seguidas não duplica nada. */
+           Repõe uma SEMANA inteira de passado de uma vez (o que a fase
+           `fixtures` não faz todo dia para caber no timeout). Sete dias é o que
+           garante pelo menos UMA rodada de cada liga — inclusive as que jogam
+           só no fim de semana e as de copa continental no meio da semana. É
+           isto que recupera o buraco de quem perdeu execuções e o começo de
+           temporada. Idempotente: rodar 7 vezes seguidas não duplica nada. */
         historico: {
           dates: 0,
-          historyDays: 3,
+          historyDays: 7,
           contextEnabled: false,
           oddsEnabled: false,
           lineupsEnabled: false,
@@ -273,11 +276,11 @@ export async function GET(req: NextRequest) {
 
         try {
           out.hub = await runHubSync({
-            // Padrão (Hub inteiro): janela `hoje - 2 ... hoje + 3` — 3 dias à
+            // Padrão (Hub inteiro): janela `hoje - 4 ... hoje + 3` — 3 dias à
             // frente para uma liga de elite sem jogo hoje não desaparecer do
-            // hub, e 2 atrás porque são eles que alimentam `recentMatches`.
+            // hub, e 4 atrás porque é o que alcança a rodada de fim de semana.
             dates: 3,
-            historyDays: 2,
+            historyDays: 4,
             context: 24,
             // Odds dependem do plano pago da Sportmonks: ficam na rota manual.
             oddsEnabled: false,

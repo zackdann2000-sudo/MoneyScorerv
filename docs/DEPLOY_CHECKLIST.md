@@ -178,12 +178,12 @@ de `analyze` — é o que dá conteúdo à análise.
 
 | # | Job | URL (query) | Quando (UTC) | O que prova que rodou |
 |---|---|---|---|---|
-| 1 | Hub fixtures | `/api/cron/diario?acao=hub&fase=fixtures` | 04:00 diário | `hub.fixtures.byDate` com `fixtures > 0` |
+| 1 | Hub fixtures | `/api/cron/diario?acao=hub&fase=fixtures` | 04:00 diário | `hub.fixtures.byDate` com `fixtures > 0` e `hub.fixtures.finishedByLeague` |
 | 2 | Rankings | `/api/cron/diario?acao=rankings` | 05:00 diário | `rankings.falhas: 0` |
 | 3 | Hub contexto | `/api/cron/diario?acao=hub&fase=context` | 06:00 diário | `hub.context.fixtures > 0` |
 | 4 | Hub análise | `/api/cron/diario?acao=hub&fase=analyze` | 07:00 diário | `hub.analysis.ok` e `hub.settle` |
 | 5 | Sonda | `/api/cron/diario?acao=pipeline` | 09:00 diário | `pipeline.cobertura: "ok"` |
-| 6 | Backfill histórico | `/api/cron/diario?acao=hub&fase=historico` | 02:00 **segunda** | `hub.fixtures.byDate` com 3 dias `history: true` |
+| 6 | Backfill histórico | `/api/cron/diario?acao=hub&fase=historico` | 02:00 **segunda** | `hub.fixtures.byDate` com 7 dias `history: true` |
 | 7 | Watcher ao vivo | `/api/cron/live?secret=SEU_LIVE_CRON_SECRET` | a cada 1 min | `ok:true` (ver `docs/SETUP_ALERTAS_CRON.md`) |
 
 ### Passo a passo (repita para cada job)

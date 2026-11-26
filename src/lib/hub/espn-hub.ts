@@ -1,4 +1,5 @@
-import { LEAGUES, getAllMatches, getSummaryRaw, leagueInfo, normH2H, normLineups, normOdds, normStats, ymd, type Match } from "@/lib/espn";
+import { getAllMatches, getSummaryRaw, leagueInfo, normH2H, normLineups, normOdds, normStats, ymd, type Match } from "@/lib/espn";
+import { ESPN_MAIN_CODES } from "@/lib/mainLeagues";
 import { slugify, teamSimilarity } from "./identity";
 import type { ContextPayload, LineupPayload, LineupPlayerInput, OddsWrite, RawFixture } from "./types";
 
@@ -37,10 +38,17 @@ export function espnLiveState(m: Match): string {
  *
  * `getAllMatches` limita a concorrência para não tomar 403 do Akamai da ESPN e
  * já mantém cache por 45s; aqui só traduzimos o formato.
+ *
+ * Só consultamos os códigos das 18 ligas do catálogo (`ESPN_MAIN_CODES`), não
+ * as 26 do feed da ESPN: as outras 8 (`bol.1`, `mex.1`, `por.1`, `ned.1`,
+ * `ger.2`, `bel.1`, `chi.1`, `col.1`) são vetadas por `persistFixture` de
+ * qualquer jeito — pedir e descartar gastava 8 requisições por dia. Com a janela
+ * de 7 datas do sync isso eram ~50 requisições a menos e o risco real de 403 em
+ * série (que devolve lista vazia e mata o histórico daquele dia em silêncio).
  */
 export async function espnFixturesForDate(dateIso: string): Promise<RawFixture[]> {
   const dia = ymd(new Date(`${dateIso}T12:00:00Z`));
-  const matches = await getAllMatches(dia, LEAGUES.map((l) => l.code));
+  const matches = await getAllMatches(dia, ESPN_MAIN_CODES);
   const out: RawFixture[] = [];
 
   for (const m of matches) {

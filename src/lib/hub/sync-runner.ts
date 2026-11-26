@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { hubBookmakerOdd, hubFixture, hubLineup } from "@/db/hub-schema";
+import { hubBookmakerOdd, hubFixture, hubLeague, hubLineup } from "@/db/hub-schema";
 import { runAnalysisJob } from "./analysis";
 import { settleFinishedFixtures, voidStalePending } from "./settle";
 import {
@@ -36,11 +36,16 @@ export type HubSyncOptions = {
    * jogos da liga sai igual (média da liga pura). O sync antigo só olhava para
    * frente (`dates`), então a base nunca acumulava resultado.
    *
-   * PADRÃO HOJE: 2 — a janela é `hoje - 2 ... hoje + 2` (ver `dates`). Ligas
-   * com rodada espaçada (Premier League, Libertadores, Europa League, Conference
-   * League) passam dias sem jogo: com 1 dia para trás a base delas ficava com
-   * ZERO finalizada e o motor publicava a média da liga. Dois dias cobrem o
-   * fim de semana inteiro sem estourar o tempo do agendador.
+   * PADRÃO HOJE: 4 — a janela é `hoje - 4 ... hoje + 2`.
+   *
+   * Por que 4 e não 2 (o mínimo que cobre "ontem + anteontem"): liga europeia
+   * joga no FIM DE SEMANA e copa continental no MEIO da semana. Numa quarta,
+   * `hoje - 2` só alcança segunda e terça — dias sem rodada — e Premier League,
+   * Libertadores, Europa League e Conference League ficam com ZERO jogo
+   * finalizado no banco, mesmo com a API respondendo. Quatro dias para trás
+   * pegam o sábado/domingo anterior; a `fase=historico` semanal ainda leva 7.
+   * Não é filtro de liga nem falha da ESPN: essas quatro passam em
+   * `isMainLeague` e têm código próprio na lista consultada.
    */
   historyDays?: number;
   /** janela de odds em horas a partir de agora. */
@@ -110,9 +115,25 @@ export function janelaDeDatas(historyDays: number, dates: number): number[] {
   return out;
 }
 
+/** Placar finalizado por liga dentro da janela do sync (diagnóstico do relatório). */
+async function finalizadasNaJanela(historyDays: number, dates: number): Promise<Record<string, number>> {
+  const de = new Date(`${isoDate(-historyDays)}T00:00:00.000Z`);
+  const ate = new Date(`${isoDate(dates)}T23:59:59.999Z`);
+  const rows = await db
+    .select({
+      slug: hubLeague.slug,
+      finalizadas: sql<number>`count(*) filter (where ${hubFixture.liveState} in ('FT','AET','PEN'))::int`,
+    })
+    .from(hubFixture)
+    .innerJoin(hubLeague, eq(hubLeague.id, hubFixture.leagueId))
+    .where(and(gte(hubFixture.matchDate, de), lte(hubFixture.matchDate, ate)))
+    .groupBy(hubLeague.slug);
+  return Object.fromEntries(rows.map((r) => [r.slug, Number(r.finalizadas)]));
+}
+
 export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<string, unknown>> {
   const dates = opts.dates ?? 2;
-  const historyDays = Math.max(0, opts.historyDays ?? 2);
+  const historyDays = Math.max(0, opts.historyDays ?? 4);
   const oddsWindow = opts.odds ?? 6;
   const lineupsWindow = opts.lineups ?? 3;
   const contextWindow = opts.context ?? 24;
@@ -175,6 +196,13 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   report.fixtures = {
     window: { from: isoDate(-historyDays), to: isoDate(dates), historyDays, futureDays: dates },
     byDate: fixtures,
+    /**
+     * Jogos FINALIZADOS por liga dentro da janela acima — é o que responde
+     * "a ESPN não mandou ou o jogo está fora da janela?" sem precisar abrir o
+     * banco. Liga com 0 aqui e `futuras > 0` no `hub:status` = a janela não
+     * alcançou a última rodada dela (calendário), não filtro e não API.
+     */
+    finishedByLeague: await finalizadasNaJanela(historyDays, dates),
     discardedNonMainLeague: descartadosPorLiga,
     providers: agregar(fixtureAttempts),
   };

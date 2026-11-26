@@ -40,7 +40,7 @@ const num = (v: string | undefined, def: number) => {
 async function main() {
   const report = await runHubSync({
     dates: num(arg("dates"), 2),
-    historyDays: num(arg("history"), 2),
+    historyDays: num(arg("history"), 4),
     odds: num(arg("odds"), 6),
     lineups: num(arg("lineups"), 3),
     context: num(arg("context"), 24),

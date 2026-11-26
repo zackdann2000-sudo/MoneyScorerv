@@ -21,7 +21,7 @@ export const maxDuration = 300;
  *
  * Query/body opcionais (todos com teto para caber no maxDuration):
  *   dates=2   dias futuros de fixtures (0 = só hoje)
- *   history=2 dias PASSADOS de fixtures — histórico que o motor usa
+ *   history=4 dias PASSADOS de fixtures — histórico que o motor usa
  *   odds=6    janela de odds em horas
  *   lineups=3 janela de escalações em horas
  *   context=24 janela de stats/H2H em horas
@@ -52,10 +52,11 @@ function montarOpcoes(body: Record<string, unknown>, sp: URLSearchParams): HubSy
   return {
     dates: Math.max(0, num(pick("dates"), 2)),
     // Dias passados: histórico que o motor precisa para não repetir a média da
-    // liga em todos os jogos. 2 para trás fecha `hoje - 2 ... hoje + 2` — o
-    // mínimo que cobre rodadas de fim de semana de liga e copa. Teto baixo (7)
-    // porque cada dia é um scoreboard.
-    historyDays: Math.max(0, num(pick("history"), 2)),
+    // liga em todos os jogos. 4 para trás (em vez de 2) porque liga europeia e
+    // copa continental jogam no fim de semana: numa quarta-feira, `hoje - 2` só
+    // alcança segunda e terça e a liga fica com ZERO jogo finalizado. Teto baixo
+    // (7) porque cada dia é um scoreboard.
+    historyDays: Math.max(0, num(pick("history"), 4)),
     odds: Math.max(0, num(pick("odds"), 6)),
     lineups: Math.max(0, num(pick("lineups"), 3)),
     context: Math.max(0, num(pick("context"), 24)),
