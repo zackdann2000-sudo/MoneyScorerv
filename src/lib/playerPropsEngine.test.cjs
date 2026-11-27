@@ -10,6 +10,10 @@ const {
   montarCards,
   MERCADOS,
   PESO_H2H,
+  acertoDaSerie,
+  JANELAS_ACERTO,
+  montarDestaques,
+  LINHA_DESTAQUE,
 } = require("./playerPropsEngine.js");
 
 const perto = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
@@ -95,5 +99,42 @@ assert.deepStrictEqual(top.map((p) => p.nome), ["A", "C", "B"]);
 const cards = montarCards([{ ...jogador, posicao: "G", jogos: [{ defesas: 5 }, { defesas: 4 }, { defesas: 6 }] }]);
 assert.ok(cards.some((c) => c.mercado.id === "defesas"));
 assert.ok(!cards.some((c) => c.mercado.id === "gols"));
+
+// ── Hit rate L3/L5/L10 ────────────────────────────────────────────────────
+// `jogador` tem finalizações [1,2,3,2] e a linha do mercado é 1.5 (Over 1.5
+// = 2 ou mais). Passaram: 2, 3, 2 → 3 de 4.
+assert.deepStrictEqual(JANELAS_ACERTO, [3, 5, 10]);
+assert.deepStrictEqual(prop.acerto.l3, { acertos: 3, amostra: 3, taxa: 100 });
+assert.deepStrictEqual(prop.acerto.l5, { acertos: 3, amostra: 4, taxa: 75 });
+assert.deepStrictEqual(prop.acerto.l10, { acertos: 3, amostra: 4, taxa: 75 });
+
+// null não vira zero e a janela conta JOGOS, não valores: [1,null,2] tem 2
+// jogos com dado na L3 → abaixo de MIN_AMOSTRA → null (a UI desenha "—").
+const comBuraco = acertoDaSerie([1, null, 2, null, 3], 1.5);
+assert.strictEqual(comBuraco.l3, null);
+assert.deepStrictEqual(comBuraco.l5, { acertos: 2, amostra: 3, taxa: 67 });
+
+// janela maior que a série não inventa jogo: 10 janela, 3 jogos reais
+assert.deepStrictEqual(acertoDaSerie([3, 3, 3], 1.5).l10, { acertos: 3, amostra: 3, taxa: 100 });
+
+// linha vs "pelo menos": Over 0.5 exige 1+, então um jogo de 0 conta como erro
+assert.deepStrictEqual(acertoDaSerie([0, 1, 0], 0.5).l3, { acertos: 1, amostra: 3, taxa: 33 });
+
+// série sem nenhum valor → as 3 janelas null (nunca "100% de 1 jogo")
+assert.deepStrictEqual(acertoDaSerie([null, null], 1.5), { l3: null, l5: null, l10: null });
+
+// Hit rate também no Scout do Hub (DestaqueJogador), com a mesma conta:
+// [3,3,3] contra a linha 1.5 de finalizações → 3 de 3 nas três janelas.
+const destaques = montarDestaques([
+  { ...jogador, id: "s1", nome: "S1", jogos: [{ finalizacoes: 3 }, { finalizacoes: 3 }, { finalizacoes: 3 }] },
+]);
+const cardFinalizacoes = destaques.find((g) => g.id === "finalizacoes");
+const item = cardFinalizacoes?.itens.find((i) => i.jogadorId === "s1");
+assert.ok(item, "destaque de finalizações presente");
+assert.strictEqual(item.linhaReferencia, 1.5);
+assert.deepStrictEqual(item.acerto.l10, { acertos: 3, amostra: 3, taxa: 100 });
+// linha de referência do cartão é 0.5 e a do goleiro 2.5 (iguais às de MERCADOS)
+assert.strictEqual(LINHA_DESTAQUE.cartoes, 0.5);
+assert.strictEqual(LINHA_DESTAQUE.defesas, 2.5);
 
 console.log("playerPropsEngine ok");

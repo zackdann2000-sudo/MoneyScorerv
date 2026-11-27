@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrainCircuit, TriangleAlert } from "lucide-react";
 import type { NivelConfianca, Veredito } from "@/lib/veredito";
+import ShareCardButton from "@/components/share/ShareCardButton";
 
 /**
  * Card de destaque do Veredito — a primeira coisa que a pessoa vê na aba
@@ -32,8 +33,13 @@ export default function VereditoCard({ veredito }: { veredito: Veredito }) {
   const selo = SELO[nivelConfianca] ?? SELO.Baixa;
   const semBase = porcentagemAcerto === 0;
 
+  /* O card inteiro é o alvo do "Compartilhar": a referência fica na <section>
+     para a imagem sair com a moldura verde, não recortada. */
+  const cardRef = useRef<HTMLElement | null>(null);
+
   return (
     <section
+      ref={cardRef}
       aria-label="Veredito da IA"
       className="relative overflow-hidden rounded-2xl border-2 border-acc/70 bg-panel p-4 shadow-[0_0_28px_-12px_var(--acc)]"
     >
@@ -110,6 +116,19 @@ export default function VereditoCard({ veredito }: { veredito: Veredito }) {
         <p className="mt-2 text-[9px] text-mut">
           Base: {amostra} jogo{amostra === 1 ? "" : "s"} · últimos 10 de cada time (peso 1.5 / 1.0 / 0.5) · Poisson + taxa observada
         </p>
+
+        {/* Rodapé: a marca viaja com a imagem (aquisição) e o botão de
+            compartilhar fica fora da captura por causa do data-noshare. */}
+        <div className="mt-2.5 flex items-center gap-2 border-t border-line pt-2">
+          <span className="font-display text-[10px] font-extrabold uppercase tracking-wide text-acc">GreenScore</span>
+          <span className="text-[9px] text-mut">Análise, não promessa</span>
+          <span className="ml-auto text-[9px] font-bold text-mut">+18</span>
+          <ShareCardButton
+            targetRef={cardRef}
+            baseName={`greenscore-veredito-${mercadoRecomendado || "jogo"}`}
+            rotulo="Compartilhar"
+          />
+        </div>
       </div>
     </section>
   );

@@ -55,53 +55,92 @@ function Avatar({ nome, foto }: { nome: string; foto: string | null }) {
   );
 }
 
+const JANELAS_CARD: { id: keyof DestaqueJogador["acerto"]; n: number }[] = [
+  { id: "l3", n: 3 },
+  { id: "l5", n: 5 },
+  { id: "l10", n: 10 },
+];
+
 function LinhaDestaque({ item }: { item: DestaqueJogador }) {
+  // Janela default = L10, a mesma do card de Player Props.
+  const [janela, setJanela] = useState<"l3" | "l5" | "l10">("l10");
   const pctBarra = Math.round(item.barra * 100);
   const pctFreq = item.frequencia != null ? Math.round(item.frequencia * 100) : null;
+  const sel = item.acerto[janela];
+  const detalhe = sel ? `${sel.acertos}/${sel.amostra} Over ${item.linhaReferencia}` : "sem amostra";
+
   return (
-    <div className="flex items-center gap-2 py-1.5 border-t border-line first:border-t-0">
-      <Avatar nome={item.nome} foto={item.foto} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[11px] font-bold text-ink truncate">{item.nome}</span>
-          <span className={`text-[8px] font-extrabold px-1 rounded shrink-0 ${item.lado === "home" ? "text-home bg-home/10" : "text-away bg-away/10"}`}>
-            {item.lado === "home" ? "CASA" : "FORA"}
-          </span>
-          <span className="ml-auto shrink-0 tabular-nums">
-            {item.suficiente && item.media != null ? (
+    <div className="py-1.5 border-t border-line first:border-t-0">
+      <div className="flex items-center gap-2">
+        <Avatar nome={item.nome} foto={item.foto} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[11px] font-bold text-ink truncate">{item.nome}</span>
+            <span className={`text-[8px] font-extrabold px-1 rounded shrink-0 ${item.lado === "home" ? "text-home bg-home/10" : "text-away bg-away/10"}`}>
+              {item.lado === "home" ? "CASA" : "FORA"}
+            </span>
+            <span className="ml-auto shrink-0 tabular-nums">
+              {item.suficiente && item.media != null ? (
+                <>
+                  <span className="text-[12px] font-extrabold text-acc">{item.media.toFixed(1)}</span>
+                  <span className="text-[9px] font-bold text-mut">/jogo</span>
+                </>
+              ) : (
+                <span className="text-[10px] font-bold text-warn">—</span>
+              )}
+            </span>
+          </div>
+
+          <div className="mt-1 flex items-center gap-1.5 min-w-0">
+            <span className="text-[9px] text-mut truncate max-w-[42%]">
+              {item.time}
+              <span className="text-mut/70"> · {item.amostra}/{item.jogosNaJanela}j</span>
+            </span>
+            {item.suficiente && item.mediaSecundaria != null && (
+              <span className="text-[9px] font-bold text-acc2 tabular-nums shrink-0">
+                {item.mediaSecundaria.toFixed(1)} {item.rotuloSecundaria}
+              </span>
+            )}
+            {item.suficiente ? (
               <>
-                <span className="text-[12px] font-extrabold text-acc">{item.media.toFixed(1)}</span>
-                <span className="text-[9px] font-bold text-mut">/jogo</span>
+                <div className="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
+                  <div className="h-full rounded-full bg-acc" style={{ width: `${Math.max(4, pctBarra)}%` }} />
+                </div>
+                {pctFreq != null && (
+                  <span className="text-[9px] font-bold text-mut tabular-nums shrink-0" title="Jogos da amostra em que o evento aconteceu">
+                    {pctFreq}%
+                  </span>
+                )}
               </>
             ) : (
-              <span className="text-[10px] font-bold text-warn">—</span>
+              <span className="text-[9px] font-bold text-warn">Amostra insuficiente</span>
             )}
-          </span>
-        </div>
+          </div>
 
-        <div className="mt-1 flex items-center gap-1.5 min-w-0">
-          <span className="text-[9px] text-mut truncate max-w-[42%]">
-            {item.time}
-            <span className="text-mut/70"> · {item.amostra}/{item.jogosNaJanela}j</span>
-          </span>
-          {item.suficiente && item.mediaSecundaria != null && (
-            <span className="text-[9px] font-bold text-acc2 tabular-nums shrink-0">
-              {item.mediaSecundaria.toFixed(1)} {item.rotuloSecundaria}
-            </span>
-          )}
-          {item.suficiente ? (
-            <>
-              <div className="flex-1 h-1.5 rounded-full bg-panel2 overflow-hidden">
-                <div className="h-full rounded-full bg-acc" style={{ width: `${Math.max(4, pctBarra)}%` }} />
-              </div>
-              {pctFreq != null && (
-                <span className="text-[9px] font-bold text-mut tabular-nums shrink-0" title="Jogos da amostra em que o evento aconteceu">
-                  {pctFreq}%
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[9px] font-bold text-warn">Amostra insuficiente</span>
+          {item.suficiente && (
+            <div className="mt-1 flex items-center gap-1 min-w-0">
+              {JANELAS_CARD.map((j) => {
+                const a = item.acerto[j.id];
+                const rotulo = a ? `L${j.n} ${a.taxa}%` : `L${j.n} —`;
+                return (
+                  <button
+                    key={j.id}
+                    type="button"
+                    onClick={() => setJanela(j.id)}
+                    aria-pressed={janela === j.id}
+                    aria-label={`Janela de ${j.n} jogos`}
+                    className={
+                      janela === j.id
+                        ? "rounded border border-acc/60 bg-acc/15 px-1 py-0.5 text-[8px] font-bold tabular-nums text-acc"
+                        : "rounded border border-line bg-panel2 px-1 py-0.5 text-[8px] font-bold tabular-nums text-mut"
+                    }
+                  >
+                    {rotulo}
+                  </button>
+                );
+              })}
+              <span className="ml-auto text-[8px] text-mut tabular-nums shrink-0">{detalhe}</span>
+            </div>
           )}
         </div>
       </div>
@@ -199,7 +238,8 @@ export default function DestaquesConfronto({
         <Users size={13} className="text-acc shrink-0" />
         <p className="text-[10px] text-mut leading-snug">
           Ranking pela média ponderada dos <b className="text-ink">últimos {janela} jogos</b> — jogo recente pesa mais.
-          Amostra &lt; 3 jogos nunca vira média.
+          Amostra &lt; 3 jogos nunca vira média. <b className="text-ink">L3 · L5 · L10</b> é frequência observada:
+          em quantos dos últimos jogos o jogador passou da linha.
         </p>
       </div>
 

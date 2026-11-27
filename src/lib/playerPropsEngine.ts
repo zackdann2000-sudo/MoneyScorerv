@@ -11,6 +11,7 @@
  */
 
 import { getWeightedAverage } from "./formWeight";
+import { avaliarSerie } from "./screenerProps";
 
 export type StatKey =
   | "gols"
@@ -134,6 +135,60 @@ export function coefVariacao(valores: number[], media: number): number {
   return Math.sqrt(variancia) / media;
 }
 
+/* -------------------------------------------------------------------------- */
+/* HIT RATE EM 3 JANELAS — frequência observada, ao lado da probabilidade.     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Janelas de acerto publicadas no card.
+ *
+ * São as mesmas do Screener (`JANELAS` em `screenerProps`), de propósito: o
+ * número tem de ser idêntico nas duas telas, senão o usuário vê "7 de 10" aqui
+ * e outra coisa lá.
+ */
+export const JANELAS_ACERTO = [3, 5, 10] as const;
+export type JanelaAcerto = (typeof JANELAS_ACERTO)[number];
+
+/** Quantas vezes a linha foi batida dentro de uma janela. */
+export type AcertoJanela = {
+  acertos: number;
+  /** Jogos da janela em que a fonte publicou ESTE dado (null fora da conta). */
+  amostra: number;
+  /** 0..100 — frequência observada. Não é probabilidade do próximo jogo. */
+  taxa: number;
+};
+
+/** `null` = janela sem amostra mínima; a UI desenha "—", nunca "0%". */
+export type Acerto = {
+  l3: AcertoJanela | null;
+  l5: AcertoJanela | null;
+  l10: AcertoJanela | null;
+};
+
+const CHAVE_ACERTO: Record<JanelaAcerto, keyof Acerto> = { 3: "l3", 5: "l5", 10: "l10" };
+
+/**
+ * Frequência com que o jogador passou da linha, em cada uma das 3 janelas.
+ *
+ * A conta é a de `avaliarSerie` (motor do Screener), **não reimplementada aqui**:
+ * duas implementações da mesma taxa divergiriam com o tempo. Regras herdadas
+ * dela: `null`/ausente não vira zero, e menos de `MIN_AMOSTRA` jogos com dado
+ * devolve `null` em vez de uma taxa em cima de 1 jogo.
+ *
+ * A série precisa estar em ordem **cronológica** (mais antigo → mais recente),
+ * porque a janela é `slice(-n)`. `jogador.jogos` já está nessa ordem. Cuidado ao
+ * reusar: `montarDestaque` inverte a série antes do `formWeight`, que espera o
+ * jogo mais recente primeiro — aqui NÃO se inverte.
+ */
+export function acertoDaSerie(valores: (number | null | undefined)[], linha: number): Acerto {
+  const out: Acerto = { l3: null, l5: null, l10: null };
+  for (const janela of JANELAS_ACERTO) {
+    const r = avaliarSerie(valores, { condicao: "pelo_menos", linha, janela, taxaMinima: 0 });
+    out[CHAVE_ACERTO[janela]] = r ? { acertos: r.acertos, amostra: r.amostra, taxa: r.taxa } : null;
+  }
+  return out;
+}
+
 export type PropCalculada = {
   jogadorId: string;
   nome: string;
@@ -153,6 +208,11 @@ export type PropCalculada = {
   desvio: number;
   /** 0..1 — tamanho da amostra + consistência. */
   confianca: number;
+  /**
+   * Hit rate observado contra `linha`, nas janelas L3/L5/L10.
+   * É passado, não previsão: leitura de apoio ao lado do `probOver`.
+   */
+  acerto: Acerto;
 };
 
 export const PESO_H2H = 0.3;
@@ -189,6 +249,11 @@ export function calcularProp(
   const fatorConsistencia = 1 / (1 + cv);
   const confianca = Math.min(0.99, Math.max(0.05, 0.65 * fatorAmostra + 0.35 * fatorConsistencia));
 
+  /* Hit rate usa a série cronológica crua (com os `null`), não a `disponiveis`
+     filtrada: a janela é de JOGOS, e o jogo sem o dado precisa sair da conta
+     dentro da janela certa, não ser empurrado para fora dela. */
+  const acerto = acertoDaSerie(valores, mercado.linha);
+
   return {
     jogadorId: jogador.id,
     nome: jogador.nome,
@@ -205,6 +270,7 @@ export function calcularProp(
     amostra,
     desvio: +cv.toFixed(3),
     confianca: +confianca.toFixed(3),
+    acerto,
   };
 }
 
@@ -255,6 +321,22 @@ export type DestaqueMercado =
   | "chutes_no_gol"
   | "defesas";
 
+/**
+ * Linha de referência de cada card do Scout (Over).
+ *
+ * São as mesmas linhas de `MERCADOS` onde o mercado existe lá (cartões 0.5,
+ * finalizações 1.5, defesas 2.5, chutes no gol 0.5), para o hit rate do Hub
+ * falar a mesma língua do card de props. `gols_assistencias` é a única sem
+ * gêmeo em `MERCADOS`: 0.5 = "participou de gol em algum momento".
+ */
+export const LINHA_DESTAQUE: Record<DestaqueMercado, number> = {
+  gols_assistencias: 0.5,
+  cartoes: 0.5,
+  finalizacoes: 1.5,
+  chutes_no_gol: 0.5,
+  defesas: 2.5,
+};
+
 /** Um jogador já ranqueado, com o que a UI precisa para desenhar o card. */
 export type DestaqueJogador = {
   jogadorId: string;
@@ -278,6 +360,14 @@ export type DestaqueJogador = {
   /** Métrica complementar real (ex.: chutes no gol no card de finalizações). */
   mediaSecundaria?: number | null;
   rotuloSecundaria?: string;
+  /** Linha contra a qual o hit rate foi contado (Over). */
+  linhaReferencia: number;
+  /**
+   * Hit rate observado contra `linhaReferencia`, nas janelas L3/L5/L10.
+   * Mesma conta do card de Player Props (`acertoDaSerie`) — o número tem de
+   * ser idêntico nas duas telas.
+   */
+  acerto: Acerto;
 };
 
 export type DestaqueGrupo = {
@@ -356,6 +446,11 @@ function montarDestaque(
     barra: 0,
     mediaSecundaria,
     rotuloSecundaria: secundario === "chutes_no_gol" ? "no gol" : undefined,
+    linhaReferencia: LINHA_DESTAQUE[mercado],
+    // `serie` já está em ordem cronológica (mais antigo → mais recente), que é
+    // o que a janela `slice(-n)` espera. NÃO usar a versão invertida acima —
+    // aquela é só para o `formWeight`.
+    acerto: acertoDaSerie(serie, LINHA_DESTAQUE[mercado]),
   };
 }
 

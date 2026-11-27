@@ -76,6 +76,7 @@ SUITES+=(
   "screener|src/lib/screener.test.cjs"
   "screenerProps|src/lib/screenerProps.test.cjs"
   "searchIndex|src/lib/searchIndex.test.cjs"
+  "shareImage|src/lib/shareImage.test.cjs"
 )
 
 # --- 1. Seleciona as suítes -------------------------------------------------

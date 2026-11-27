@@ -46,9 +46,18 @@ function Barra({ valor, cor }: { valor: number; cor: string }) {
   );
 }
 
+const JANELAS_CARD: { id: keyof PropCalculada["acerto"]; n: number }[] = [
+  { id: "l3", n: 3 },
+  { id: "l5", n: 5 },
+  { id: "l10", n: 10 },
+];
+
 function LinhaProp({ p }: { p: PropCalculada }) {
+  // Janela default = L10, igual ao concorrente e à leitura "últimos 10 jogos".
+  const [janela, setJanela] = useState<keyof PropCalculada["acerto"]>("l10");
   const pct = Math.round(p.probOver * 100);
   const corBarra = pct >= 70 ? "bg-emerald-400" : pct >= 55 ? "bg-acc" : "bg-warn";
+  const sel = p.acerto[janela];
   return (
     <div className="py-1.5 border-t border-line first:border-t-0">
       <div className="flex items-baseline gap-2">
@@ -62,6 +71,32 @@ function LinhaProp({ p }: { p: PropCalculada }) {
         <Barra valor={p.probOver} cor={corBarra} />
         <span className="text-[9px] text-mut tabular-nums shrink-0">
           λ {p.lambda?.toFixed(2)} · {p.amostra}j{p.mediaH2H != null ? " · H2H" : ""}
+        </span>
+      </div>
+
+      {/* Hit rate observado. Clicar no chip troca a janela — sem request novo:
+          as 3 janelas já vieram do servidor. */}
+      <div className="mt-1 flex items-center gap-1">
+        {JANELAS_CARD.map(({ id, n }) => {
+          const a = p.acerto[id];
+          const ativo = janela === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setJanela(id)}
+              aria-pressed={ativo}
+              aria-label={`Janela de ${n} jogos: ${a ? `${a.acertos} de ${a.amostra}` : "sem amostra"}`}
+              className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold tabular-nums ${
+                ativo ? "border-acc/60 bg-acc/15 text-acc" : "border-line bg-panel2 text-mut"
+              }`}
+            >
+              L{n} {a ? `${a.taxa}%` : "—"}
+            </button>
+          );
+        })}
+        <span className="ml-auto text-[9px] text-mut tabular-nums shrink-0">
+          {sel ? `${sel.acertos}/${sel.amostra} Over ${p.linha}` : "sem amostra"}
         </span>
       </div>
     </div>
@@ -105,6 +140,9 @@ export default function PropsTab({ matchId, league, home, away }: { matchId: str
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-acc">Player props · últimos jogos</p>
         <p className="text-[10px] text-mut mt-1">
           Poisson sobre a média ponderada (jogo recente pesa mais). H2H entra como ajuste de 30% quando existe.
+        </p>
+        <p className="text-[10px] text-mut mt-1">
+          L3 · L5 · L10 é frequência observada: em quantos dos últimos jogos o jogador passou da linha. Passado, não previsão.
         </p>
       </div>
 
