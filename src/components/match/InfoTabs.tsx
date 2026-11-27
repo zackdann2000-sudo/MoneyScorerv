@@ -215,8 +215,11 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
   const h2hCtx: ContextoH2H | null = useMemo(() => {
     const jogos = (h2h?.games ?? []).slice(0, JANELA_H2H);
     if (jogos.length < 3) return null;
-    const gols = jogos.map((g: any) => Number(g?.homeScore ?? 0) + Number(g?.awayScore ?? 0));
-    return { gols: mediaSimples(gols), jogos: jogos.length };
+    /* Confronto sem placar não vira 0-0: sai da média (e se sobrar menos de 3, não há contexto). */
+    const comPlacar = jogos.filter((g: any) => g?.homeScore != null && g?.awayScore != null);
+    if (comPlacar.length < 3) return null;
+    const gols = comPlacar.map((g: any) => Number(g.homeScore) + Number(g.awayScore));
+    return { gols: mediaSimples(gols), jogos: comPlacar.length };
   }, [h2h]);
 
   const CATS: Record<string, { key: string; label: string; liga?: number | null }[]> = {
@@ -329,7 +332,8 @@ export function H2HTab({ d }: { d: any; league?: string }) {
   const recentes = [...games]
     .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 7)
-    .map((g: any) => ({ golsCasa: Number(g.homeScore) || 0, golsFora: Number(g.awayScore) || 0 }));
+    .filter((g: any) => g?.homeScore != null && g?.awayScore != null)
+    .map((g: any) => ({ golsCasa: Number(g.homeScore), golsFora: Number(g.awayScore) }));
   const stats = useMemo(() => {
     if (!games.length) return null;
     let hw = 0, dr = 0, aw = 0;
@@ -778,6 +782,9 @@ export function PickCard({ pick, compact }: { pick: any; compact?: boolean }) {
   const [sel, setSel] = useState<number | null>(null);
   const op = pick.oportunidade;
   const jogos = op.jogosDetalhe || [];
+  /* Só entram no gráfico os jogos em que a fonte publicou a métrica: barra de
+     altura 0 para dado ausente seria leitura falsa. */
+  const jogosComDado = jogos.filter((g: any) => g.valor != null);
   const n = op.totalJogos || 0;
   const small = n < 10 || op.amostraPequena;
   const line = parseFloat(String(op.linha || "0.5").replace("+", "").replace(",", ".")) || 0.5;
@@ -830,17 +837,22 @@ export function PickCard({ pick, compact }: { pick: any; compact?: boolean }) {
       </div>
       <div className="bg-panel border border-line rounded-2xl p-4">
         <p className="text-[10px] font-bold text-mut uppercase mb-1">Últimos {op.totalJogos} jogos · toque na barra</p>
-        <GoalsBars games={jogos.map((g: any) => ({ opp: g.opp, logo: g.logo, valor: g.valor }))} line={line} onSelect={(i) => setSel(i)} />
+        <GoalsBars games={jogosComDado.map((g: any) => ({ opp: g.opp, logo: g.logo, valor: g.valor }))} line={line} onSelect={(i) => setSel(i)} />
+        {jogosComDado.length < jogos.length && (
+          <p className="mt-1 text-[9px] text-mut">
+            {jogos.length - jogosComDado.length} jogo(s) fora do gráfico: a fonte não publicou esta estatística neles.
+          </p>
+        )}
         <SourceFoot fonte="ESPN" amostra={n} extra={small ? "Amostra pequena" : `Linha ${op.linha}`} />
       </div>
       <Modal open={sel != null} onClose={() => setSel(null)} title="Detalhe do jogo">
-        {sel != null && jogos[sel] && (
+        {sel != null && jogosComDado[sel] && (
           <div className="text-center py-2">
-            <Crest src={jogos[sel].logo} size={48} />
-            <p className="font-bold mt-2">vs {jogos[sel].opp}</p>
-            <p className="font-display font-bold text-3xl mt-1">{jogos[sel].gf} - {jogos[sel].ga}</p>
-            <p className="text-xs text-mut mt-1">{new Date(jogos[sel].data).toLocaleDateString("pt-BR")} · estatística do jogo: <b className="text-acc">{jogos[sel].valor}</b></p>
-            <Link href={`/jogos/${jogos[sel].id}?league=${jogos[sel].league}`} className="inline-block mt-3 px-4 py-1.5 rounded-full bg-acc text-black text-xs font-extrabold">ABRIR PARTIDA</Link>
+            <Crest src={jogosComDado[sel].logo} size={48} />
+            <p className="font-bold mt-2">vs {jogosComDado[sel].opp}</p>
+            <p className="font-display font-bold text-3xl mt-1">{jogosComDado[sel].gf} - {jogosComDado[sel].ga}</p>
+            <p className="text-xs text-mut mt-1">{new Date(jogosComDado[sel].data).toLocaleDateString("pt-BR")} · estatística do jogo: <b className="text-acc">{jogosComDado[sel].valor}</b></p>
+            <Link href={`/jogos/${jogosComDado[sel].id}?league=${jogosComDado[sel].league}`} className="inline-block mt-3 px-4 py-1.5 rounded-full bg-acc text-black text-xs font-extrabold">ABRIR PARTIDA</Link>
           </div>
         )}
       </Modal>

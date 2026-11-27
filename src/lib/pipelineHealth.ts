@@ -23,7 +23,18 @@ export type PipelineHealth = {
   ultimaEscrita: string | null;
   /** Horizonte: jogos futuros já gravados. */
   futuros: number;
+  /**
+   * As chaves EXISTEM no ambiente? (Não diz se a fonte RESPONDE — ver `contas`.)
+   * Antes este campo era lido como "fonte funcionando", e uma conta suspensa
+   * continuava aparecendo como `true`.
+   */
   fontes: Record<string, boolean>;
+  /**
+   * Estado REAL da conta, só quando `ping` é pedido (usa `/status`, que não
+   * consome cota). `env: true` + `status: "suspensa"` = chave existe, fonte
+   * não entrega — a diferença que o painel não sabia fazer.
+   */
+  contas?: Record<string, { env: boolean; status: "ok" | "suspensa" | "sem-chave" | "erro"; plano?: string | null; erro?: string }>;
   ping?: { ok: boolean; jogos: number; ms: number; erro?: string };
   /** Falso quando não há fixture nenhuma para hoje/amanhã → tela vazia provável. */
   cobertura: "ok" | "magra" | "vazia";
@@ -101,6 +112,26 @@ export async function diagnosticarPipeline(opts: { ping?: boolean } = {}): Promi
     } catch (e: any) {
       out.ping = { ok: false, jogos: 0, ms: Date.now() - t0, erro: String(e?.message || e).slice(0, 160) };
     }
+
+    /* Conta da API-Football: `/status` não consome cota. Sem isto, uma conta
+       suspensa continuava sendo reportada como "configurada" só porque a env
+       existia — e o Screener/Props pareciam vazios "por falta de dado". */
+    const contas: NonNullable<PipelineHealth["contas"]> = {};
+    try {
+      const { afStatus } = await import("@/lib/providers");
+      const st = await afStatus();
+      contas.apiFootball = { env: fontes.apiFootball, status: "ok", plano: st.plan ?? null };
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      const semChave = !fontes.apiFootball || /não configurada/i.test(msg);
+      const suspensa = /suspend/i.test(msg);
+      contas.apiFootball = {
+        env: fontes.apiFootball,
+        status: semChave ? "sem-chave" : suspensa ? "suspensa" : "erro",
+        erro: msg.slice(0, 160),
+      };
+    }
+    out.contas = contas;
   }
 
   return out;

@@ -14,7 +14,7 @@
  *   • Sem banco, sem rede, sem `Date.now()`: entra e sai por parâmetro.
  */
 
-import type { HistGame } from "./espn";
+import type { HistGame, JogadorStatsJogo } from "./espn";
 import type { JogoValores, StatKey } from "./playerPropsEngine";
 
 /** Janelas aceitas (as mesmas da UI). */
@@ -52,6 +52,12 @@ export type MetricaScreener = {
   etapa?: "A" | "B";
   /** Jogador: qual estatística do histórico de props. */
   stat?: StatKey;
+  /**
+   * Jogador: qual campo do histórico individual do ESPN responde pela métrica.
+   * Ausente ⇒ o ESPN não publica essa estatística por atleta (passes), e o
+   * Screener só consegue servir a métrica por cache/fonte paga.
+   */
+  statEspn?: keyof JogadorStatsJogo;
   /** Time: como tirar o valor de um jogo do histórico (null = sem dado). */
   valorTime?: (g: HistGame) => number | null;
 };
@@ -75,14 +81,14 @@ export const METRICAS: MetricaScreener[] = [
   /* ---------- JOGADOR ---------- */
   { id: "j_passes", entidade: "jogador", label: "Passes", criterio: "passes totais por jogo", linhaPadrao: 29.5, passo: 1, stat: "passes" },
   { id: "j_passes_certos", entidade: "jogador", label: "Passes certos", criterio: "passes certos por jogo", linhaPadrao: 24.5, passo: 1, stat: "passesCertos" },
-  { id: "j_finalizacoes", entidade: "jogador", label: "Finalizações", criterio: "finalizações por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "finalizacoes" },
-  { id: "j_chutes_gol", entidade: "jogador", label: "Chutes no gol", criterio: "chutes no gol por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "chutesNoGol" },
-  { id: "j_cartoes", entidade: "jogador", label: "Cartões", criterio: "cartões (amarelo + vermelho) por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "cartoes" },
-  { id: "j_defesas", entidade: "jogador", label: "Defesas (GK)", criterio: "defesas por jogo (goleiros)", linhaPadrao: 2.5, passo: 0.5, stat: "defesas" },
-  { id: "j_gols", entidade: "jogador", label: "Gols", criterio: "gols por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "gols" },
-  { id: "j_assistencias", entidade: "jogador", label: "Assistências", criterio: "assistências por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "assistencias" },
-  { id: "j_faltas_sofridas", entidade: "jogador", label: "Faltas sofridas", criterio: "faltas sofridas por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "faltasSofridas" },
-  { id: "j_faltas_cometidas", entidade: "jogador", label: "Faltas cometidas", criterio: "faltas cometidas por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "faltasCometidas" },
+  { id: "j_finalizacoes", entidade: "jogador", label: "Finalizações", criterio: "finalizações por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "finalizacoes", statEspn: "finalizacoes" },
+  { id: "j_chutes_gol", entidade: "jogador", label: "Chutes no gol", criterio: "chutes no gol por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "chutesNoGol", statEspn: "chutesNoGol" },
+  { id: "j_cartoes", entidade: "jogador", label: "Cartões", criterio: "cartões (amarelo + vermelho) por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "cartoes", statEspn: "cartoes" },
+  { id: "j_defesas", entidade: "jogador", label: "Defesas (GK)", criterio: "defesas por jogo (goleiros)", linhaPadrao: 2.5, passo: 0.5, stat: "defesas", statEspn: "defesas" },
+  { id: "j_gols", entidade: "jogador", label: "Gols", criterio: "gols por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "gols", statEspn: "gols" },
+  { id: "j_assistencias", entidade: "jogador", label: "Assistências", criterio: "assistências por jogo", linhaPadrao: 0.5, passo: 0.5, stat: "assistencias", statEspn: "assistencias" },
+  { id: "j_faltas_sofridas", entidade: "jogador", label: "Faltas sofridas", criterio: "faltas sofridas por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "faltasSofridas", statEspn: "faltasSofridas" },
+  { id: "j_faltas_cometidas", entidade: "jogador", label: "Faltas cometidas", criterio: "faltas cometidas por jogo", linhaPadrao: 1.5, passo: 0.5, stat: "faltasCometidas", statEspn: "faltasCometidas" },
 
   /* ---------- TIME ---------- */
   { id: "t_gols_marcados", entidade: "time", label: "Gols marcados", criterio: "gols do time por jogo", linhaPadrao: 1.5, passo: 0.5, etapa: "A", valorTime: (g) => N(g.gf) },

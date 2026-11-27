@@ -40,7 +40,7 @@ export type PayloadTime = {
   jogadores: JogadorCache[];
 };
 
-export type PropsTime = PayloadTime & { fonte: "cache" | "api-football" };
+export type PropsTime = PayloadTime & { fonte: "cache" | "api-football" | "espn" };
 
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
@@ -160,6 +160,69 @@ async function ultimosFixtures(teamId: number, n: number): Promise<{ fixtures: a
     }
   }
   return null;
+}
+
+/**
+ * Props a partir do ESPN — fallback GRÁTIS e sem login.
+ *
+ * Existe porque a fonte paga pode ficar fora (conta suspensa, cota do dia
+ * estourada, plano sem `/fixtures/players`) e a aba Props ficava vazia sem
+ * explicação. O resumo de cada partida do ESPN já publica as estatísticas
+ * individuais, então o card de props não depende só de cota paga.
+ *
+ * O que o ESPN não publica por atleta (passes) simplesmente não entra no
+ * `JogoValores` — o motor pula o jogo em vez de contar 0.
+ *
+ * Devolve `null` quando não há nenhum jogo com dado para o time.
+ */
+export async function propsDoEspn(
+  league: string,
+  teamId: string,
+  teamName: string,
+  jogos = PROPS_MAX_JOGOS,
+): Promise<PropsTime | null> {
+  if (!league || !teamId) return null;
+  const { getTeamHistoryElenco } = await import("./espn");
+  const hist = await getTeamHistoryElenco(league, String(teamId), jogos).catch(() => null);
+  if (!hist?.players?.length) return null;
+
+  const set = (v: JogoValores, k: keyof JogoValores, x: number | null | undefined) => {
+    if (x != null && Number.isFinite(Number(x))) v[k] = Number(x);
+  };
+
+  const jogadores = hist.players
+    .map((j) => ({
+      id: j.id,
+      nome: j.nome,
+      posicao: j.posicao || "",
+      foto: j.foto || null,
+      jogos: j.jogos.map((g) => {
+        const v: JogoValores = {};
+        if (!g) return v;
+        set(v, "gols", g.gols);
+        set(v, "assistencias", g.assistencias);
+        set(v, "finalizacoes", g.finalizacoes);
+        set(v, "chutesNoGol", g.chutesNoGol);
+        set(v, "cartoes", g.cartoes);
+        set(v, "defesas", g.defesas);
+        set(v, "faltasCometidas", g.faltasCometidas);
+        set(v, "faltasSofridas", g.faltasSofridas);
+        return v;
+      }),
+    }))
+    .filter((j) => j.jogos.some((v) => Object.keys(v).length > 0));
+
+  if (!jogadores.length) return null;
+
+  return {
+    fonte: "espn",
+    teamId: String(teamId),
+    teamName,
+    sample: hist.games.length,
+    janela: jogos,
+    season: null,
+    jogadores,
+  };
 }
 
 /**

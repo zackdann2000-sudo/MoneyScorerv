@@ -9,14 +9,47 @@ import { camposDoMotivo, motivoEmUmaLinha, quandoCongelou } from "@/lib/motivoPi
 
 export default function Desempenho() {
   const [d, setD] = useState<any>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
   const [period, setPeriod] = useState("30");
   const [league, setLeague] = useState("all");
   const [market, setMarket] = useState("all");
   useEffect(() => {
-    fetch(`/api/track-record?period=${period}&league=${encodeURIComponent(league)}&market=${encodeURIComponent(market)}`).then((r) => r.json()).then(setD).catch(() => {});
-  }, [period, league, market]);
+    fetch(`/api/track-record?period=${period}&league=${encodeURIComponent(league)}&market=${encodeURIComponent(market)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        /* A rota devolve `error` junto com os blocos degradados: sem ler isso,
+           banco fora do ar aparecia como "Aguardando dados" — como se o
+           produto só não tivesse pick nenhuma. */
+        setD(j);
+        setErro(
+          j?.error
+            ? "Não foi possível atualizar o Track Record agora. Os números abaixo podem estar incompletos."
+            : null,
+        );
+      })
+      .catch(() => {
+        setD(null);
+        setErro("Não foi possível carregar o Track Record agora.");
+      });
+  }, [period, league, market, tentativa]);
 
-  if (!d) return <div className="space-y-2"><div className="skeleton h-8 w-56" /><div className="skeleton h-52" /><div className="skeleton h-40" /></div>;
+  if (!d) {
+    if (erro) {
+      return (
+        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-4 text-center">
+          <p className="text-[12px] font-extrabold text-danger">{erro}</p>
+          <button
+            onClick={() => setTentativa((t) => t + 1)}
+            className="mt-2 rounded-full bg-panel2 border border-line px-3 py-1.5 text-[10px] font-extrabold text-acc"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return <div className="space-y-2"><div className="skeleton h-8 w-56" /><div className="skeleton h-52" /><div className="skeleton h-40" /></div>;
+  }
   const s = d.last30 || {};
   /* Números de topo vêm da MESMA auditoria que a lista detalhada usa
      (`audit.summary`), montada pelo cron /api/track-record/run. Nada aqui é
@@ -41,6 +74,12 @@ export default function Desempenho() {
           Validador →
         </Link>
       </div>
+
+      {erro && (
+        <p className="mb-3 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-[11px] font-bold text-danger">
+          {erro}
+        </p>
+      )}
 
       <Audit audit={d.audit} period={period} setPeriod={setPeriod} league={league} setLeague={setLeague} market={market} setMarket={setMarket} />
 

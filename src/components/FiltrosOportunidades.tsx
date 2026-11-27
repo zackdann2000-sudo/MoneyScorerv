@@ -85,7 +85,7 @@ export default function FiltrosOportunidades({
           }`}
         >
           {mostrarAbaixoDe70 ? <Eye size={10} /> : <EyeOff size={10} />}
-          Mostrar &lt; 70%
+          Mostrar &lt; 75%
           {ocultas > 0 && !mostrarAbaixoDe70 && <span className="opacity-70">({ocultas})</span>}
         </button>
       </div>

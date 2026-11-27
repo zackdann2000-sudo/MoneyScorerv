@@ -26,6 +26,8 @@ export type HistGame = {
   yellow: number | null;
   red: number | null;
   oppYellow: number | null;
+  /** Vermelhos do adversário — entram no total de cartões do jogo. */
+  oppRed?: number | null;
   fouls: number | null;
   oppFouls: number | null;
   sot: number | null;
@@ -82,10 +84,12 @@ export function teamRates(games: HistGame[]): TeamRates {
     : 0;
   const gfBase = ponderadaGf ?? sum((g) => g.gf) / n;
   const gaBase = ponderadaGa ?? sum((g) => g.ga) / n;
-  // Cartões (amarelos + vermelhos do time + amarelos do adversário) e escanteios
-  // totais por jogo — base das linhas de Over de cartões/escanteios.
+  // Cartões (amarelos + vermelhos do time + amarelos + vermelhos do adversário)
+  // e escanteios totais por jogo — base das linhas de Over de cartões/escanteios.
   const cardsVals = janela.map((g) =>
-    g.yellow == null && g.oppYellow == null ? null : (g.yellow ?? 0) + (g.red ?? 0) + (g.oppYellow ?? 0),
+    g.yellow == null && g.oppYellow == null && g.red == null && g.oppRed == null
+      ? null
+      : (g.yellow ?? 0) + (g.red ?? 0) + (g.oppYellow ?? 0) + (g.oppRed ?? 0),
   );
   const cornersVals = janela.map((g) =>
     g.corners == null && g.oppCorners == null ? null : (g.corners ?? 0) + (g.oppCorners ?? 0),

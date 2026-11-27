@@ -56,7 +56,8 @@ export default function DesajustesTab({
 
   if (loading && !data) return <Spinner label="Procurando desajustes…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
-  if (!data) return null;
+  /* Sem dado, sem erro e sem loading: mostra o skeleton, nunca tela branca. */
+  if (!data) return <Spinner label="Procurando desajustes…" />;
 
   const contagem = data.contagem ?? {};
   const totalQuente = contagem.quente ?? 0;

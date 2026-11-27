@@ -31,6 +31,9 @@ export async function GET(req: NextRequest) {
     ]);
     return NextResponse.json({ ...model, audit, clv, competencia, historico });
   } catch (e: any) {
+    /* 502, não 200: falha de banco/engine é falha do servidor. O corpo segue
+       degradado (a tela sabe desenhar "—"), mas o status precisa dizer a
+       verdade para monitor, cache e qualquer cliente que olhe o código. */
     return NextResponse.json({
       error: e?.message,
       last30: { total: 0, greens: 0, reds: 0, pending: 0, acc: null },
@@ -40,6 +43,6 @@ export async function GET(req: NextRequest) {
       clv: null,
       competencia: null,
       historico: [],
-    });
+    }, { status: 502 });
   }
 }

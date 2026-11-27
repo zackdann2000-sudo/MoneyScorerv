@@ -147,7 +147,11 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
           card devolve null sozinho abaixo da amostra mínima. */}
       {Array.isArray(a.h2h) && a.h2h.length > 0 && (
         <H2HPalpiteCard
-          jogos={a.h2h.map((g: any) => ({ golsCasa: Number(g.homeScore) || 0, golsFora: Number(g.awayScore) || 0 }))}
+          /* Confronto sem placar publicado fica FORA: converter ausência em 0-0
+             criaria um jogo que nunca aconteceu na amostra do palpite. */
+          jogos={a.h2h
+            .filter((g: any) => g?.homeScore != null && g?.awayScore != null)
+            .map((g: any) => ({ golsCasa: Number(g.homeScore), golsFora: Number(g.awayScore) }))}
         />
       )}
 

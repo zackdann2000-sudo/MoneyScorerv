@@ -367,7 +367,91 @@ export type HistGame = {
   events: { type: string; player: string; assist?: string; period: number; side: string; minute: number }[];
 };
 
-export async function getTeamHistory(league: string, teamId: string, n = 10): Promise<{ games: HistGame[]; baseParcial: boolean; source: string }> {
+/* --------------------------------------------------------------------------
+   Estatística INDIVIDUAL vinda do summary do ESPN.
+
+   O ESPN publica, para cada partida encerrada, `rosters[].roster[].stats` com
+   uma lista `{ name, displayValue }` por atleta — a MESMA família de nomes usada
+   no boxscore do time (totalShots, shotsOnTarget, ...). Não vem passe: o ESPN
+   não publica passes por jogador no futebol, e por isso `passes` fica `null`
+   em vez de virar 0 (regra de ouro: dado ausente é ausente).
+   -------------------------------------------------------------------------- */
+
+export type JogadorStatsJogo = {
+  /** Finalizações do jogador no jogo. */
+  finalizacoes: number | null;
+  /** Chutes no gol. */
+  chutesNoGol: number | null;
+  gols: number | null;
+  assistencias: number | null;
+  faltasCometidas: number | null;
+  faltasSofridas: number | null;
+  /** Amarelo + vermelho; null quando o ESPN não trouxe nenhum dos dois. */
+  cartoes: number | null;
+  amarelos: number | null;
+  vermelhos: number | null;
+  /** Defesas (goleiros). */
+  defesas: number | null;
+};
+
+export type JogadorHist = {
+  id: string; nome: string; posicao: string; foto: string;
+  /** Um item por jogo do histórico, na MESMA ordem de `games` (antigo → recente). null = não jogou. */
+  jogos: (JogadorStatsJogo | null)[];
+};
+
+const numStat = (v: any): number | null => {
+  if (v == null || v === "" || v === "-") return null;
+  const n = Number(String(v).replace("%", ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Extrai as estatísticas individuais de UM jogo.
+ *
+ * Quem não entrou em campo (sem `appearances` > 0 e sem `subbedIn`) não recebe
+ * registro — assim o Screener pula o jogo em vez de contar 0 finalização para
+ * um reserva que não jogou.
+ */
+export function normRosterStats(sm: any): { id: string; nome: string; posicao: string; foto: string; stats: JogadorStatsJogo }[] {
+  const out: { id: string; nome: string; posicao: string; foto: string; stats: JogadorStatsJogo }[] = [];
+  for (const bloco of sm?.rosters || []) {
+    for (const p of bloco?.roster || []) {
+      const id = String(p?.athlete?.id || "");
+      if (!id) continue;
+      const lista: any[] = Array.isArray(p?.stats) ? p.stats : [];
+      const get = (n: string) => {
+        const s = lista.find((x: any) => x?.name === n);
+        return s ? numStat(s.displayValue ?? s.value) : null;
+      };
+      const aparencias = get("appearances");
+      const entrou = (aparencias ?? 0) > 0 || !!p?.subbedIn || !!p?.starter;
+      if (!lista.length || !entrou) continue;
+      const amarelos = get("yellowCards"), vermelhos = get("redCards");
+      out.push({
+        id,
+        nome: p?.athlete?.displayName || p?.athlete?.shortName || "",
+        posicao: p?.position?.abbreviation || "",
+        foto: p?.athlete?.headshot?.href || "",
+        stats: {
+          finalizacoes: get("totalShots"),
+          chutesNoGol: get("shotsOnTarget"),
+          gols: get("totalGoals"),
+          assistencias: get("goalAssists"),
+          faltasCometidas: get("foulsCommitted"),
+          faltasSofridas: get("foulsSuffered"),
+          cartoes: amarelos == null && vermelhos == null ? null : (amarelos ?? 0) + (vermelhos ?? 0),
+          amarelos,
+          vermelhos,
+          defesas: get("saves"),
+        },
+      });
+    }
+  }
+  return out;
+}
+
+async function histDoTime(league: string, teamId: string, n: number): Promise<{ games: HistGame[]; players: JogadorHist[]; baseParcial: boolean; source: string }> {
   let { season, events } = await getSchedule(league, teamId);
   let finished = events.filter((e) => e.finished).sort((a, b) => b.date.localeCompare(a.date));
   if (finished.length < 5 && season) {
@@ -377,6 +461,7 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
   }
   finished = finished.slice(0, n);
   const games: HistGame[] = [];
+  const elenco = new Map<string, { id: string; nome: string; posicao: string; foto: string; porData: Map<string, JogadorStatsJogo | null> }>();
   await Promise.all(finished.map(async (m) => {
     const isHome = m.home.id === String(teamId);
     const me = isHome ? m.home : m.away, opp = isHome ? m.away : m.home;
@@ -384,6 +469,15 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
     try { sm = await getSummaryRaw(m.league, m.id, "post"); } catch {}
     const evs = sm ? normEvents(sm, m.home.id, m.away.id) : [];
     const stats = sm ? normStats(sm, m.home.id) : [];
+    if (sm) {
+      for (const j of normRosterStats(sm)) {
+        const atual = elenco.get(j.id) || { id: j.id, nome: j.nome, posicao: j.posicao, foto: j.foto, porData: new Map<string, JogadorStatsJogo | null>() };
+        if (!atual.foto && j.foto) atual.foto = j.foto;
+        if (!atual.posicao && j.posicao) atual.posicao = j.posicao;
+        atual.porData.set(m.date, j.stats);
+        elenco.set(j.id, atual);
+      }
+    }
     const sv = (k: string, side: "home" | "away") => { const row = stats.find((s: any) => s.key === k); const v = row ? (side === "home" ? row.home : row.away) : null; return v == null ? null : parseFloat(String(v).replace("%", "")); };
     const mySide = isHome ? "home" : "away", opSide = isHome ? "away" : "home";
     const htGoals = evs.filter((e) => e.period === 1 && ["goal", "pen", "own"].includes(e.type));
@@ -419,7 +513,32 @@ export async function getTeamHistory(league: string, teamId: string, n = 10): Pr
     });
   }));
   games.sort((a, b) => b.date.localeCompare(a.date));
-  return { games, baseParcial: games.length < 5, source: "ESPN" };
+
+  /* Elenco: mesma varredura, mesmos summaries (já em cache) — custo zero a mais. */
+  const datas = games.map((g) => g.date);
+  const players: JogadorHist[] = [...elenco.values()].map((p) => ({
+    id: p.id, nome: p.nome, posicao: p.posicao, foto: p.foto,
+    jogos: datas.map((d) => p.porData.get(d) ?? null),
+  }));
+
+  return { games, players, baseParcial: games.length < 5, source: "ESPN" };
+}
+
+/** Histórico do time (só os jogos). Mantém a assinatura usada pelas telas. */
+export async function getTeamHistory(league: string, teamId: string, n = 10): Promise<{ games: HistGame[]; baseParcial: boolean; source: string }> {
+  const { games, baseParcial, source } = await histDoTime(league, teamId, n);
+  return { games, baseParcial, source };
+}
+
+/**
+ * Histórico do time + elenco com as estatísticas individuais de cada jogo.
+ *
+ * Serve ao Screener de JOGADORES quando a fonte paga está fora: o ESPN entrega
+ * finalizações, chutes no gol, gols, assistências, faltas, cartões e defesas de
+ * cada atleta — sem cota paga e sem login.
+ */
+export async function getTeamHistoryElenco(league: string, teamId: string, n = 10): Promise<{ games: HistGame[]; players: JogadorHist[]; baseParcial: boolean; source: string }> {
+  return histDoTime(league, teamId, n);
 }
 
 /**

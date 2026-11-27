@@ -4,14 +4,17 @@ import { playerPropsCache } from "@/db/schema";
 import {
   getAllMatches,
   getTeamHistory,
+  getTeamHistoryElenco,
   getTeamScheduleGames,
   leagueInfo,
   todayYmd,
   type HistGame,
+  type JogadorHist,
   type Match,
 } from "@/lib/espn";
 import { cached } from "@/lib/cache";
 import { getPropsDoTime, PROPS_DISABLED, type PayloadTime } from "@/lib/playerProps";
+import type { JogoValores } from "@/lib/playerPropsEngine";
 import { getUser } from "@/lib/auth";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import {
@@ -51,6 +54,11 @@ export const maxDuration = 300;
 const TETO_TIME_A = 16;
 const TETO_TIME_B = 8;
 const TETO_JOGADOR = 12;
+
+/** Times que o fallback gratuito (ESPN) varre por consulta — 1 resumo por jogo. */
+const TETO_JOGADOR_ESPN = 4;
+
+const TTL_JOGADOR_ESPN = 20 * 60_000;
 
 /** Times que a consulta pode buscar na fonte paga (por janela escolhida). */
 const orcamentoApi = (janela: number): number => (janela >= 10 ? 2 : janela >= 5 ? 3 : 4);
@@ -106,6 +114,20 @@ async function historicoDoTime(eq: Equipe, etapa: "A" | "B", janela: number) {
   return cached(chave, ttl, () =>
     etapa === "B" ? getTeamHistory(eq.league, eq.id, janela) : getTeamScheduleGames(eq.league, eq.id, janela),
   ).catch(() => vazio);
+}
+
+/**
+ * Elenco com estatística individual jogo a jogo, direto do ESPN (grátis).
+ *
+ * O resumo de cada partida já traz `rosters[].roster[].stats`; é o mesmo
+ * caminho de custo da Etapa B, então só varremos TETO_JOGADOR_ESPN times por
+ * consulta e guardamos 20 min por time+janela.
+ */
+async function elencoDoTime(eq: Equipe, janela: number): Promise<JogadorHist[]> {
+  const chave = `screenerProps:elenco:${eq.league}:${eq.id}:${janela}`;
+  return cached(chave, TTL_JOGADOR_ESPN, () => getTeamHistoryElenco(eq.league, eq.id, janela))
+    .then((r) => r.players)
+    .catch(() => [] as JogadorHist[]);
 }
 
 /** Cache de props por time, lido do banco (uma consulta só, tabela pequena). */
@@ -204,37 +226,73 @@ export async function POST(req: NextRequest) {
 
     const alvo = equipes.slice(0, TETO_JOGADOR);
     let orcamento = vip && !PROPS_DISABLED ? orcamentoApi(consulta.janela) : 0;
-    const trilha = { banco: 0, espn: alvo.length, api: 0 };
+    /* `espn` = orçamento restante do fallback grátis; `espnUsado` = times servidos por ele. */
+    const trilha = { banco: 0, espn: TETO_JOGADOR_ESPN, espnUsado: 0, api: 0 };
     const semDados: { nome: string; motivo: string }[] = [];
     const candidatos: Candidato[] = [];
 
     for (const eq of alvo) {
       const chave = norm(eq.nome);
       let time: PayloadTime | null = null;
+      /* Quem respondeu por este time: banco, ESPN ou fonte paga. */
+      let deOnde: "banco" | "espn" | "api" | null = null;
 
       const emCache = cache.get(chave);
       if (emCache && (emCache.sample >= consulta.janela || (emCache.janela ?? 0) >= consulta.janela)) {
         time = emCache;
-        trilha.banco++;
-      } else if (orcamento > 0) {
-        /* Busca a fonte paga só para conta ativa: aqui é que sai a cota. */
+        deOnde = "banco";
+      }
+
+      /* ESPN: grátis e sem login. Serve as métricas que o resumo publica por
+         atleta (finalizações, chutes no gol, gols, assistências, faltas,
+         cartões, defesas). Sem isso, a aba Jogadores ficava 100% dependente da
+         cota paga — e vazia sempre que a fonte paga caía. */
+      if (!time && def.statEspn && trilha.espn > 0) {
+        const elenco = await elencoDoTime(eq, consulta.janela);
+        trilha.espn--;
+        if (elenco.length) {
+          const jogadores: PayloadTime["jogadores"] = elenco.map((j) => ({
+            id: j.id, nome: j.nome, posicao: j.posicao, foto: j.foto || null,
+            /* A chave é `def.stat` (a que o motor lê), o valor vem do ESPN. */
+            jogos: j.jogos.map((jg) => (jg && def.stat ? ({ [def.stat]: jg[def.statEspn!] } as JogoValores) : ({} as JogoValores))),
+          }));
+          if (jogadores.length) {
+            time = { teamId: eq.id, teamName: eq.nome, sample: consulta.janela, janela: consulta.janela, jogadores };
+            deOnde = "espn";
+          }
+        }
+      }
+
+      /* Fonte paga: só para conta ativa e só se o ESPN não resolveu. */
+      if (!time && orcamento > 0) {
         const buscado = await getPropsDoTime(eq.nome, { jogos: consulta.janela }).catch(() => null);
         orcamento--;
-        if (buscado) {
+        if (buscado?.jogadores?.length) {
           time = buscado;
-          trilha.api++;
+          deOnde = "api";
         }
-      } else if (emCache) {
-        /* Cache mais curto que a janela pedida: publica a amostra que existe
-           (o `avaliarSerie` recusa abaixo de MIN_AMOSTRA, nunca inventa). */
-        time = emCache;
-        trilha.banco++;
       }
+
+      /* Cache mais curto que a janela pedida: publica a amostra que existe
+         (o `avaliarSerie` recusa abaixo de MIN_AMOSTRA, nunca inventa). */
+      if (!time && emCache) {
+        time = emCache;
+        deOnde = "banco";
+      }
+
+      if (deOnde === "banco") trilha.banco++;
+      else if (deOnde === "espn") trilha.espnUsado++;
+      else if (deOnde === "api") trilha.api++;
 
       if (!time?.jogadores?.length) {
         semDados.push({
           nome: eq.nome,
-          motivo: vip ? "sem estatística de jogador na fonte" : "cache frio — conta ativa consulta a fonte",
+          motivo:
+            !def.statEspn && !vip
+              ? "essa métrica (passes) só existe na fonte paga — sem conta ativa não há de onde tirar"
+              : vip
+                ? "sem estatística de jogador na fonte"
+                : "sem histórico individual com dado na janela",
         });
         continue;
       }
@@ -264,7 +322,7 @@ export async function POST(req: NextRequest) {
       avaliados: alvo.length,
       total: resultados.length,
       jogosNaRodada: jogos,
-      trilha,
+      trilha: { banco: trilha.banco, espn: trilha.espnUsado, api: trilha.api },
       semDados: semDados.slice(0, 10),
       cobertura: {
         jogadoresAvaliados: candidatos.length,
@@ -273,8 +331,19 @@ export async function POST(req: NextRequest) {
       },
       aviso:
         "Frequência observada nos jogos com dado. Não é probabilidade nem garantia do próximo jogo." +
-        (!vip ? " Você está vendo só o que já está no cache: entre com uma conta ativa para consultar a fonte." : ""),
-      fonte: trilha.api > 0 ? "cache + API-Football" : "cache",
+        (trilha.espnUsado > 0
+          ? " Estatística individual do ESPN (mesmo resumo das outras abas)."
+          : !def.statEspn
+            ? " O ESPN não publica esta estatística por atleta: sem conta ativa com fonte paga, ela fica sem dado."
+            : ""),
+      fonte:
+        trilha.api > 0 && trilha.espnUsado > 0
+          ? "cache + ESPN + API-Football"
+          : trilha.api > 0
+            ? "cache + API-Football"
+            : trilha.espnUsado > 0
+              ? "ESPN"
+              : "cache",
       atualizadoEm: new Date().toISOString(),
     });
   } catch (e: any) {

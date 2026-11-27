@@ -17,6 +17,10 @@ type Resposta = {
   fontes?: { casa: string | null; fora: string | null };
   semDados?: boolean;
   desativado?: boolean;
+  /** Motivo honesto quando não há card nenhum (fonte paga fora + ESPN sem jogo). */
+  motivo?: string | null;
+  /** Aviso de procedência, ex.: estatística individual do ESPN. */
+  aviso?: string | null;
   /** 402/403 do servidor: conta sem VIP ou anônima. */
   locked?: boolean;
   erro?: string;
@@ -129,7 +133,9 @@ export default function PropsTab({ matchId, league, home, away }: { matchId: str
           <p className="text-[10px] text-mut mt-1">
             {data.desativado
               ? "Módulo desativado por configuração (PLAYER_PROPS_DISABLED)."
-              : "A API-Football não devolveu estatísticas individuais dos últimos jogos (cota ou time sem dados)."}
+              : /* O motivo vem da rota (fonte paga fora + ESPN sem jogo recente). Sem
+                   ele, a tela culpava a API-Football mesmo quando a fonte era o ESPN. */
+                data.motivo || "Nem a fonte paga nem o ESPN devolveram estatísticas individuais dos últimos jogos."}
           </p>
         </div>
       )}
@@ -148,6 +154,10 @@ export default function PropsTab({ matchId, league, home, away }: { matchId: str
           </div>
         ))}
       </div>
+
+      {data?.aviso && cards.length > 0 && (
+        <p className="text-[9px] text-mut text-center leading-snug">{data.aviso}</p>
+      )}
 
       {data?.amostra && cards.length > 0 && (
         <p className="text-[9px] text-mut text-center">

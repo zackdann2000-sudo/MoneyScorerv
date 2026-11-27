@@ -17,7 +17,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getUser();
   if (!user) return NextResponse.json({ ok: true, anon: true });
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Corpo inválido." }, { status: 400 });
+  }
   const team = body?.team;
   // Todos os campos são strings curtas validadas; logo precisa ser URL http(s) válida.
   const teamId = str(team?.id, 64);

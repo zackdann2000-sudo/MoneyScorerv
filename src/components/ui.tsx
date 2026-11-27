@@ -144,20 +144,34 @@ export function EmptyState({ title, sub, actionHref, actionLabel }: { title: str
 }
 
 export function StatCompareRow({ label, home, away, pct }: { label: string; home: string | number | null; away: string | number | null; pct?: boolean }) {
-  const h = parseFloat(String(home ?? "0").replace("%", "")) || 0;
-  const a = parseFloat(String(away ?? "0").replace("%", "")) || 0;
-  const tot = h + a || 1;
+  /* `null` NÃO é 0: quando um lado não publicou o número, não existe
+     comparação — e uma barra cheia do outro lado inventaria vantagem. */
+  const num = (v: string | number | null) => {
+    if (v == null || v === "") return null;
+    const n = parseFloat(String(v).replace("%", ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const h = num(home), a = num(away);
+  const comparavel = h != null && a != null;
+  const soma = comparavel ? h + a : 0;
+  const larguraCasa = comparavel ? (soma > 0 ? (h / soma) * 100 : 50) : 0;
   return (
     <div className="py-2">
       <div className="flex items-center justify-between text-sm font-bold">
-        <span className={h >= a ? "text-home" : "text-ink"}>{home ?? "—"}</span>
+        <span className={comparavel && h >= a ? "text-home" : "text-ink"}>{home ?? "—"}</span>
         <span className="text-[11px] text-mut font-semibold uppercase tracking-wide text-center px-2">{label}</span>
-        <span className={a > h ? "text-away" : "text-ink"}>{away ?? "—"}</span>
+        <span className={comparavel && a > h ? "text-away" : "text-ink"}>{away ?? "—"}</span>
       </div>
-      <div className="flex gap-1 mt-1 h-1.5">
-        <div className="rounded-full bg-home transition-all duration-500" style={{ width: `${(h / tot) * 100}%` }} />
-        <div className="rounded-full bg-away flex-1 transition-all duration-500" />
-      </div>
+      {comparavel ? (
+        <div className="flex gap-1 mt-1 h-1.5">
+          <div className="rounded-full bg-home transition-all duration-500" style={{ width: `${larguraCasa}%` }} />
+          <div className="rounded-full bg-away flex-1 transition-all duration-500" />
+        </div>
+      ) : (
+        <p className="mt-1 text-[9px] text-mut leading-none" title="A fonte não publicou os dois lados deste número">
+          sem dado para comparar
+        </p>
+      )}
     </div>
   );
 }

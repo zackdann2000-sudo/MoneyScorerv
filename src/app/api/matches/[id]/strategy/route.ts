@@ -10,6 +10,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const data = await specificStrategy(league, id);
     return NextResponse.json(data);
   } catch (e: any) {
-    return NextResponse.json({ strategy: null, error: e?.message || "Falha ao ler o histórico." }, { status: 200 });
+    /* 502 com `strategy: null`: a UI já trata o null, mas o status não pode
+       fingir sucesso quando o histórico não pôde ser lido. */
+    return NextResponse.json({ strategy: null, error: e?.message || "Falha ao ler o histórico." }, { status: 502 });
   }
 }

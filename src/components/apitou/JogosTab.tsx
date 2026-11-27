@@ -69,7 +69,8 @@ export default function JogosTab({
 
   if (loading && !data) return <Spinner label="Carregando jogos…" />;
   if (error) return <ErrorBox message={error} onRetry={() => refresh()} />;
-  if (!data) return null;
+  /* Sem dado, sem erro e sem loading: mostra o skeleton, nunca tela branca. */
+  if (!data) return <Spinner label="Carregando jogos…" />;
 
   const totalDia = visiveis.length;
 

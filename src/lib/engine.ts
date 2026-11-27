@@ -206,10 +206,14 @@ export async function getPickDoDia(dateYmd: string) {
     return result;
   });
 }
-function valueFor(g: HistGame, op: Oportunidade): number {
+/**
+ * Valor do jogo na métrica da oportunidade. `null` quando a fonte não publicou
+ * o dado daquele jogo — nunca 0 (0 inventado vira "não aconteceu" e contamina
+ * a série do gráfico).
+ */
+function valueFor(g: HistGame, op: Oportunidade): number | null {
   const def = MARKETS.find((m) => m.mercado === op.mercado && m.periodo === op.periodo);
-  const v = def ? def.value(g) : null;
-  return v ?? 0;
+  return def ? def.value(g) : null;
 }
 
 /* ================= TRACK RECORD (avaliação real do modelo) ================= */
