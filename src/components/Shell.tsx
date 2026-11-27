@@ -21,6 +21,7 @@ import { useApp } from "@/context/AppContext";
 import LegalFooter from "@/components/LegalFooter";
 import TrialBanner from "@/components/TrialBanner";
 import InstallApp from "@/components/InstallApp";
+import InstallPWA from "@/components/shared/InstallPWA";
 import Onboarding from "@/components/Onboarding";
 import StripeReturn from "@/components/StripeReturn";
 import TrialExpiradoModal from "@/components/TrialExpiradoModal";
@@ -122,6 +123,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <span className="block text-[9px] font-bold tracking-widest text-acc">LIVE ANALYTICS</span>
             </span>
           </Link>
+          {/* Só renderiza se o navegador confirmar que o app é instalável. */}
+          <InstallPWA />
           <button
             onClick={() => setBusca(true)}
             aria-label="Buscar time, liga ou jogo"
