@@ -83,6 +83,8 @@ export default function Desempenho() {
 
       <Audit audit={d.audit} period={period} setPeriod={setPeriod} league={league} setLeague={setLeague} market={market} setMarket={setMarket} />
 
+      <BacktestLedger defaultLiga={league} />
+
       {/* ---------- KPIs de prova social: acerto, ROI, lucro e amostra ---------- */}
       <div className="rounded-2xl border border-acc/30 bg-gradient-to-br from-acc/[0.10] to-panel p-3 mb-3">
         <div className="flex items-baseline justify-between gap-2">
@@ -258,6 +260,189 @@ function Audit({ audit, period, setPeriod, league, setLeague, market, setMarket 
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Backtest do ledger — "e se eu tivesse começado com N unidades?".
+ *
+ * Pega TODAS as picks já liquidadas (green/red) com odd real e anda a banca
+ * pick a pick, em ordem cronológica, com stake fixa. É a mesma matemática pura
+ * de `lib/backtest.ts` (testada) exposta por `/api/backtest` — a tela só desenha.
+ *
+ * O usuário escolhe liga e mercado (opções vindas do próprio ledger, nunca
+ * hardcoded) e a banca inicial (padrão 100). Stake é fixa de propósito: aqui se
+ * mede o modelo, não a gestão de banca. Composto transforma amostra pequena em
+ * curva bonita, então não usamos.
+ */
+function BacktestLedger({ defaultLiga }: { defaultLiga?: string }) {
+  const [liga, setLiga] = useState(defaultLiga && defaultLiga !== "all" ? defaultLiga : "all");
+  const [mercado, setMercado] = useState("all");
+  const [banca, setBanca] = useState("100");
+  const [d, setD] = useState<any>(null);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    const q = new URLSearchParams({ liga, mercado, banca, unidade: "1" });
+    let vivo = true;
+    fetch(`/api/backtest?${q.toString()}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        setErro(j?.error ? "Não foi possível simular a banca agora." : "");
+        setD(j);
+      })
+      .catch(() => vivo && setErro("Não foi possível simular a banca agora."));
+    return () => {
+      vivo = false;
+    };
+  }, [liga, mercado, banca]);
+
+  const b = d?.backtest;
+  const opcoes = d?.opcoes;
+  const curva: any[] = Array.isArray(b?.curva) ? b.curva : [];
+  const liquidadas: number = b?.liquidadas ?? 0;
+
+  const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(1).replace(".", ",")}%`);
+  const uni = (v: number | null) =>
+    v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2).replace(".", ",")}u`;
+  const cor = (v: number | null) =>
+    v == null ? "text-mut" : v > 0 ? "text-acc" : v < 0 ? "text-danger" : "text-mut";
+
+  return (
+    <div className="bg-panel border border-line rounded-2xl p-4 mb-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-acc">
+          <LineChart size={12} /> Backtest · evolução de banca
+        </p>
+        <p className="text-[9px] font-bold text-mut">
+          {liquidadas} pick{liquidadas === 1 ? "" : "s"} liquidada{liquidadas === 1 ? "" : "s"}
+        </p>
+      </div>
+
+      <p className="mt-1 text-[10px] leading-snug text-mut">
+        E se você tivesse começado com{" "}
+        <span className="font-bold text-txt">{banca || "100"} unidades</span> e apostado stake fixa
+        em cada pick liquidada? Percorre o ledger inteiro em ordem cronológica, com as odds
+        reais de cada pick. Nada aqui é projetado — só o passado liquidado.
+      </p>
+
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <select
+          value={liga}
+          onChange={(e) => setLiga(e.target.value)}
+          className="bg-panel2 border border-line rounded-lg px-2 py-1.5 text-[11px]"
+        >
+          <option value="all">Todas as ligas</option>
+          {(opcoes?.ligas || []).map((l: any) => (
+            <option key={l.valor} value={l.valor}>
+              {l.rotulo} ({l.picks})
+            </option>
+          ))}
+        </select>
+        <select
+          value={mercado}
+          onChange={(e) => setMercado(e.target.value)}
+          className="bg-panel2 border border-line rounded-lg px-2 py-1.5 text-[11px]"
+        >
+          <option value="all">Todos os mercados</option>
+          {(opcoes?.mercados || []).map((m: any) => (
+            <option key={m.valor} value={m.valor}>
+              {m.rotulo} ({m.picks})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <label className="mt-1.5 flex items-center gap-2">
+        <span className="shrink-0 text-[9px] uppercase text-mut">Banca inicial (u)</span>
+        <input
+          type="number"
+          min={1}
+          value={banca}
+          onChange={(e) => setBanca(e.target.value)}
+          className="w-24 bg-panel2 border border-line rounded-lg px-2 py-1 text-[11px] tabular-nums"
+        />
+        <span className="text-[9px] text-mut">stake fixa de 1u por pick</span>
+      </label>
+
+      {erro && <p className="mt-2 rounded-lg bg-danger/10 px-3 py-1.5 text-[11px] font-bold text-danger">{erro}</p>}
+
+      {!b ? (
+        <div className="skeleton h-40 mt-2" />
+      ) : !liquidadas ? (
+        <p className="mt-3 rounded-xl bg-panel2 p-3 text-[11px] leading-snug text-mut">
+          Nenhuma pick liquidada neste recorte. A banca só é desenhada com resultado real já
+          fechado — troque liga ou mercado, ou espere o próximo apito final.
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            <Kpi valor={b.bancaFinal.toFixed(2).replace(".", ",")} rotulo={`Banca final (de ${b.bancaInicial})`} destaque />
+            <Kpi valor={uni(b.lucro)} rotulo="Lucro" cor={cor(b.lucro)} />
+            <Kpi valor={pct(b.roi)} rotulo="ROI" cor={cor(b.roi)} />
+            <Kpi valor={`${b.drawdownMaximo.toFixed(2).replace(".", ",")}u`} rotulo="Drawdown máx" cor="text-danger" />
+          </div>
+          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+            <Kpi valor={`${b.greens}G / ${b.reds}R`} rotulo="Greens / Reds" />
+            <Kpi
+              valor={b.maiorSequenciaReds ? `${b.maiorSequenciaReds}R` : "—"}
+              rotulo="Pior sequência"
+              cor="text-danger"
+            />
+            <Kpi
+              valor={b.sequenciaAtual ? `${b.sequenciaAtual.n}${b.sequenciaAtual.tipo === "green" ? "G" : "R"}` : "—"}
+              rotulo="Sequência atual"
+              cor={b.sequenciaAtual?.tipo === "green" ? "text-acc" : "text-danger"}
+            />
+          </div>
+
+          {curva.length > 1 && (
+            <div className="mt-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[9px] font-bold uppercase text-mut">Banca pick a pick</p>
+                <p className="text-[9px] font-bold text-mut">
+                  {b.primeiro ?? "—"} → {b.ultimo ?? "—"}
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={170}>
+                <AreaChart data={curva} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="banca-desp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#23e57b" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#23e57b" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: "#8aa694" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: "#8aa694" }}
+                    axisLine={false}
+                    tickLine={false}
+                    domain={["dataMin - 1", "dataMax + 1"]}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: "#0d1c13", border: "1px solid #1d3626", fontSize: 11 }}
+                    labelFormatter={(i) => `Pick ${i}`}
+                    formatter={(v: any, _n: any, ctx: any) => [
+                      `${Number(v).toFixed(2)}u`,
+                      ctx?.payload?.resultado === "inicio" ? "Banca inicial" : `Banca (${ctx?.payload?.resultado})`,
+                    ]}
+                  />
+                  <Area type="monotone" dataKey="banca" stroke="#23e57b" strokeWidth={2} fill="url(#banca-desp)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <p className="mt-2 text-[10px] leading-snug text-mut">
+            Green rende stake × (odd − 1), red custa a stake. ROI é sobre tudo apostado. A
+            stake não compõe com o resultado de propósito: aqui se mede o modelo, não a gestão
+            de banca.
+            {(b.semOdd ?? 0) > 0 && ` ${b.semOdd} pick(s) sem odd válida ficaram fora da curva, mas contam no acerto.`}
+          </p>
+        </>
+      )}
     </div>
   );
 }

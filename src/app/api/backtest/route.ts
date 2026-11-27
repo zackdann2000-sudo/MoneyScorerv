@@ -7,13 +7,13 @@ export const dynamic = "force-dynamic";
 /**
  * GET → backtest do ledger para a tela `/validador`.
  *
- * Query:
- *   liga    nome exato da liga ou "all" (padrão)
- *   mercado chave do mercado (`over25`, `btts`, ...) ou "all" (padrão)
- *   linha   linha exata, quando o mercado tem linha
- *   dias    janela em dias contada do dia do JOGO (vazio = tudo)
- *   banca   banca inicial em unidades (padrão 100)
- *   unidade stake fixa por pick em unidades (padrão 1)
+ * Query (aceita nome PT e EN; a primeira chave presente vence):
+ *   liga | league      nome exato da liga ou "all" (padrão)
+ *   mercado | market   chave do mercado (`over25`, `btts`, ...) ou "all" (padrão)
+ *   linha              linha exata, quando o mercado tem linha
+ *   dias               janela em dias contada do dia do JOGO (vazio = tudo)
+ *   banca             banca inicial em unidades (padrão 100)
+ *   unidade            stake fixa por pick em unidades (padrão 1)
  *
  * Devolve `backtest` (matemática em `lib/backtest.ts`, puro e testado) e
  * `opcoes` (ligas/mercados com contagem, montadas do próprio ledger — o seletor
@@ -37,8 +37,8 @@ export async function GET(req: NextRequest) {
     const backtest = rodarBacktest(
       rows,
       {
-        liga: sp.get("liga") || "all",
-        mercado: sp.get("mercado") || "all",
+        liga: sp.get("liga") || sp.get("league") || "all",
+        mercado: sp.get("mercado") || sp.get("market") || "all",
         linha: numero(sp.get("linha")),
         dias: dias != null && dias > 0 ? dias : null,
       },
