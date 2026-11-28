@@ -17,10 +17,17 @@
  * Contrato de uso:
  *   const r = await rateLimit("login", ip, { limit: 10, windowSec: 300 });
  *   if (!r.ok) return tooMany(r.retryAfterSec);
+ *
+ * LIMPEZA: esta função NÃO apaga linhas vencidas. Antes ela fazia um
+ * `db.delete(... where expires_at < now())` a cada chamada — ou seja, um DELETE
+ * dentro do caminho crítico de login/cadastro/rotas caras, que existe para ser
+ * rápido. A poda agora é de `limparRateLimitsExpirados()`, chamada pelo cron
+ * diário (/api/cron/diario). Ler uma linha vencida não atrapalha: a janela é
+ * recalculada e o contador reinicia na mesma instrução do INSERT.
  */
 import { db } from "@/db";
 import { rateLimits as rateLimitsTable } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { lt, sql } from "drizzle-orm";
 
 export type RateLimitResult = {
   /** true quando a requisição está dentro do limite. */
@@ -62,9 +69,6 @@ export async function rateLimit(
   const expiresAt = new Date(windowStartMs + windowMs * 2);
 
   try {
-    // Limpeza oportunista de linhas vencidas (sem job dedicado).
-    await db.delete(rateLimitsTable).where(sql`${rateLimitsTable.expiresAt} < now()`);
-
     // Incremento atômico: cria a linha com hits=1 ou incrementa se a janela
     // for a mesma; se a janela mudou, reinicia o contador.
     const rows = await db
@@ -101,18 +105,54 @@ export async function rateLimit(
 }
 
 /**
- * Extrai o IP do cliente respeitando `X-Forwarded-For` (Vercel/proxies).
- * Cai para `X-Real-IP` e, por último, para "unknown" — que agrupa todos os
- * clientes sem IP identificável numa única chave (fail-closed no limite).
+ * Extrai o IP do cliente dos headers de PROXY.
+ *
+ * Ordem de confiança (importa — o X-Forwarded-For é escrito pelo CLIENTE):
+ *   1. `x-real-ip` — a Vercel grava com o IP da conexão; o cliente não escreve.
+ *   2. `x-vercel-forwarded-for` — também definido pela Vercel (lista, o primeiro
+ *      item é o cliente).
+ *   3. `x-forwarded-for` — só como ÚLTIMO recurso, para `next dev` local, onde
+ *      não existe proxy na frente. Em produção quem chega aqui é requisição
+ *      forjada: confiar nele zerava o limite por IP (força bruta de login,
+ *      farm de trial de 24h) trocando um header.
+ *   4. Sem nada → "unknown" (agrupa todo mundo numa chave só, fail-closed).
+ *
+ * O valor é validado como IP (v4 ou v6). Header forjado com texto qualquer vira
+ * "unknown" em vez de virar chave nova: sem isso, cada requisição com um header
+ * inventado criava uma linha diferente em `rate_limits` — o limite nunca fechava
+ * e a tabela crescia sem barreira.
  */
 export function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) {
-    // O primeiro item é o cliente original; os demais são proxies.
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first.slice(0, 64);
+  const seguro = req.headers.get("x-real-ip") || req.headers.get("x-vercel-forwarded-for");
+  const bruto = seguro || req.headers.get("x-forwarded-for") || "";
+  // Lista de proxies: o primeiro item é o cliente original.
+  const primeiro = bruto.split(",")[0]?.trim() || "";
+  if (primeiro.length > 64) return "unknown";
+  return ipValido(primeiro) ? primeiro : "unknown";
+}
+
+/** IPv4 ou IPv6 em texto. Qualquer outra coisa não vira chave de rate limit. */
+function ipValido(v: string): boolean {
+  if (!v) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) return true;
+  return v.includes(":") && /^[0-9a-fA-F:.]+$/.test(v) && v.length >= 3;
+}
+
+/**
+ * Apaga as linhas de rate limit já vencidas. Roda no cron diário, NUNCA por
+ * request.
+ *
+ * Devolve quantas linhas saíram. Uma falha aqui não pode derrubar nada: quem
+ * chama decide o que fazer (o cron só registra em `limpeza`).
+ */
+export async function limparRateLimitsExpirados(): Promise<{ ok: boolean; removidas: number }> {
+  try {
+    const r = await db.delete(rateLimitsTable).where(lt(rateLimitsTable.expiresAt, sql`now()`));
+    return { ok: true, removidas: r.rowCount ?? 0 };
+  } catch (e) {
+    console.error("[rateLimit] falha na limpeza de linhas vencidas", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { ok: false, removidas: 0 };
   }
-  const real = req.headers.get("x-real-ip");
-  if (real) return real.trim().slice(0, 64);
-  return "unknown";
 }

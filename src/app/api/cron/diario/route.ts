@@ -76,6 +76,11 @@
  * Saúde do sync: `npm run hub:status` (última escrita por liga, fixtures
  * finalizadas, análises degeneradas). Uma etapa pulada por tempo NÃO aparece
  * como erro em lugar nenhum — esse script é o que mostra.
+ *
+ * HOUSEKEEPING: a ação diária (`tudo` / `apitou`, 03:00 UTC) também poda
+ * `rate_limits` vencidos (`limparRateLimitsExpirados`) e devolve o resultado em
+ * `limpeza`. Antes essa poda era um DELETE dentro de `rateLimit()`, ou seja, em
+ * TODA requisição que passava por limite (login, cadastro, props, mercados).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -85,6 +90,7 @@ import { lerResumo, sincronizarEGravar } from "@/lib/apitou/store";
 import { sincronizarArbitros } from "@/lib/arbitrosFonte";
 import { runHubSync } from "@/lib/hub/sync-runner";
 import { diagnosticarPipeline } from "@/lib/pipelineHealth";
+import { limparRateLimitsExpirados } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 // 300s = maxDuration padrão do Fluid Compute em todos os planos (doc Vercel,
@@ -312,6 +318,20 @@ export async function GET(req: NextRequest) {
   const rankings = out.rankings as { falhas?: number; puladas?: string[] } | undefined;
   if (rankings && typeof rankings.falhas === "number" && rankings.falhas > 0) {
     parciais.push(`rankings:${rankings.falhas}`);
+  }
+
+  /* HOUSEKEEPING: poda de `rate_limits` vencidos.
+
+     Fica AQUI (uma vez por execução do cron diário) e não mais dentro de
+     `rateLimit()`, onde um DELETE rodava no caminho crítico de TODO login,
+     cadastro e rota cara. Roda na ação diária (`tudo` ou `apitou`), nunca nas
+     sondas de leitura (`estado`, `pipeline`).
+
+     Falha de limpeza NÃO entra em `falhas`: tabela de rate limit com linha
+     velha não é incidente de produto, e derrubar o status do cron por isso
+     faria o alarme de sync perder credibilidade. */
+  if (acao === "tudo" || acao === "apitou") {
+    out.limpeza = await limparRateLimitsExpirados();
   }
 
   if (falhas.length) {
