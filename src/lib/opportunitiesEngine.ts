@@ -14,14 +14,13 @@ import {
   getAllMatches,
   getTeamHistory,
   getSummaryRaw,
-  normOdds,
   normH2H,
   leagueInfo,
   type Match,
 } from "@/lib/espn";
 import { runModel, type Analysis } from "@/lib/model";
 import { vereditar, type Veredito } from "@/lib/vereditoEngine";
-import { oddsDoJogoComFallback } from "@/lib/providers";
+import { ancorasPinnaclePorEspnId, oddsDoValueBet, type AncoraMapa } from "@/lib/oddsPinnacle";
 import { getXgOficial, getXgOficialCache } from "@/lib/xgOfficial";
 import {
   avaliarOportunidades,
@@ -122,7 +121,8 @@ async function analisarJogo(
     if (xgA) ah.games.forEach((g) => { g.xgF = xgA.xgFor; g.xgA = xgA.xgAgainst; g.xgFonte = "api-football"; });
   }
 
-  // Uma chamada de resumo dá odds (normOdds) e H2H (normH2H) de uma vez.
+  // Uma chamada de resumo dá o H2H (normH2H) que o modelo cruza. As odds NÃO
+  // vêm daqui: EV só existe com cotação da Pinnacle (ver bloco abaixo).
   const sm = await getSummaryRaw(m.league, m.id, m.state).catch(() => null);
   const h2h = sm ? normH2H(sm) : { games: [] as any[] };
   const h2hPlacares = (h2h.games || []).map((g: any) => ({
@@ -141,33 +141,16 @@ async function analisarJogo(
   const model = runModel(m.home.name, m.away.name, hh.games, ah.games, 2.65, { games: h2h.games });
   if (model.status !== "ok" || !model.probs) return null;
 
-  const espnOdds = sm ? normOdds(sm) : null;
-  let odds: OddsMercado | null = (espnOdds as unknown as OddsMercado | null) ?? null;
-  let fonteOdd = (espnOdds as any)?.provider || (espnOdds ? "ESPN" : "—");
-
-  // Cascata de odds: API-Football (se casar a fixture) → ESPN. A API-Football
-  // traz o 1X2; o over/under vem do espnOdds passado como fallback.
-  if (opts.usarApiFootball) {
-    try {
-      const cas = await oddsDoJogoComFallback(m.home.name, m.away.name, m.date, espnOdds);
-      if (cas.odds) {
-        odds = cas.odds as OddsMercado;
-        fonteOdd = cas.source;
-      }
-    } catch {
-      /* mantém as odds da ESPN */
-    }
-  }
-
-  // Completa 1X2 com os preços do scoreboard, se a fonte de odds não trouxe.
-  if (odds && m.prices) {
-    odds = {
-      ...odds,
-      home: odds.home ?? m.prices.home,
-      draw: odds.draw ?? m.prices.draw,
-      away: odds.away ?? m.prices.away,
-    };
-  }
+  /* ODDS: SÓ Pinnacle — ver `oddsPinnacle.ts`. A ESPN/API-Football continuam no
+     resto da tela (placar, stats, H2H), mas NÃO alimentam o EV: mercado sem
+     cotação da Pinnacle não tem valor. Antes aqui existia uma cascata
+     "API-Football → ESPN" com preenchimento do 1X2 pelos `prices` do
+     scoreboard, que é exatamente o fallback proibido: dava `valor`/`stake` em
+     cima de preço de casa menor. Se a Pinnacle não cotou, `odds` é `null` e
+     `avaliarOportunidades` devolve lista vazia — sem EV inventado. */
+  const ancora: AncoraMapa = await ancorasPinnaclePorEspnId(m.id).catch(() => ({}));
+  const odds = oddsDoValueBet(ancora);
+  const fonteOdd = odds ? "Pinnacle" : "—";
 
   const meta: MetaJogo = {
     matchId: m.id,

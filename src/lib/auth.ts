@@ -2,7 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import {
-  users, sessions, favorites, alertPrefs, pushSubs, tipComments, visits, tickets, consents,
+  users, sessions, favorites, alertPrefs, pushSubs, tipComments, visits, tickets, consents, analysesOpened,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -162,6 +162,7 @@ export async function deleteUserCascade(userId: number): Promise<Record<string, 
         ["pushSubs", (t) => t.delete(pushSubs).where(eq(pushSubs.userId, userId))],
         ["tipComments", (t) => t.delete(tipComments).where(eq(tipComments.userId, userId))],
         ["visits", (t) => t.delete(visits).where(eq(visits.userId, userId))],
+        ["analysesOpened", (t) => t.delete(analysesOpened).where(eq(analysesOpened.userId, userId))],
         ["tickets", (t) => t.delete(tickets).where(eq(tickets.userId, userId))],
         ["consents", (t) => t.delete(consents).where(eq(consents.userId, userId))],
       ];

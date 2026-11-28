@@ -66,7 +66,18 @@ export default function IaTab({ matchId, league, odds }: { matchId: string; leag
 
   if (!a) return <div className="space-y-2"><div className="skeleton h-8 w-64" /><div className="skeleton h-32" /><div className="skeleton h-48" /><p className="text-[10px] text-mut text-center">🧠 O modelo está processando o histórico das equipes…</p></div>;
 
-  if (a.locked) return <VipLock label="IA Analista é VIP"><div className="h-64" /></VipLock>;
+  /* Bloqueio tem três motivos diferentes desde que a cota passou a ser cobrada
+     no servidor: visitante sem conta (401), conta Free que já usou a análise do
+     dia (402, `motivo: "quota"`) e o acesso VIP encerrado. O selo diz qual é. */
+  if (a.locked) {
+    const label =
+      a.motivo === "quota"
+        ? "Sua análise grátis de hoje já foi usada"
+        : a.motivo === "login"
+          ? "Crie sua conta grátis para ver a análise"
+          : "IA Analista é VIP";
+    return <VipLock label={label}><div className="h-64" /></VipLock>;
+  }
 
   // Fallback neutro: nunca card vermelho de erro para dados insuficientes
   if (a.status === "dados_insuficientes" || err) return (

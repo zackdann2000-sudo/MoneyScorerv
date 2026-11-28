@@ -1,68 +1,66 @@
 "use client";
 
 /**
- * Consome 1 análise da quota diária ao abrir a partida.
+ * Aviso de cota da análise diária (LEITURA, sem debitar nada).
  *
- * O contador é do SERVIDOR (`/api/quota`), não do localStorage — o local só
- * evita bater na API de novo quando a mesma partida é reaberta no mesmo dia.
- * Se a quota acabou, o paywall aparece aqui, em cima da análise, que é o
- * momento em que a pessoa já demonstrou interesse.
+ * QUEM DEBITA É O SERVIDOR: a rota `/api/matches/[id]/analysis` consome a cota
+ * no banco depois de calcular. Antes esta peça disparava `POST /api/quota` a
+ * partir do `localStorage` — o que fazia do browser a autoridade sobre o limite
+ * (limpar o storage liberava análises ilimitadas). Agora o componente só LÊ o
+ * estado (`GET /api/quota`) e mostra a linha de "essa foi sua análise grátis de
+ * hoje" quando o servidor confirma que ESTA partida foi a que gastou a cota.
+ *
+ * Se a cota acabou e a partida aberta não foi a que gastou, o bloqueio aparece
+ * dentro da aba de análise (402 da rota), não aqui — um aviso só, no lugar certo.
  */
 import { useEffect, useState } from "react";
-import PaywallCard from "@/components/PaywallCard";
 import { useApp } from "@/context/AppContext";
-import { jaConsumiuHoje, marcarConsumido } from "@/lib/quotaLocal";
+
+type RespostaQuota = {
+  logado?: boolean;
+  quota?: { restante?: number; esgotada?: boolean } | null;
+  partidasHoje?: string[];
+};
 
 export default function QuotaConsumo({ id }: { id: string }) {
   const { user, vip } = useApp();
-  const [bloqueado, setBloqueado] = useState(false);
   const [restante, setRestante] = useState<number | null>(null);
-  /** true = esta abertura gastou a ÚLTIMA análise do dia (aviso de 1 linha). */
-  const [ultimaDoDia, setUltimaDoDia] = useState(false);
+  const [contouEsta, setContouEsta] = useState(false);
 
   useEffect(() => {
-    // Sem login ou com VIP/admin: nada a consumir.
-    if (!user || vip) return;
-    if (user.quota?.ilimitada) return;
-    // Mesma chave usada pelo LimiteAnaliseGuard (fonte única em lib/quotaLocal).
-    if (jaConsumiuHoje(id)) return;
+    // Sem login ou com acesso completo: não há cota a explicar.
+    if (!user || vip || user.quota?.ilimitada) return;
     let vivo = true;
-    fetch("/api/quota", { method: "POST" })
-      .then((r) => r.json())
-      .then((j) => {
-        if (!vivo) return;
-        /* Só marca quando o servidor DEBITOU. Antes a chave era gravada mesmo no
-           bloqueio, e reabrir a mesma partida pulava o fetch — ou seja, quem
-           estourava a quota via a análise no reload. */
-        if (j?.liberado !== false) marcarConsumido(id);
-        const restavam = j?.quota?.restante ?? null;
-        setRestante(restavam);
-        setUltimaDoDia(j?.liberado !== false && restavam === 0);
-        if (j && j.liberado === false) setBloqueado(true);
-      })
-      .catch(() => {});
-    return () => { vivo = false; };
+
+    const ler = () =>
+      fetch("/api/quota", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j: RespostaQuota) => {
+          if (!vivo || !j?.logado || !j.quota) return;
+          setRestante(typeof j.quota.restante === "number" ? j.quota.restante : null);
+          setContouEsta((j.partidasHoje ?? []).includes(id));
+        })
+        .catch(() => {});
+
+    ler();
+    /* Segunda leitura: a rota de análise debita em paralelo a este mount, então
+       o primeiro GET pode chegar antes do débito. É só leitura — idempotente. */
+    const t = setTimeout(ler, 2500);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
   }, [id, user, vip]);
 
-  if (!bloqueado && !ultimaDoDia) return null;
+  if (!user || vip || user.quota?.ilimitada) return null;
+  if (!contouEsta || restante !== 0) return null;
+
   return (
     <div className="mb-2">
-      {/* Limite alcançado AGORA: o aviso vem antes do paywall e explica que não
-          foi erro — a próxima análise volta à meia-noite. */}
-      {bloqueado && <PaywallCard reason="quota" compacto />}
-      {bloqueado && restante === 0 && (
-        <p className="mt-1 text-center text-[10px] text-mut">
-          O contador zera à meia-noite (horário de Brasília). A análise continua aqui amanhã.
-        </p>
-      )}
-
-      {/* Consumiu a última liberada: aviso discreto, uma linha, sem paywall. */}
-      {!bloqueado && ultimaDoDia && (
-        <p className="rounded-xl border border-line bg-panel px-3 py-2 text-[10px] font-semibold leading-snug text-mut">
-          Essa foi sua análise grátis de hoje. A próxima volta à meia-noite (Brasília) — placares e
-          estatísticas continuam abertos até lá.
-        </p>
-      )}
+      <p className="rounded-xl border border-line bg-panel px-3 py-2 text-[10px] font-semibold leading-snug text-mut">
+        Essa foi sua análise grátis de hoje. A próxima volta à meia-noite (Brasília) — placares e
+        estatísticas continuam abertos até lá.
+      </p>
     </div>
   );
 }

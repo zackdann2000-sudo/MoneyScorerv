@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Clock, Lock, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { jaConsumiuHoje, matchIdDeCaminho } from "@/lib/quotaLocal";
+import { matchIdDeCaminho } from "@/lib/quotaLocal";
 
 /**
  * Limite diário — interceptação amigável no clique.
@@ -27,8 +27,31 @@ import { jaConsumiuHoje, matchIdDeCaminho } from "@/lib/quotaLocal";
 export default function LimiteAnaliseGuard() {
   const { user, vip } = useApp();
   const [aberto, setAberto] = useState(false);
+  /**
+   * Partidas que JÁ gastaram a análise do dia, segundo o SERVIDOR.
+   *
+   * Reabrir uma delas é livre (o débito é idempotente por partida), então o
+   * clique não pode ser interceptado. A lista vem de `GET /api/quota` — antes
+   * saía do `localStorage`, que é justamente a fonte em que não se pode confiar.
+   */
+  const [pagasHoje, setPagasHoje] = useState<string[]>([]);
 
   const esgotada = Boolean(user && !vip && !user.quota?.ilimitada && user.quota?.esgotada);
+
+  useEffect(() => {
+    if (!esgotada) return;
+    let vivo = true;
+    fetch("/api/quota", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        setPagasHoje(Array.isArray(j?.partidasHoje) ? j.partidasHoje.map(String) : []);
+      })
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [esgotada]);
 
   useEffect(() => {
     if (!esgotada) return;
@@ -50,7 +73,7 @@ export default function LimiteAnaliseGuard() {
 
       const id = matchIdDeCaminho(caminho);
       if (!id) return;
-      if (jaConsumiuHoje(id)) return; // já debitado hoje: reabrir é livre
+      if (pagasHoje.includes(id)) return; // já debitada hoje: reabrir é livre
 
       ev.preventDefault();
       ev.stopPropagation();
@@ -59,7 +82,7 @@ export default function LimiteAnaliseGuard() {
 
     document.addEventListener("click", aoClicar, true);
     return () => document.removeEventListener("click", aoClicar, true);
-  }, [esgotada]);
+  }, [esgotada, pagasHoje]);
 
   if (!aberto) return null;
 

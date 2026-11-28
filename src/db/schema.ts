@@ -134,6 +134,31 @@ export const visits = pgTable("visits", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * QUITAÇÃO DA COTA DIÁRIA — qual partida gastou a análise do dia.
+ *
+ * Existe para a cota ser cobrada UMA vez por partida/dia no SERVIDOR:
+ * reabrir a mesma análise no mesmo dia não debita de novo, e abrir outra
+ * partida depois de esgotar a cota é bloqueado. O índice único é a garantia
+ * atômica (INSERT ... ON CONFLICT DO NOTHING): duas abas abertas ao mesmo tempo
+ * não conseguem cobrar duas vezes a mesma partida.
+ *
+ * `dia` é o calendário de Brasília (YYYY-MM-DD), o mesmo de `users.quota_day` —
+ * sem cron de reset: linha de ontem simplesmente não conta para hoje.
+ *
+ * Tabela `analyses_opened` — migração: scripts/apply-quota-analises-migration.mjs
+ */
+export const analysesOpened = pgTable("analyses_opened", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  matchId: text("match_id").notNull(),
+  dia: text("dia").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("analyses_opened_uq").on(t.userId, t.matchId, t.dia),
+  index("analyses_opened_dia_idx").on(t.dia),
+]);
+
 export const tipVotes = pgTable("tip_votes", {
   id: serial("id").primaryKey(),
   matchId: text("match_id").notNull(),

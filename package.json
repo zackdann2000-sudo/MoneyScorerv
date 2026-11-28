@@ -21,6 +21,7 @@
     "db:migrate-referees": "node scripts/apply-referees-migration.mjs",
     "db:migrate-clv": "node scripts/apply-clv-migration.mjs",
     "db:migrate-motivo": "node scripts/apply-motivo-migration.mjs",
+    "db:migrate-quota-analises": "node scripts/apply-quota-analises-migration.mjs",
     "db:migrate-tend-historico": "node scripts/apply-tend-historico-migration.mjs",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
