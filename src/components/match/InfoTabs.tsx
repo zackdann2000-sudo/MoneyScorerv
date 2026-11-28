@@ -323,7 +323,7 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
 /* Resultado relativo ao time da casa desta partida:
    V = casa venceu · E = empate · D = casa perdeu */
 export function H2HTab({ d }: { d: any; league?: string }) {
-  const games = d.h2h?.games || [];
+  const games = useMemo(() => d.h2h?.games || [], [d]);
   const m = d.match;
 
   // Jogos mais recentes primeiro (a fonte nem sempre garante a ordem) e no

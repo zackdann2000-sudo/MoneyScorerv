@@ -40,31 +40,27 @@ type RespostaOpps = {
 };
 
 export default function ComboTab({ league }: { league: string }) {
-  const [oportunidades, setOportunidades] = useState<OportunidadeLike[] | null>(null);
-  const [erro, setErro] = useState("");
+  /* Estado único da busca: guarda o que veio da API (ou o erro). "carregando"
+     é derivado de `estado === null` — nada de setState síncrono no efeito. */
+  const [estado, setEstado] = useState<{ oportunidades: OportunidadeLike[] | null; erro: string } | null>(null);
   const [banca, setBanca] = useState(100);
-  const [carregando, setCarregando] = useState(false);
+  const oportunidades = estado?.oportunidades ?? null;
+  const erro = estado?.erro ?? "";
+  const carregando = estado === null;
 
   const { alternar, tem, substituir, setAberto } = useBetSlip();
 
   const carregar = useCallback(() => {
-    setCarregando(true);
-    setErro("");
     fetch("/api/opportunities?limit=40&minProb=0.55&maxMatches=10")
       .then((r) => r.json())
       .then((j: RespostaOpps) => {
         if (j?.error) {
-          setErro(j.error);
-          setOportunidades([]);
+          setEstado({ oportunidades: [], erro: j.error });
           return;
         }
-        setOportunidades(Array.isArray(j?.oportunidades) ? j.oportunidades : []);
+        setEstado({ oportunidades: Array.isArray(j?.oportunidades) ? j.oportunidades : [], erro: "" });
       })
-      .catch(() => {
-        setErro("A fonte não respondeu. Tente de novo em alguns minutos.");
-        setOportunidades([]);
-      })
-      .finally(() => setCarregando(false));
+      .catch(() => setEstado({ oportunidades: [], erro: "A fonte não respondeu. Tente de novo em alguns minutos." }));
   }, []);
 
   // Uma busca por montagem da aba: a lista do dia não muda a cada segundo.

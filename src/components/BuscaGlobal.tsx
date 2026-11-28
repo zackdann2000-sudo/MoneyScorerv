@@ -43,8 +43,14 @@ export default function BuscaGlobal({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [dados, setDados] = useState<{ grupos: { times: Resultado[]; ligas: Resultado[]; jogos: Resultado[] } } | null>(null);
-  const [carregando, setCarregando] = useState(false);
+  const [estado, setEstado] = useState<{ q: string; dados: { grupos: { times: Resultado[]; ligas: Resultado[]; jogos: Resultado[] } } | null } | null>(null);
+  /* Busca e "carregando" são DERIVADOS da consulta atual: a resposta guarda o
+     termo a que pertence, então digitar de novo já mostra o spinner sem
+     precisar de `setState` síncrono no corpo do efeito. */
+  const termo = q.trim();
+  const atual = estado?.q === termo ? estado : null;
+  const dados = termo.length >= 2 ? (atual?.dados ?? null) : null;
+  const carregando = termo.length >= 2 && atual === null;
   const [ativo, setAtivo] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,18 +60,12 @@ export default function BuscaGlobal({
 
   useEffect(() => {
     const t = q.trim();
-    if (t.length < 2) {
-      setDados(null);
-      setCarregando(false);
-      return;
-    }
-    setCarregando(true);
+    if (t.length < 2) return; // abaixo do mínimo: nada a buscar (sem setState no efeito)
     const id = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(t)}`)
         .then((r) => r.json())
-        .then((j) => setDados(j?.grupos ? j : null))
-        .catch(() => setDados(null))
-        .finally(() => setCarregando(false));
+        .then((j) => setEstado({ q: t, dados: j?.grupos ? j : null }))
+        .catch(() => setEstado({ q: t, dados: null }));
     }, 250);
     return () => clearTimeout(id);
   }, [q]);

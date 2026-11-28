@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ShoppingBasket,
   X,
@@ -48,15 +48,15 @@ export default function BetSlipDock() {
     setAberto,
   } = useBetSlip();
 
-  const [combos, setCombos] = useState<Combo[] | null>(null);
+  /* A sugestão guarda a assinatura do bilhete que a originou (total de pernas ×
+     correlação). Quando o bilhete muda, a sugestão antiga deixa de valer — por
+     DERIVAÇÃO, sem efeito de limpeza e sem setState no corpo do efeito. */
+  const assinatura = `${total}|${correlacao}`;
+  const [sugestao, setSugestao] = useState<{ assinatura: string; combos: Combo[]; erro: string } | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [erroCombos, setErroCombos] = useState("");
-
-  // Sugestão antiga deixa de valer quando o bilhete muda.
-  useEffect(() => {
-    setCombos(null);
-    setErroCombos("");
-  }, [total, correlacao]);
+  const valida = sugestao?.assinatura === assinatura ? sugestao : null;
+  const combos = valida?.combos ?? null;
+  const erroCombos = valida?.erro ?? "";
 
   /**
    * Só faz sentido pedir combo com 2+ pernas e sem correlação já ativa: a API
@@ -71,11 +71,11 @@ export default function BetSlipDock() {
     const partes = base.chave.split(":");
     const matchId = base.origem === "mercado" ? partes[1] : String(base.fixtureId);
     if (!matchId) {
-      setErroCombos("Não foi possível identificar a partida desta seleção.");
+      setSugestao({ assinatura, combos: [], erro: "Não foi possível identificar a partida desta seleção." });
       return;
     }
     setCarregando(true);
-    setErroCombos("");
+    setSugestao({ assinatura, combos: [], erro: "" });
     try {
       const r = await fetch("/api/combos/build", {
         method: "POST",
@@ -84,15 +84,12 @@ export default function BetSlipDock() {
       });
       const j = (await r.json()) as RespostaCombos;
       if (!r.ok || j.error) {
-        setCombos(null);
-        setErroCombos(j.error || "Não foi possível gerar os combos agora.");
+        setSugestao({ assinatura, combos: [], erro: j.error || "Não foi possível gerar os combos agora." });
         return;
       }
-      setCombos(j.combos ?? []);
-      if (j.aviso) setErroCombos(j.aviso);
+      setSugestao({ assinatura, combos: j.combos ?? [], erro: j.aviso || "" });
     } catch {
-      setCombos(null);
-      setErroCombos("Sem conexão com o servidor. Tente de novo.");
+      setSugestao({ assinatura, combos: [], erro: "Sem conexão com o servidor. Tente de novo." });
     } finally {
       setCarregando(false);
     }
@@ -115,7 +112,7 @@ export default function BetSlipDock() {
       estimado: p.estimado,
     }));
     substituir(novas);
-    setCombos(null);
+    setSugestao(null);
     setAberto(false);
   };
 

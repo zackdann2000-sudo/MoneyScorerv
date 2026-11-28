@@ -259,7 +259,7 @@ export function MomentumChart({
     if (!finished && minutoAoVivo != null && minutoAoVivo > 0) carregarRef.current();
   }, [minutoAoVivo, finished]);
 
-  const serie = dados?.serie || [];
+  const serie = useMemo(() => dados?.serie || [], [dados]);
   const p = dados?.pressao || null;
   /* Título sempre no relógio global; o payload é o fallback. */
   const minutoExibido = minutoAoVivo != null && minutoAoVivo > 0 ? minutoAoVivo : (dados?.minuto ?? 0);

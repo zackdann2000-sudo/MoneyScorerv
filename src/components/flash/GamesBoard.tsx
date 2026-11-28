@@ -40,8 +40,11 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
   const urlLiga = searchParams.get("liga");
   const dataValida = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-  const [date, setDate] = useState(() => (dataValida(urlData) ? urlData : hojeYmd()));
-  const [liga, setLiga] = useState<string | null>(urlLiga || null);
+  /* A URL é a fonte de verdade (?data=&liga=): o estado é DERIVADO dela, então
+     voltar/avançar do browser e link colado já vêm certos — sem efeito de
+     sincronização e sem `setState` no corpo do efeito. */
+  const date = dataValida(urlData) ? urlData : hojeYmd();
+  const liga = urlLiga || null;
   const [sport, setSport] = useState("football");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState("");
@@ -113,15 +116,6 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
     fetch(`/api/live-box?q=${encodeURIComponent(ids)}`).then((r) => r.json()).then((j) => setBoxes(j.boxes || {})).catch(() => {});
   }, [rows]);
 
-  // URL mudou (voltar/avançar do browser, link colado) -> reflete no estado.
-  useEffect(() => {
-    if (dataValida(urlData) && urlData !== date) setDate(urlData);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlData]);
-  useEffect(() => {
-    setLiga(urlLiga || null);
-  }, [urlLiga]);
-
   /** Escreve data/liga na URL sem empilhar histórico (replace). */
   const sincronizarUrl = useCallback(
     (params: { data?: string; liga?: string | null }) => {
@@ -136,7 +130,6 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
 
   const mudarDia = useCallback(
     (ymd: string) => {
-      setDate(ymd);
       sincronizarUrl({ data: ymd });
     },
     [sincronizarUrl],
@@ -144,7 +137,6 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
 
   const abrirLiga = useCallback(
     (code: string) => {
-      setLiga(code);
       sincronizarUrl({ liga: code });
     },
     [sincronizarUrl],
@@ -152,7 +144,6 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
 
   /** Volta para a lista de ligas MANTENDO o dia escolhido. */
   const voltarParaLigas = useCallback(() => {
-    setLiga(null);
     sincronizarUrl({ liga: null });
   }, [sincronizarUrl]);
 

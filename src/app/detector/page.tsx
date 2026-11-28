@@ -37,7 +37,7 @@ export default function Detector() {
   const [modoDesapito, setModoDesapito] = useState(false);
 
   useEffect(() => { fetch("/api/detector").then((r) => r.json()).then(setOpts).catch(() => {}); }, []);
-  const metrics = opts?.metrics || [];
+  const metrics = useMemo(() => opts?.metrics || [], [opts]);
   const cats = useMemo(() => [...new Set(metrics.map((m: any) => m.cat))] as string[], [metrics]);
   const curMetric = metrics.find((m: any) => m.id === metric);
   const [cat, setCat] = useState("Gols");

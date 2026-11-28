@@ -31,7 +31,7 @@ export default function WinProbChart({
   /** Minuto do estado GLOBAL do jogo (relógio do topo): manda no título do card. */
   minuto?: number | null;
 }) {
-  const serie = dados?.serie || [];
+  const serie = useMemo(() => dados?.serie || [], [dados]);
   const atual = dados?.atual || null;
 
   const caminhos = useMemo(() => {

@@ -19,25 +19,40 @@ const ANO_VITALICIO = 2090;
 
 export default function TrialExpiradoModal() {
   const { user } = useApp();
-  const [aberto, setAberto] = useState(false);
-
   const exp = user?.expiresAt ?? null;
+  if (!user || !exp || user.isAdmin) return null;
+  /* `key` remonta só quando muda a conta ou a data de expiração, então a
+     decisão de abrir fica congelada por trial (um re-render do contexto não
+     fecha o aviso na cara do usuário). */
+  return <AvisoTrial key={`${user.id}|${exp}`} exp={exp} userId={user.id} />;
+}
 
-  useEffect(() => {
-    if (!user || !exp || user.isAdmin) return;
+function AvisoTrial({ exp, userId }: { exp: string; userId: number }) {
+  const chave = `gs_trial_exp_modal_${userId}_${exp}`;
+  /* Inicializador preguiçoso (só no cliente, uma vez por trial): decide se o
+     aviso ainda precisa aparecer. Lê o localStorage aqui, e não no corpo de um
+     efeito, para não disparar `setState` síncrono no efeito. */
+  const [aberto, setAberto] = useState(() => {
     const t = new Date(exp).getTime();
-    if (!Number.isFinite(t) || t > Date.now()) return;
-    if (new Date(exp).getFullYear() >= ANO_VITALICIO) return;
-
-    const chave = `gs_trial_exp_modal_${user.id}_${exp}`;
+    if (!Number.isFinite(t) || t > Date.now()) return false;
+    if (new Date(exp).getFullYear() >= ANO_VITALICIO) return false;
     try {
-      if (localStorage.getItem(chave)) return;
-      localStorage.setItem(chave, "1");
+      return localStorage.getItem(chave) === null;
     } catch {
       /* storage bloqueado: mostra mesmo assim (pode repetir no reload) */
+      return true;
     }
-    setAberto(true);
-  }, [user, exp]);
+  });
+
+  /* Marca como visto. Efeito só escreve em sistema externo (localStorage). */
+  useEffect(() => {
+    if (!aberto) return;
+    try {
+      localStorage.setItem(chave, "1");
+    } catch {
+      /* storage bloqueado: segue mostrando */
+    }
+  }, [aberto, chave]);
 
   if (!aberto) return null;
 

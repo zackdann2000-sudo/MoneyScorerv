@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import { Crest } from "@/components/ui";
@@ -135,8 +135,8 @@ export function ChatFab({ matchId }: { matchId: string }) {
   const [list, setList] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [err, setErr] = useState("");
-  const load = () => fetch(`/api/supertips/social?matchId=${encodeURIComponent(matchId)}`).then((r) => r.json()).then((j) => setList(j.comments || [])).catch(() => {});
-  useEffect(() => { if (open) load(); }, [open, matchId]);
+  const load = useCallback(() => fetch(`/api/supertips/social?matchId=${encodeURIComponent(matchId)}`).then((r) => r.json()).then((j) => setList(j.comments || [])).catch(() => {}), [matchId]);
+  useEffect(() => { if (open) load(); }, [open, load]);
   const send = async () => {
     setErr("");
     const r = await fetch("/api/supertips/social", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "comment", matchId, body: text }) });

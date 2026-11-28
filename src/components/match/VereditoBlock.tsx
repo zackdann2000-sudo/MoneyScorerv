@@ -15,21 +15,26 @@ export function VereditoBlock({ matchId }: { matchId: string }) {
   const [v, setV] = useState<Veredito | null>(null);
   const [ladder, setLadder] = useState<LadderInfo>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  /** Qual matchId já voltou da API — o "carregando" é DERIVADO disto. */
+  const [carregadoId, setCarregadoId] = useState<string | null>(null);
+  const carregando = carregadoId !== matchId;
 
   useEffect(() => {
     let vivo = true;
-    setCarregando(true);
     fetch(`/api/matches/${matchId}/analysis`)
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
         if (j?.ladder) setLadder(j.ladder as LadderInfo);
-        if (j?.veredito) setV(j.veredito as Veredito);
-        else setErro(j?.error || "sem-base");
+        if (j?.veredito) {
+          setV(j.veredito as Veredito);
+          setErro(null);
+        } else setErro(j?.error || "sem-base");
       })
       .catch(() => vivo && setErro("rede"))
-      .finally(() => vivo && setCarregando(false));
+      .finally(() => {
+        if (vivo) setCarregadoId(matchId);
+      });
     return () => {
       vivo = false;
     };

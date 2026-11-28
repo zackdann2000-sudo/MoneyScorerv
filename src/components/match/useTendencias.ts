@@ -56,22 +56,20 @@ export function chaveTend(matchId: string, league: string, p: ParamsTend): strin
 
 export function useTendencias(matchId: string, league: string, p: ParamsTend = {}) {
   const key = chaveTend(matchId, league, p);
-  const pronto = memo.get(key) ?? null;
-  const [data, setData] = useState<TendenciasResp | null>(pronto);
-  const [loading, setLoading] = useState(!pronto);
-  const [error, setError] = useState<string | null>(null);
+  /* Cache de módulo e último resultado remoto são lidos no RENDER: nada de
+     `setState` síncrono no corpo do efeito só para copiar o cache (regra
+     `react-hooks/set-state-in-effect`). O resultado remoto carrega a chave a
+     que pertence, então trocar os filtros volta ao esqueleto na hora. */
+  const doCache = memo.get(key) ?? null;
+  const [remoto, setRemoto] = useState<{ key: string; data: TendenciasResp | null; error: string | null }>({
+    key: "",
+    data: null,
+    error: null,
+  });
 
   useEffect(() => {
-    const hit = memo.get(key);
-    if (hit) {
-      setData(hit);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (memo.has(key)) return; // já veio do cache neste render
     let vivo = true;
-    setLoading(true);
-    setError(null);
     const qs = new URLSearchParams({
       league,
       amostra: String(p.amostra ?? 10),
@@ -84,19 +82,21 @@ export function useTendencias(matchId: string, league: string, p: ParamsTend = {
         if (!vivo) return;
         if (!ok) throw new Error(body?.error || "Não foi possível calcular as tendências.");
         memo.set(key, body as TendenciasResp);
-        setData(body as TendenciasResp);
+        setRemoto({ key, data: body as TendenciasResp, error: null });
       })
       .catch((e) => {
-        if (vivo) setError(e instanceof Error ? e.message : "Falha ao carregar.");
-      })
-      .finally(() => {
-        if (vivo) setLoading(false);
+        if (vivo) setRemoto({ key, data: null, error: e instanceof Error ? e.message : "Falha ao carregar." });
       });
     return () => {
       vivo = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  const atual = remoto.key === key ? remoto : null;
+  const data = doCache ?? atual?.data ?? null;
+  const error = doCache ? null : (atual?.error ?? null);
+  const loading = doCache === null && atual === null;
 
   return { data, loading, error };
 }

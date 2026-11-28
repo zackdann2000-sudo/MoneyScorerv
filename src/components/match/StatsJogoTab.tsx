@@ -50,21 +50,33 @@ export default function StatsJogoTab({
   home: Team;
   away: Team;
 }) {
-  const [freq, setFreq] = useState<any>(null);
   const [jogo, setJogo] = useState<any>(null);
   const [amostra, setAmostra] = useState<5 | 10>(10);
-  const [erro, setErro] = useState<string | null>(null);
+
+  /* A resposta da frequência guarda a chave do pedido (jogo|liga|amostra): ao
+     trocar a amostra, o resultado antigo deixa de valer por DERIVAÇÃO (volta ao
+     esqueleto) sem `setState` síncrono no corpo do efeito. */
+  const chaveFreq = `${matchId}|${league}|${amostra}`;
+  const [freqEstado, setFreqEstado] = useState<{ chave: string; freq: any; erro: string | null } | null>(null);
+  const atualFreq = freqEstado?.chave === chaveFreq ? freqEstado : null;
+  const freq = atualFreq?.freq ?? null;
+  const erro = atualFreq?.erro ?? null;
 
   useEffect(() => {
     let on = true;
-    setFreq(null);
     fetch(`/api/matches/${matchId}/frequencia?league=${encodeURIComponent(league)}&amostra=${amostra}`)
       .then((r) => r.json())
-      .then((j) => (on ? (j.error ? setErro(j.error) : setFreq(j)) : null))
-      .catch(() => on && setErro("Não foi possível carregar a frequência agora."));
+      .then((j) => {
+        if (!on) return;
+        setFreqEstado(j?.error ? { chave: chaveFreq, freq: null, erro: String(j.error) } : { chave: chaveFreq, freq: j, erro: null });
+      })
+      .catch(() => {
+        if (on) setFreqEstado({ chave: chaveFreq, freq: null, erro: "Não foi possível carregar a frequência agora." });
+      });
     return () => {
       on = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, league, amostra]);
 
   /* Stats do jogo (cantos/cartões reais). Fonte pode não ter publicado — aí o

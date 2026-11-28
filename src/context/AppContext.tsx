@@ -47,7 +47,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const favRef = useRef<FavTeam[]>([]);
   const flagsRef = useRef(flags);
   // refs espelhando estado são sincronizadas em efeito (nunca durante o render)
-  useEffect(() => { const id = lerOuCriarDeviceId(); if (id && id !== deviceId) setDeviceId(id); }, [deviceId]);
+  // O deviceId já nasce do localStorage no inicializador preguiçoso do useState
+  // acima — não precisa de um efeito só para copiar o mesmo valor.
   useEffect(() => { favRef.current = favorites; }, [favorites]);
   useEffect(() => { flagsRef.current = flags; }, [flags]);
 

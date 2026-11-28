@@ -31,14 +31,18 @@ export default function LigasClient({ initialDate }: { initialDate: string }) {
   const searchParams = useSearchParams();
   const urlData = searchParams.get("data");
 
-  const [date, setDate] = useState(dataValida(initialDate) ? initialDate : hojeYmd());
+  const dataInicial = dataValida(initialDate) ? initialDate : hojeYmd();
+  /* A URL é a fonte de verdade da data (`?data=YYYY-MM-DD`): o estado é
+     DERIVADO dela, então clicar num dia só escreve na URL, voltar/avançar do
+     browser e link colado já vêm certos — sem efeito de sincronização (e sem
+     `setState` no corpo do efeito). */
+  const date = dataValida(urlData) ? urlData : dataInicial;
   const [rows, setRows] = useState<Linha[] | null>(null);
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     let vivo = true;
-    setErr("");
     fetch(`/api/matches?date=${date}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
@@ -51,6 +55,7 @@ export default function LigasClient({ initialDate }: { initialDate: string }) {
           map.set(m.league, cur);
         }
         setRows([...map.values()].sort((a, b) => b.live - a.live || b.n - a.n || a.country.localeCompare(b.country)));
+        setErr("");
         setLoadedDate(date);
       })
       .catch(() => {
@@ -64,16 +69,9 @@ export default function LigasClient({ initialDate }: { initialDate: string }) {
     };
   }, [date]);
 
-  /* URL mudou (browser voltar/avançar ou link colado) -> reflete no estado. */
-  useEffect(() => {
-    if (dataValida(urlData) && urlData !== date) setDate(urlData);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlData]);
-
   const mudarDia = useCallback(
     (ymd: string) => {
       setErr("");
-      setDate(ymd);
       // Mesma convenção da tela de Jogos: replace (não empilha histórico).
       router.replace(`${pathname}?data=${ymd}`, { scroll: false });
     },
