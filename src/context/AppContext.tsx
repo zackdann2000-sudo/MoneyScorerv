@@ -61,6 +61,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then((r) => r.json())
       .then((j) => setUser(j.user || null))
       .catch(() => setUser(null));
+    /* REGISTRO ÚNICO DO SERVICE WORKER DO APP.
+
+       Este é o ÚNICO `navigator.serviceWorker.register("/sw.js")` da aplicação.
+       Quem mais precisa do worker ESPERA por ele:
+         • `config/page.tsx` → `navigator.serviceWorker.ready` (push nativo VAPID);
+         • `layout.tsx` → OneSignal com `serviceWorkerPath: "sw.js"` reaproveita
+           este mesmo registro (mesma URL + mesmo scope = mesma registration).
+       Registrar de novo nos dois lados era redundante: chamada idempotente, mas
+       dava a impressão de que cada tela era dona do worker — e um dia alguém
+       aponta um dos dois para outro arquivo e passa a ter dois workers na raiz.
+
+       Aqui e não no OneSignal de propósito: se o SDK de terceiro for bloqueado
+       (adblock, CDN fora), o PWA continua instalável e com cache offline. */
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 

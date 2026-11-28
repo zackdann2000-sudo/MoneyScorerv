@@ -102,7 +102,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 await OneSignal.init({
                   appId: "f06a705d-ebd0-4390-9a11-207fe769b81d",
                   // usa o MESMO worker do PWA: dois workers no scope "/" se anulam e o do
-                  // OneSignal não tem handler de fetch (bloqueia a instalação no Android)
+                  // OneSignal não tem handler de fetch (bloqueia a instalação no Android).
+                  // O registro em si é feito UMA vez em AppContext; aqui o SDK apenas
+                  // reaproveita essa registration (mesma URL + mesmo scope).
                   serviceWorkerPath: "sw.js",
                   serviceWorkerParam: { scope: "/" },
                   allowLocalhostAsSecureOrigin: true,

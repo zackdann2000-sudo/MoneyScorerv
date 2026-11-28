@@ -130,8 +130,12 @@ export default function Config() {
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Navegador sem suporte a Web Push.");
       const perm = await Notification.requestPermission();
       if (perm !== "granted") { setNativeState("fail"); alert("Permissão negada nas configurações do navegador."); return; }
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
+      /* NÃO registra de novo: o worker do app é registrado uma única vez em
+         `AppContext` (registro no root layout, antes daqui). `ready` resolve a
+         registration já ativa — registrar aqui criava uma segunda chamada de
+         `register("/sw.js")`, que além de redundante escondia quem é o dono do
+         worker. */
+      const reg = await navigator.serviceWorker.ready;
       const { publicKey } = await (await fetch("/api/push/subscribe")).json();
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(publicKey) as BufferSource });
       await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub }) });
