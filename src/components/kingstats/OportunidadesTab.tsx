@@ -141,7 +141,7 @@ export default function OportunidadesTab({
           {data.aviso
             ? data.aviso
             : soPrincipais && (data.oportunidades?.length ?? 0) > 0
-              ? "Nenhuma oportunidade nas principais ligas agora. Use \"Todas as Ligas\" para ver o recorte completo."
+              ? "Nenhuma oportunidade encontrada nas Principais Ligas hoje. O modelo só publica as 18 ligas do catálogo, então não há um recorte maior para abrir."
               : "Nenhuma oportunidade bateu o critério agora. Volte mais tarde — a cada jogo no dia muda."}
         </EmptyBox>
       ) : (

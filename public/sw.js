@@ -95,8 +95,40 @@ self.addEventListener("notificationclick", function (event) {
  * HTML e dados SEMPRE da rede primeiro (odd velha é pior que erro);
  * só o build estático do Next (nome com hash) é cache-first.
  */
-const GS_CACHE = "gs-pwa-v2";
+const GS_CACHE = "gs-pwa-v3";
 const GS_SHELL = ["/", "/manifest.json", "/icon-192x192.png", "/icon-512x512.png"];
+
+/**
+ * Grava uma resposta no cache — só se ela for APROVEITÁVEL.
+ *
+ * `res.ok` barra 404/500/502: antes um erro de servidor entrava no cache e
+ * voltava como se fosse a página/asset de verdade, inclusive offline (o Chrome
+ * servia o HTML de erro em vez de tentar a rede na próxima).
+ *
+ * `res.type === "opaque"` (cross-origin sem CORS) também fica fora: não dá para
+ * saber se veio certo, e guardar isso só gasta cota do Cache Storage.
+ *
+ * O `.catch()` do `caches.open()`/`put()` é obrigatório: sem ele, falha de
+ * storage (cota estourada, modo privado no iOS, disco cheio) virava unhandled
+ * rejection DENTRO do service worker — o worker morria no meio da resposta e a
+ * página não carregava.
+ */
+function guardarNoCache(req, res) {
+  if (!res || !res.ok || res.type === "opaque") return;
+  try {
+    const copia = res.clone();
+    caches
+      .open(GS_CACHE)
+      .then(function (c) {
+        return c.put(req, copia);
+      })
+      .catch(function () {
+        /* cache é otimização: a resposta ao usuário já foi entregue */
+      });
+  } catch (e) {
+    /* clone() pode lançar se o corpo já foi consumido */
+  }
+}
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -138,10 +170,7 @@ self.addEventListener("fetch", function (event) {
         return (
           hit ||
           fetch(req).then(function (res) {
-            const copy = res.clone();
-            caches.open(GS_CACHE).then(function (c) {
-              c.put(req, copy);
-            });
+            guardarNoCache(req, res);
             return res;
           })
         );
@@ -155,16 +184,32 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(
       fetch(req)
         .then(function (res) {
-          const copy = res.clone();
-          caches.open(GS_CACHE).then(function (c) {
-            c.put(req, copy);
-          });
+          guardarNoCache(req, res);
           return res;
         })
         .catch(function () {
-          return caches.match(req).then(function (hit) {
-            return hit || caches.match("/");
-          });
+          return caches
+            .match(req)
+            .then(function (hit) {
+              return hit || caches.match("/");
+            })
+            .then(function (res) {
+              /* Sem cache nenhum: melhor uma página de “sem conexão” do que a
+                 tela de erro do navegador (e melhor que devolver undefined, o
+                 que faria o respondWith lançar). */
+              return (
+                res ||
+                new Response(
+                  "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>" +
+                    "<title>Sem conexão — GreenScore</title>" +
+                    "<body style='margin:0;background:#001e28;color:#e6edf3;font:15px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;text-align:center;padding:24px'>" +
+                    "<div><h1 style='font-size:18px;margin:0 0 8px'>Sem conexão</h1>" +
+                    "<p style='margin:0;opacity:.75'>O GreenScore precisa de rede para carregar dados de jogo.</p>" +
+                    "<p style='margin:12px 0 0'><button onclick='location.reload()' style='background:#22c55e;color:#00140a;border:0;border-radius:10px;padding:10px 16px;font-weight:800'>Tentar de novo</button></p></div>",
+                  { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } },
+                )
+              );
+            });
         })
     );
   }

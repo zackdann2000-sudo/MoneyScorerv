@@ -93,7 +93,7 @@ export default function FixturesTab({
       {data && fixtures.length === 0 && !loading && (
         <EmptyBox>
           {soPrincipais && data.fixtures.length > 0
-            ? "Nenhum jogo das principais ligas neste dia. Use \"Todas as Ligas\" para ver o dia completo."
+            ? "Nenhum jogo das Principais Ligas neste dia. A grade só publica as ligas do catálogo — não existe recorte maior para abrir."
             : `Nenhum jogo encontrado para este dia${league ? ` na competição "${league}"` : ""}. Tente outra data ou remova o filtro.`}
         </EmptyBox>
       )}

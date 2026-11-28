@@ -85,20 +85,10 @@ export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string)
       {data && total === 0 && !loading && (
         <EmptyBox>
           {soPrincipais ? (
-            <div className="space-y-2.5">
-              <p>
-                Nenhum jogo das principais ligas com esses filtros. O board de hoje pode estar só
-                com competições menores.
-              </p>
-              {/* Atalho: desligar o filtro aqui evita procurar a pílula no topo. */}
-              <button
-                type="button"
-                onClick={() => setSoPrincipais(false)}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-acc text-bg text-[11px] font-extrabold"
-              >
-                Ver Todas as Ligas
-              </button>
-            </div>
+            <p>
+              Nenhum jogo das Principais Ligas com esses filtros. O board de hoje pode estar só
+              com competições fora do catálogo.
+            </p>
           ) : (
             <p>Nenhum jogo para mostrar com esses filtros. Tente “Todas” ou limpe a busca.</p>
           )}

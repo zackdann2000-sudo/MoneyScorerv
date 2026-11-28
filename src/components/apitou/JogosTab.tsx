@@ -102,7 +102,7 @@ export default function JogosTab({
 
       {totalDia === 0 ? (
         <EmptyBox>
-          {soPrincipais ? "Nenhum jogo das principais ligas neste dia. Use \"Todas as Ligas\" para ver o dia completo." : "Nenhum jogo neste dia. O site só cobre a semana corrente."}
+          {soPrincipais ? "Nenhum jogo das Principais Ligas neste dia. O site só cobre a semana corrente — e só as ligas do catálogo." : "Nenhum jogo neste dia. O site só cobre a semana corrente."}
         </EmptyBox>
       ) : (
         <ul className="space-y-2">

@@ -321,7 +321,7 @@ export default function GamesBoard({ mode = "all" }: { mode?: "all" | "live" | "
               <p className="font-bold">Nenhum jogo neste filtro</p>
               <p className="text-sm text-mut mt-1">
                 {soPrincipais && (rows?.length ?? 0) > 0
-                  ? 'Nenhum jogo das principais ligas nesta data. Toque em "Todas as Ligas" para ver o dia completo.'
+                  ? "Nenhum jogo das Principais Ligas nesta data. A grade só publica as ligas do catálogo."
                   : "A fonte não publicou partidas para esta data e este recorte. O contador usa a mesma lista."}
               </p>
             </>

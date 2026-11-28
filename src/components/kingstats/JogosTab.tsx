@@ -125,7 +125,7 @@ export default function JogosTab({
           {data.total === 0
             ? "A fonte não tem jogos para este dia."
             : soPrincipais && lista.some((j) => !j.esoccer)
-              ? "Nenhum jogo das principais ligas com esta busca. Use \"Todas as Ligas\" para ver o dia completo."
+              ? "Nenhum jogo das Principais Ligas com esta busca. Limpe a busca ou o filtro de liga para ver o dia completo."
               : "Nenhum jogo bate com a busca/filtro."}
         </EmptyBox>
       ) : (

@@ -135,7 +135,7 @@ export default function DesajustesTab({
       {lista.length === 0 ? (
         <EmptyBox>
           {soPrincipais && data.total === 0
-            ? "Nenhum desajuste nas principais ligas. Use \"Todas as Ligas\" para ver o recorte completo."
+            ? "Nenhum desajuste nas Principais Ligas hoje. O mercado está alinhado com o modelo — o que também é informação."
             : `Nenhum desajuste${nivel ? ` no nível "${nivel}"` : ""}. O mercado está alinhado com o modelo — o que também é informação.`}
         </EmptyBox>
       ) : (
