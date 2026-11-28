@@ -466,12 +466,21 @@ export const stripeEventos = pgTable("stripe_eventos", {
 export const teamXgCache = pgTable("team_xg_cache", {
   teamId: text("team_id").primaryKey(),
   teamName: text("team_name").notNull().default(""),
+  /**
+   * Nome normalizado (minúsculas, sem acento, só [a-z0-9]) — chave de busca.
+   *
+   * Existe para a leitura do cache ser um `WHERE` indexado em vez de trazer a
+   * tabela inteira e comparar em JS. O valor gravado usa a MESMA função
+   * `norm()` de `xgOfficial.ts`; preencher em SQL (migração 0026) replica a
+   * regra para o acervo que já estava no banco.
+   */
+  teamNameNorm: text("team_name_norm").notNull().default(""),
   xgFor: real("xg_for").notNull().default(0),
   xgAgainst: real("xg_against").notNull().default(0),
   sample: integer("sample").notNull().default(0),
   source: text("source").notNull().default("api-football"),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index("team_xg_cache_norm_idx").on(t.teamNameNorm)]);
 
 /**
  * Histórico por time para o motor de tendências ("bateu X de Y").

@@ -2,14 +2,17 @@
  * xG OFICIAL (API-Football) — média de gols esperados dos últimos jogos de um time.
  *
  * Fluxo:
- *   1. resolve o ID do time na API-Football pelo nome (`/teams?search=`);
- *   2. lê o cache no Neon (`team_xg_cache`, TTL 24h, chave = ID do time);
+ *   1. resolve o ID do time na API-Football pelo nome (`/teams?search=`), com
+ *      igualdade EXATA do nome normalizado (sem fuzzy: "Sport" ≠ "Sporting");
+ *   2. lê o cache no Neon (`team_xg_cache`, TTL 24h) — primeiro pelo nome
+ *      normalizado (índice `team_xg_cache_norm_idx`) e depois pela chave;
  *   3. se vencido, puxa os últimos fixtures e o xG de cada um
  *      (`/fixtures/statistics` → type "expected_goals");
  *   4. grava no cache e devolve `{ xgFor, xgAgainst, sample }`.
  *
  * Qualquer falha (time não encontrado, cota, rede) devolve `null` — quem chama
  * cai no xG estimado da ESPN. Este módulo NÃO importa o motor, só provê o dado.
+ * Nada é estimado aqui: o nome de outro clube nunca vira xG deste.
  */
 import { db } from "@/db";
 import { teamXgCache } from "@/db/schema";
@@ -54,14 +57,13 @@ async function resolverTime(nome: string): Promise<{ id: number; name: string } 
   return cached(`xgteam:${alvo}`, TTL_MS, async () => {
     const d = await afFetch(`/teams?search=${encodeURIComponent(nome)}`, TTL_MS);
     const arr: any[] = d?.response || [];
+    /* SÓ nome normalizado idêntico. A busca da API-Football devolve times
+       parecidos ("Sport" → "Sporting CP", "Real Madrid" → "Real Madrid
+       Castilla"); aceitar o primeiro parcial colava o xG de OUTRO clube no
+       modelo. Sem igualdade exata o time fica sem xG oficial — e o motor segue
+       com o xG estimado da ESPN, que é o fallback honesto. */
     const exato = arr.find((x) => norm(String(x?.team?.name ?? "")) === alvo);
-    const parcial =
-      exato ||
-      arr.find((x) => {
-        const n = norm(String(x?.team?.name ?? ""));
-        return n.includes(alvo) || alvo.includes(n);
-      });
-    const t = parcial?.team;
+    const t = exato?.team;
     return t ? { id: Number(t.id), name: String(t.name) } : null;
   });
 }
@@ -71,19 +73,28 @@ export async function getXgOficialCache(nomeTime: string): Promise<XgOficial | n
   return lerCachePorNome(nomeTime);
 }
 
-/** Lê do cache do Neon apenas pelo nome do time (sem nenhuma chamada de API). */
+/**
+ * Lê do cache do Neon apenas pelo nome do time (nenhuma chamada de API).
+ *
+ * A busca é um `WHERE` indexado (`team_xg_cache_norm_idx`) sobre o nome
+ * normalizado — antes esta função trazia a tabela INTEIRA (`db.select()`
+ * sem filtro) e comparava linha por linha em JS, duas vezes por jogo
+ * analisado.
+ *
+ * Correspondência é EXATA: sem `includes()`. "Sport" não pega "Sporting",
+ * "Real Madrid" não pega "Real Madrid Castilla". Time sem linha exata → `null`
+ * (indisponível), e o motor cai para o xG estimado da ESPN em vez de usar
+ * número de outro clube.
+ */
 async function lerCachePorNome(nomeTime: string): Promise<XgOficial | null> {
   try {
     const alvo = norm(nomeTime);
     if (!alvo) return null;
-    const rows = await db.select().from(teamXgCache);
-    if (!rows.length) return null;
-    const row =
-      rows.find((r) => norm(r.teamName) === alvo) ??
-      rows.find((r) => {
-        const n = norm(r.teamName);
-        return n.includes(alvo) || alvo.includes(n);
-      });
+    const [row] = await db
+      .select()
+      .from(teamXgCache)
+      .where(eq(teamXgCache.teamNameNorm, alvo))
+      .limit(1);
     if (!row) return null;
     if (Date.now() - new Date(row.fetchedAt).getTime() >= TTL_MS) return null;
     return {
@@ -113,6 +124,19 @@ export async function getXgOficial(nomeTime: string): Promise<XgOficial | null> 
         .where(eq(teamXgCache.teamId, String(time.id)))
         .limit(1);
       if (row && Date.now() - new Date(row.fetchedAt).getTime() < TTL_MS) {
+        /* Linha antiga (de antes da coluna normalizada) volta a ser encontrável
+           pelo nome: preenche `team_name_norm` de forma best-effort. Sem isto a
+           linha ficaria invisível para `lerCachePorNome` até o TTL virar. */
+        if (!row.teamNameNorm) {
+          try {
+            await db
+              .update(teamXgCache)
+              .set({ teamNameNorm: norm(row.teamName || time.name) })
+              .where(eq(teamXgCache.teamId, String(time.id)));
+          } catch {
+            /* cache é otimização: falha não invalida o resultado */
+          }
+        }
         return {
           xgFor: Number(row.xgFor),
           xgAgainst: Number(row.xgAgainst),
@@ -163,6 +187,8 @@ export async function getXgOficial(nomeTime: string): Promise<XgOficial | null> 
         .values({
           teamId: String(time.id),
           teamName: time.name,
+          // Chave de busca: MESMA normalização usada na leitura.
+          teamNameNorm: norm(time.name),
           xgFor: out.xgFor,
           xgAgainst: out.xgAgainst,
           sample: n,
@@ -173,6 +199,7 @@ export async function getXgOficial(nomeTime: string): Promise<XgOficial | null> 
           target: teamXgCache.teamId,
           set: {
             teamName: time.name,
+            teamNameNorm: norm(time.name),
             xgFor: out.xgFor,
             xgAgainst: out.xgAgainst,
             sample: n,
