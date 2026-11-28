@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -448,7 +449,7 @@ function TeamLine({ name, logo, bold }: { name: string; logo: string; bold?: boo
   const [bad, setBad] = useState(false);
   return (
     <span className="flex items-center gap-2 h-6 min-w-0">
-      {!bad && logo ? <img src={logo} alt="" width={20} height={20} className="w-5 h-5 object-contain" onError={() => setBad(true)} /> : <span className="w-5 h-5 rounded-full bg-panel2 text-[8px] flex items-center justify-center">{name.slice(0, 2).toUpperCase()}</span>}
+      {!bad && logo ? <ImgRemoto src={logo} alt="" width={20} height={20} loading="lazy" className="w-5 h-5 object-contain" onError={() => setBad(true)} /> : <span className="w-5 h-5 rounded-full bg-panel2 text-[8px] flex items-center justify-center">{name.slice(0, 2).toUpperCase()}</span>}
       <span className={`truncate text-[13px] ${bold ? "font-bold text-ink" : "text-ink"}`}>{name}</span>
     </span>
   );

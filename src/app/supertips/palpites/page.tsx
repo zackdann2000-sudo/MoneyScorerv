@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Zap, Plus, Share2, Bookmark } from "lucide-react";
@@ -127,7 +128,7 @@ export default function Palpites() {
           {(data?.props || []).map((p: any, i: number) => (
             <article key={i} className="bg-[#141820] border border-white/5 rounded-2xl p-3">
               <div className="flex items-center gap-2">
-                {p.athlete.photo ? <img src={p.athlete.photo} alt="" className="w-10 h-10 rounded-full object-cover" /> : <span className="w-10 h-10 rounded-full bg-white/10" />}
+                {p.athlete.photo ? <ImgRemoto src={p.athlete.photo} alt="" width={40} height={40} loading="lazy" className="w-10 h-10 rounded-full object-cover" /> : <span className="w-10 h-10 rounded-full bg-white/10" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-bold truncate">{p.athlete.name}</p>
                   <p className="text-[10px] text-mut">{p.athlete.team} · {p.market} +{p.line}</p>

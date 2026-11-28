@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Play, RotateCw } from "lucide-react";
@@ -356,7 +357,7 @@ export default function PropsScreener() {
               >
                 <div className="flex items-center gap-2">
                   {r.foto ? (
-                    <img src={r.foto} alt="" className="h-8 w-8 shrink-0 rounded-full border border-line object-cover" />
+                    <ImgRemoto src={r.foto} alt="" width={32} height={32} loading="lazy" className="h-8 w-8 shrink-0 rounded-full border border-line object-cover" />
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p data-testid="resultado-nome" className="truncate text-[12px] font-extrabold text-ink">

@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 import { useCallback, useEffect, useState } from "react";
 import { Search, ChevronDown, ChevronUp, Scale, ChevronLeft, ChevronRight, Info, Plus, Check } from "lucide-react";
 import { Crest, SourceFoot, Modal } from "@/components/ui";
@@ -113,7 +114,7 @@ export default function Jogadores() {
             <div key={r.id} className={`flex items-center gap-2 bg-panel border rounded-xl p-2.5 card-hover ${r.rank <= 3 && order === "desc" && page === 1 ? "border-acc/50" : "border-line"}`}>
               <span className={`font-display font-bold w-7 text-center text-lg ${r.rank === 1 ? "text-warn" : r.rank === 2 ? "text-mut" : r.rank === 3 ? "text-away" : "text-mut/60"}`}>{r.rank}</span>
               <button onClick={() => setProfile(r)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                {r.photo ? <img src={r.photo} alt={r.name} className="w-9 h-9 rounded-full object-cover bg-panel2" /> : <span className="w-9 h-9 rounded-full bg-panel2 border border-line flex items-center justify-center text-[11px] font-bold">{r.name.slice(0, 1)}</span>}
+                {r.photo ? <ImgRemoto src={r.photo} alt={r.name} width={36} height={36} loading="lazy" className="w-9 h-9 rounded-full object-cover bg-panel2" /> : <span className="w-9 h-9 rounded-full bg-panel2 border border-line flex items-center justify-center text-[11px] font-bold">{r.name.slice(0, 1)}</span>}
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold truncate">{r.name} {r.rank === 1 && "👑"}</p>
                   <p className="text-[10px] text-mut flex items-center gap-1 truncate"><Crest src={r.teamLogo} size={12} /> {r.team || "—"} {r.nationality ? `· ${r.nationality}` : ""} {r.position ? `· ${r.position}` : ""}</p>
@@ -172,7 +173,7 @@ export default function Jogadores() {
         {profile && (
           <div>
             <div className="flex items-center gap-3">
-              {profile.photo ? <img src={profile.photo} className="w-14 h-14 rounded-full object-cover bg-panel2" alt={profile.name} /> : <span className="w-14 h-14 rounded-full bg-panel2 flex items-center justify-center font-bold text-xl">{profile.name.slice(0, 1)}</span>}
+              {profile.photo ? <ImgRemoto src={profile.photo} width={56} height={56} className="w-14 h-14 rounded-full object-cover bg-panel2" alt={profile.name} /> : <span className="w-14 h-14 rounded-full bg-panel2 flex items-center justify-center font-bold text-xl">{profile.name.slice(0, 1)}</span>}
               <div>
                 <p className="font-display font-bold text-xl">{profile.name}</p>
                 <p className="text-[11px] text-mut flex items-center gap-1"><Crest src={profile.teamLogo} size={14} /> {profile.team} {profile.position ? `· ${profile.position}` : ""}</p>

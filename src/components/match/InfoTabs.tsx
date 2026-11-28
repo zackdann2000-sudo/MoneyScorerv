@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Whistle } from "./icons";
@@ -308,7 +309,7 @@ export function PreLiveTab({ home, away, league, officials, h2h, matchId }: { ho
       <Modal open={refOpen} onClose={() => setRefOpen(false)} title="🧑‍⚖️ Árbitro">
         {officials?.length ? officials.map((o: any, i: number) => (
           <div key={i} className="flex items-center gap-2 py-2 border-b border-line">
-            {o.photo ? <img src={o.photo} className="w-9 h-9 rounded-full object-cover" alt={o.name} /> : <span className="w-9 h-9 rounded-full bg-panel2 flex items-center justify-center"><Whistle /></span>}
+            {o.photo ? <ImgRemoto src={o.photo} width={36} height={36} loading="lazy" className="w-9 h-9 rounded-full object-cover" alt={o.name} /> : <span className="w-9 h-9 rounded-full bg-panel2 flex items-center justify-center"><Whistle /></span>}
             <div><p className="text-sm font-bold">{o.name}</p><p className="text-[10px] text-mut">{o.role}</p></div>
           </div>
         )) : <p className="text-xs text-mut">Escala de arbitragem ainda não divulgada pela ESPN.</p>}

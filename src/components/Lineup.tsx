@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 type P = { name: string; short: string; jersey: string; place: number; captain?: boolean; photo?: string };
 type Team = { formation: string; xi: P[]; bench?: P[] } | null;
 
@@ -22,7 +23,7 @@ function PlayerDot({ p, color, flip }: { p: P; color: string; flip?: boolean }) 
     <div className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center w-11 pointer-events-none" style={{}}>
       <div className="relative">
         {p.photo ? (
-          <img src={p.photo} alt={p.name} className="w-8 h-8 rounded-full object-cover bg-panel" style={{ border: `2px solid ${color}` }} />
+          <ImgRemoto src={p.photo} alt={p.name} width={32} height={32} loading="lazy" className="w-8 h-8 rounded-full object-cover bg-panel" style={{ border: `2px solid ${color}` }} />
         ) : (
           <div className="w-8 h-8 rounded-full bg-[#0d1c13] flex items-center justify-center text-[11px] font-bold text-white" style={{ border: `2px solid ${color}` }}>{p.jersey || "•"}</div>
         )}

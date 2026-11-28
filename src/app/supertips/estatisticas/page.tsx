@@ -1,4 +1,5 @@
 "use client";
+import ImgRemoto from "@/components/ImgRemoto";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -63,7 +64,7 @@ export default function Estatisticas() {
         {(data?.rows || []).map((r: any) => (
           <div key={r.id} className="flex items-center gap-2 bg-[#141820] border border-white/5 rounded-xl p-2.5">
             <span className={`font-display font-bold w-6 text-center ${r.rank <= 3 ? "text-[#e8b923]" : "text-mut"}`}>{r.rank}</span>
-            {r.photo ? <img src={r.photo} alt="" className="w-9 h-9 rounded-full object-cover" /> : <span className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">{r.name.slice(0, 1)}</span>}
+            {r.photo ? <ImgRemoto src={r.photo} alt="" width={36} height={36} loading="lazy" className="w-9 h-9 rounded-full object-cover" /> : <span className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold">{r.name.slice(0, 1)}</span>}
             <div className="flex-1 min-w-0">
               <p className="text-[13px] font-bold truncate">{r.name}</p>
               <p className="text-[10px] text-mut flex items-center gap-1"><Crest src={r.teamLogo} size={12} /> {r.team || "—"} · média {r.perGame ?? "—"}</p>

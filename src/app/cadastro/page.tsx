@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -81,7 +82,7 @@ export default function Cadastro() {
   return (
     <div className="max-w-sm mx-auto pt-8">
       <div className="text-center mb-5">
-        <img src="/icon.png" alt="GreenScore" className="w-16 h-16 rounded-2xl mx-auto mb-2" />
+        <Image src="/icon.png" alt="GreenScore" width={64} height={64} priority className="w-16 h-16 rounded-2xl mx-auto mb-2" />
         <h1 className="font-display font-bold text-3xl uppercase">Criar conta</h1>
         <p className="text-xs text-mut">Grátis todo dia: 1 análise. O contador zera à meia-noite.</p>
       </div>

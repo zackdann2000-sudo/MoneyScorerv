@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import ImgRemoto from "@/components/ImgRemoto";
 
 /* =======================================================================
    BOLINHAS DE HISTÓRICO (últimos 10 jogos)
@@ -75,7 +76,7 @@ function PlayerAvatar({ src, name }: { src?: string; name: string }) {
     );
   }
   return (
-    <img
+    <ImgRemoto
       src={src}
       alt={name}
       width={44}

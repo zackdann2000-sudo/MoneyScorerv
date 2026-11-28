@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { Lock, X, Star, AlertTriangle, CalendarDays } from "lucide-react";
 import { useApp, type FavTeam } from "@/context/AppContext";
+import ImgRemoto from "@/components/ImgRemoto";
 
 export function Crest({ src, size = 28, alt = "" }: { src?: string; size?: number; alt?: string }) {
   const [err, setErr] = useState(false);
   if (!src || err) return <div style={{ width: size, height: size }} className="rounded-full bg-panel2 border border-line flex items-center justify-center text-[10px] text-mut shrink-0">⚽</div>;
-  return <img src={src} alt={alt} width={size} height={size} loading="lazy" onError={() => setErr(true)} className="object-contain shrink-0" style={{ width: size, height: size }} />;
+  return <ImgRemoto src={src} alt={alt} width={size} height={size} loading="lazy" onError={() => setErr(true)} className="object-contain shrink-0" style={{ width: size, height: size }} />;
 }
 
 export function FormDots({ form, size = "sm" }: { form: string[] | string; size?: "sm" | "md" }) {

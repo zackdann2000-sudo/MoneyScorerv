@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -116,7 +117,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-50 bg-bg/95 backdrop-blur border-b border-line">
         <div className="max-w-3xl mx-auto px-3 h-14 flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 mr-auto min-w-0">
-            <img src="/icon.png" alt="" className="w-9 h-9 rounded-xl shrink-0" />
+            <Image src="/icon.png" alt="GreenScore" width={36} height={36} priority className="w-9 h-9 rounded-xl shrink-0" />
             <span className="leading-none">
               <span className="block font-display font-bold text-base">GreenScore</span>
               <span className="block text-[9px] font-bold tracking-widest text-acc">LIVE ANALYTICS</span>

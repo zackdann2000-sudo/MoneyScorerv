@@ -1,5 +1,6 @@
 "use client";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, ReferenceLine, Cell, Tooltip, PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, AreaChart, Area, CartesianGrid, Legend } from "recharts";
+import ImgRemoto from "@/components/ImgRemoto";
 
 const ACC = "#23e57b", MUT = "#5c7263", PURPLE = "#a855f7", RED = "#ff5d5d", HOME = "#4d9fff", AWAY = "#ff8a4d", WARN = "#ffc53d";
 
@@ -11,7 +12,7 @@ export function GoalsBars({ games, line = 0.5, onSelect, color = PURPLE }: { gam
       <div className="flex" style={{ paddingLeft: 26, paddingRight: 4 }}>
         {games.map((g, i) => (
           <button key={i} onClick={() => onSelect?.(i)} className="flex-1 flex justify-center min-w-0">
-            {g.logo ? <img src={g.logo} alt={g.opp} className="w-4.5 h-4.5 object-contain" /> : <span className="text-[8px] text-mut">{g.opp}</span>}
+            {g.logo ? <ImgRemoto src={g.logo} alt={g.opp} width={18} height={18} loading="lazy" className="w-4.5 h-4.5 object-contain" /> : <span className="text-[8px] text-mut">{g.opp}</span>}
           </button>
         ))}
       </div>
