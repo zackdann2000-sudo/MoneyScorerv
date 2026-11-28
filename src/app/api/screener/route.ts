@@ -4,10 +4,10 @@ import {
   getTeamHistory,
   getTeamScheduleGames,
   todayYmd,
-  leagueInfo,
   type HistGame,
   type Match,
 } from "@/lib/espn";
+import { filtroLigasPrincipais } from "@/lib/mainLeagues";
 import { cached } from "@/lib/cache";
 import { avaliarJogo, MERCADOS } from "@/lib/screener";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
     const resposta = await cached(chaveCache, 15 * 60_000, async () => {
       let jogos = await getAllMatches(date, liga === "all" ? undefined : [liga]);
       jogos = jogos.filter((m) => m.state !== "post");
-      if (liga === "all") jogos = jogos.filter((m) => leagueInfo(m.league).priority <= 9);
+      // "principais" = catálogo real (`mainLeagues`), com as 18 ligas.
+      if (liga === "all") jogos = jogos.filter(filtroLigasPrincipais);
       /* Jogos que já começaram entram (dado histórico não muda); o que não pode
          é analisar jogo encerrado. */
       const truncado = jogos.length > teto;

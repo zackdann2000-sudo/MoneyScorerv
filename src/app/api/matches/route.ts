@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     (a, b) => a.date.localeCompare(b.date),
   );
 
-  /* LISTA FECHADA nas 16. A ESPN devolve 24 ligas — Bolívia, México, Chile,
+  /* LISTA FECHADA no catálogo (`mainLeagues`). A ESPN devolve 24 ligas — Bolívia, México, Chile,
      Colômbia, 2. Bundesliga, Liga Portugal... Nenhuma pode chegar à tela de
      Ligas nem ao feed de jogos. O casamento é por código ESPN ("eng.1") e, se
      o código for desconhecido, pelo nome + país (fonte que só dá nome). */

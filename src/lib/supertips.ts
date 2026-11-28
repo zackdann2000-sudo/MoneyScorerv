@@ -1,4 +1,5 @@
 import { fetchJson, cached } from "./cache";
+import { isMainLeagueFixture } from "./mainLeagues";
 import {
   getAllMatches, getStandings, getSummaryRaw, matchFromSummary, normEvents, normStats, normOdds, normH2H, normLineups, normForm,
   getTeamHistory, LEAGUES, leagueInfo, todayYmd, type Match, type HistGame,
@@ -379,7 +380,7 @@ function hitRate(games: HistGame[], fn: (g: HistGame) => boolean) {
 export async function aiPicks(dateYmd: string) {
   return cached(`st-picks:${dateYmd}`, 1200000, async () => {
     const all = await getAllMatches(dateYmd);
-    const upcoming = all.filter((m) => m.state !== "post" && leagueInfo(m.league).priority <= 8).slice(0, 3);
+    const upcoming = all.filter((m) => m.state !== "post" && isMainLeagueFixture(m)).slice(0, 3);
     const blocks: any[] = [];
     for (const m of upcoming) {
       try {
@@ -485,7 +486,7 @@ const TREND_METRICS: { id: string; label: string; line: number; get: (g: HistGam
 export async function trends(dateYmd: string) {
   return cached(`st-trends:${dateYmd}`, 1200000, async () => {
     const all = await getAllMatches(dateYmd);
-    const picks = all.filter((m) => m.state !== "post" && leagueInfo(m.league).priority <= 9).slice(0, 4);
+    const picks = all.filter((m) => m.state !== "post" && isMainLeagueFixture(m)).slice(0, 4);
     const cards: any[] = [];
     for (const m of picks) {
       const [hh, ah] = await Promise.all([

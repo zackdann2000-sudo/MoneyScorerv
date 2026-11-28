@@ -56,7 +56,7 @@ export type FixtureSyncReport = {
   date: string;
   seen: number;
   created: number;
-  /** Jogos recebidos do fornecedor e DESCARTADOS por não serem das 16 ligas. */
+  /** Jogos recebidos do fornecedor e DESCARTADOS por não serem do catálogo. */
   discarded: number;
   attempts: Attempt[];
   source: string;
@@ -119,7 +119,7 @@ async function resolveTeamId(input: {
  * Por isso o filtro de ligas vive AQUI e não em cada fornecedor — ESPN,
  * Football-Data, Sportmonks e Bzzoiro são todos podados no mesmo ponto.
  *
- * Devolve `null` quando a liga não é uma das 16 permitidas: o jogo é descartado
+ * Devolve `null` quando a liga não é uma do catálogo: o jogo é descartado
  * antes de existir time, liga ou partida no banco (não sobra lixo de Bolívia,
  * liga de base ou copa regional na base). Chamar de qualquer job (cron, rota
  * manual ou CLI, todos via `sync-runner`) passa pelo mesmo veto.
@@ -260,7 +260,7 @@ export async function syncFixturesCascade(dateIso: string): Promise<FixtureSyncR
       try {
         if (Number.isNaN(raw.kickoff.getTime())) continue;
         const id = await persistFixture(raw);
-        // `null` = jogo de liga fora das 16: não é erro, é veto.
+        // `null` = jogo de liga fora do catálogo: não é erro, é veto.
         if (id == null) {
           // TODO(debug temporário): remover quando a ingestão de Champions/
           // Europa League estiver validada. Mostra exatamente o que o filtro
@@ -342,7 +342,7 @@ export async function refreshLiveCascade(): Promise<{ date: string; touched: num
     for (const raw of aoVivo) {
       try {
         const id = await persistFixture(raw);
-        if (id == null) continue; // liga fora das 16 — não existe no banco
+        if (id == null) continue; // liga fora do catálogo — não existe no banco
         touched += 1;
       } catch (e) {
         attempts.push({ provider: "espn", ok: false, reason: motivo(e) });

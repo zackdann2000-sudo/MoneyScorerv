@@ -6,7 +6,7 @@
  * Lista as props em que o modelo vê mais chance do que o mercado paga. É a
  * agregação transversal — a versão por jogo fica em /api/apitou/jogo/[id].
  *
- * `principais=1` filtra só as 16 ligas principais. Isso é feito ANTES do
+ * `principais=1` filtra só as ligas do catálogo (`mainLeagues`). Isso é feito ANTES do
  * `slice(limit)`: filtrar depois devolveria menos itens que o pedido e a
  * paginação "carregar mais" ficaria furada.
  *

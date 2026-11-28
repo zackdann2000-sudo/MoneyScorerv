@@ -12,6 +12,7 @@
  */
 const {
   isMainLeague, mainLeagueId, mainLeagueName, mainLeagueLabel, normalizar, TOTAL_LIGAS_PRINCIPAIS,
+  isMainLeagueFixture, filtroLigasPrincipais, MAIN_LEAGUES, ESPN_MAIN_CODES,
 } = require("./mainLeagues.js");
 
 let falhas = 0;
@@ -226,6 +227,49 @@ check("null vira Outras competições", mainLeagueLabel(null), "Outras competiç
 check("país separa Ligue 1", mainLeagueLabel("Ligue 1", "Algeria"), "Ligue 1");
 check("mainLeagueName usa a chave", mainLeagueName("brasileirao_a"), "Brasileirão Série A");
 check("mainLeagueName de id inválido", mainLeagueName("nao_existe"), null);
+
+/* ============================================================================
+ * FILTRO POR PARTIDA (isMainLeagueFixture) — o que as rotas de fato usam.
+ *
+ * Regressão que estes testes travam: oportunidades, detector, screener, engine
+ * e supertips filtravam "principais" por `leagueInfo(code).priority <= 9`, uma
+ * lista paralela que cobria 10 códigos e derrubava 8 ligas permitidas (Série B,
+ * Eerste Divisie, Allsvenskan, Argentina, MLS, Saudi, Conference, Sul-Americana).
+ * ========================================================================== */
+console.log("\n=== filtro por partida: os 18 códigos ESPN entram ===");
+check("uma liga por código ESPN", ESPN_MAIN_CODES.length, TOTAL_LIGAS_PRINCIPAIS);
+for (const liga of MAIN_LEAGUES) {
+  const codigos = liga.codes?.espn ?? [];
+  check(`${liga.id} tem código ESPN`, codigos.length > 0, true);
+  for (const code of codigos) {
+    check(`código ${code} (${liga.id}) entra`, isMainLeagueFixture({ league: code }), true);
+  }
+}
+
+console.log("\n=== filtro por partida: as 8 que ficavam de fora agora entram ===");
+for (const code of ["bra.2", "ned.2", "swe.1", "arg.1", "usa.1", "ksa.1", "uefa.europa.conf", "conmebol.sudamericana"]) {
+  check(`${code} entra no filtro`, isMainLeagueFixture({ league: code }), true);
+}
+
+console.log("\n=== filtro por partida: fora do catálogo continua fora ===");
+for (const code of ["mex.1", "por.1", "ned.1", "ger.2", "bel.1", "chi.1", "col.1", "bol.1"]) {
+  check(`${code} fica fora`, isMainLeagueFixture({ league: code }), false);
+}
+check("liga de base por nome fica fora", isMainLeagueFixture({ league: "desconhecido", leagueName: "Premier League U21" }), false);
+check("copa nacional fica fora", isMainLeagueFixture({ leagueName: "Spain Copa del Rey", country: "Spain" }), false);
+
+console.log("\n=== filtro por partida: fallback por nome + país (código desconhecido) ===");
+check("Eerste Divisie + Netherlands", isMainLeagueFixture({ leagueName: "Eerste Divisie", country: "Netherlands" }), true);
+check("Allsvenskan + Suécia", isMainLeagueFixture({ leagueName: "Allsvenskan", country: "Suécia" }), true);
+check("Serie A sozinho (genérico) fica fora", isMainLeagueFixture({ leagueName: "Serie A" }), false);
+check("Sem nada fica fora", isMainLeagueFixture({}), false);
+
+console.log("\n=== filtroLigasPrincipais (pronto para Array.filter) ===");
+const lista = [
+  { league: "bra.1" }, { league: "bra.2" }, { league: "mex.1" }, { league: "usa.1" },
+  { league: "ger.2" }, { league: "swe.1" },
+].filter(filtroLigasPrincipais);
+check("mantém só catálogo, na ordem", lista.map((m) => m.league).join(","), "bra.1,bra.2,usa.1,swe.1");
 
 console.log("\n=== contagem ===");
 check("18 ligas na lista", TOTAL_LIGAS_PRINCIPAIS, 18);

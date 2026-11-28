@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllMatches, getTeamHistory, todayYmd, LEAGUES, leagueInfo, type HistGame } from "@/lib/espn";
+import { getAllMatches, getTeamHistory, todayYmd, LEAGUES, type HistGame } from "@/lib/espn";
 import { oddFromHit } from "@/lib/engine";
+import { filtroLigasPrincipais } from "@/lib/mainLeagues";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,10 @@ export async function POST(req: NextRequest) {
 
     let matches = await getAllMatches(date, league === "all" ? undefined : [league]);
     matches = matches.filter((m) => m.state !== "post");
-    if (league === "all") matches = matches.filter((m) => leagueInfo(m.league).priority <= 9);
+    /* Filtro de "principais" = catálogo real (`mainLeagues`), nunca a lista
+       paralela de `priority` do espn.ts: aquela cobria só 10 códigos e deixava
+       8 ligas permitidas de fora. */
+    if (league === "all") matches = matches.filter(filtroLigasPrincipais);
     const scanned = matches.length;
     matches = matches.slice(0, 6);
 

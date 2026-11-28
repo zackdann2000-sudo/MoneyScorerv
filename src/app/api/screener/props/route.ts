@@ -6,12 +6,12 @@ import {
   getTeamHistory,
   getTeamHistoryElenco,
   getTeamScheduleGames,
-  leagueInfo,
   todayYmd,
   type HistGame,
   type JogadorHist,
   type Match,
 } from "@/lib/espn";
+import { filtroLigasPrincipais } from "@/lib/mainLeagues";
 import { cached } from "@/lib/cache";
 import { getPropsDoTime, PROPS_DISABLED, type PayloadTime } from "@/lib/playerProps";
 import type { JogoValores } from "@/lib/playerPropsEngine";
@@ -88,7 +88,8 @@ async function equipesDoDia(liga: string): Promise<{ equipes: Equipe[]; jogos: n
   const bruto = await cached<{ equipes: Equipe[]; jogos: number; truncado: boolean }>(chave, 20 * 60_000, async () => {
     let jogos = await getAllMatches(todayYmd(), liga === "all" ? undefined : [liga]);
     jogos = jogos.filter((m: Match) => m.state !== "post");
-    if (liga === "all") jogos = jogos.filter((m) => leagueInfo(m.league).priority <= 9);
+    // "principais" = catálogo real (`mainLeagues`), com as 18 ligas.
+    if (liga === "all") jogos = jogos.filter(filtroLigasPrincipais);
 
     const porChave = new Map<string, Equipe>();
     for (const m of jogos) {

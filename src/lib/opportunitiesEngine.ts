@@ -21,6 +21,7 @@ import {
 import { runModel, type Analysis } from "@/lib/model";
 import { vereditar, type Veredito } from "@/lib/vereditoEngine";
 import { ancorasPinnaclePorEspnId, oddsDoValueBet, type AncoraMapa } from "@/lib/oddsPinnacle";
+import { filtroLigasPrincipais } from "@/lib/mainLeagues";
 import { getXgOficial, getXgOficialCache } from "@/lib/xgOfficial";
 import {
   avaliarOportunidades,
@@ -215,7 +216,11 @@ export async function analisarOportunidades(opts: OportunidadesOpts = {}): Promi
 
   const todos = await getAllMatches(date);
   let cands = todos.filter((m) => m.state !== "post");
-  if (opts.principais) cands = cands.filter((m) => leagueInfo(m.league).priority <= 9);
+  /* "principais" = catálogo real (`mainLeagues`), não `priority <= 9` do
+     espn.ts: aquela lista cobria 10 códigos e excluía 8 ligas permitidas
+     (Série B, Eerste Divisie, Allsvenskan, Argentina, MLS, Saudi, Conference,
+     Sul-Americana). O filtro é por código da fonte e cai para nome + país. */
+  if (opts.principais) cands = cands.filter(filtroLigasPrincipais);
   cands = cands
     .sort((a, b) => leagueInfo(a.league).priority - leagueInfo(b.league).priority || a.date.localeCompare(b.date))
     .slice(0, maxMatches);

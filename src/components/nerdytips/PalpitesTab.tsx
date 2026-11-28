@@ -16,12 +16,12 @@ import { CacheBadge, ConfBar, EmptyBox, ErrorBox, Odd, PickChip, ResultadoPill, 
  * palpites de gols/BTTS. Toque abre a análise completa do jogo.
  *
  * O filtro de ligas começa DESLIGADO aqui: o site cobre 700+ competições e o
- * board do dia quase nunca tem uma das 16 principais — ligar por padrão daria
+ * board do dia quase nunca tem uma das ligas do catálogo — ligar por padrão daria
  * tela vazia.
  */
 export default function PalpitesTab({ onAbrirJogo }: { onAbrirJogo: (id: string) => void }) {
   const [modo, setModo] = useState<"hoje" | "todas" | "placar">("hoje");
-  // Padrão LIGADO (igual às outras abas): mostra só as 16 principais.
+  // Padrão LIGADO (igual às outras abas): mostra só as ligas do catálogo.
   const [soPrincipais, setSoPrincipais] = usePrincipaisLigas();
 
   const query = modo === "todas" ? "?todas=1" : modo === "placar" ? "?placar=1" : "";

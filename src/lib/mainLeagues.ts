@@ -11,13 +11,14 @@
  * A lista é FECHADA nas competições abaixo. Não existe "todas as ligas": o
  * produto só publica estas. Qualquer outra é descartada antes de virar linha no
  * banco. A lista cresceu de 16 para 18 quando Eerste Divisie (Holanda) e
- * Allsvenskan (Suécia) entraram no catálogo de elite.
+ * Allsvenskan (Suécia) entraram no catálogo de elite — o número que a UI mostra
+ * vem sempre de `TOTAL_LIGAS_PRINCIPAIS`, nunca de um literal.
  *
  * Ordem da decisão (importante):
  *   1. normaliza (minúsculas, sem acento, pontuação vira espaço);
  *   2. BLACKLIST — se o nome tem cara de base/feminino/copa/divisão inferior,
  *      retorna `false` na hora, antes de olhar a lista de ligas;
- *   3. só então procura um apelido das 16 ligas permitidas;
+ *   3. só então procura um apelido das ligas permitidas;
  *   4. `exclude` por liga desempata nomes genéricos que existem em vários
  *      países ("Premier League" da Armênia, "Serie A" do Equador, "Champions
  *      League" da CONCACAF);
@@ -61,7 +62,7 @@ export type MainLeague = {
 };
 
 /**
- * As 16 ligas permitidas, na ordem em que são testadas.
+ * As 18 ligas permitidas, na ordem em que são testadas.
  *
  * A ordem NÃO é alfabética de propósito: ligas cujo nome de uma é prefixo do
  * nome de outra vêm da mais específica para a mais genérica (Série B antes da
@@ -342,7 +343,7 @@ function contemToken(nome: string, token: string): boolean {
  *
  * Roda ANTES da lista de ligas. A exceção do `cup` existe para as competições
  * continentais cujo nome em inglês traz "cup" — "Champions Cup", "Europa Cup" —
- * mas o nome ainda precisa casar um apelido das 16 para entrar.
+ * mas o nome ainda precisa casar um apelido do catálogo para entrar.
  */
 export function bloqueadoPorCategoria(leagueName: string | null | undefined): boolean {
   const nome = normalizar(leagueName ?? "");
@@ -359,7 +360,7 @@ export function bloqueadoPorCategoria(leagueName: string | null | undefined): bo
 }
 
 /**
- * Devolve a liga canônica correspondente ou `null` se não for uma das 16.
+ * Devolve a liga canônica correspondente ou `null` se não for uma do catálogo.
  * Retorna o objeto inteiro para quem precisa do `id` e do `name`.
  */
 export function leagueOf(
@@ -394,7 +395,7 @@ export function leagueOf(
 }
 
 /**
- * `true` se a liga informada é uma das 16 principais.
+ * `true` se a liga informada é uma das principais do catálogo.
  *
  * ```ts
  * isMainLeague("Brasileirão Série A")      // true
@@ -406,7 +407,7 @@ export function leagueOf(
  * isMainLeague("Serie A")                  // false (genérico sem país)
  * isMainLeague("Italy Serie A Women")      // false (veto de feminino)
  * isMainLeague("Spain Copa del Rey")       // false (copa nacional)
- * isMainLeague("Bolivia Primera Division") // false (fora das 16)
+ * isMainLeague("Bolivia Primera Division") // false (fora do catálogo)
  * ```
  */
 export function isMainLeague(
@@ -463,7 +464,7 @@ export function leagueOfCode(source: MainLeagueSource, code: string | null | und
   return id ? MAIN_LEAGUES.find((l) => l.id === id) ?? null : null;
 }
 
-/** `true` se `code` é uma das 16 ligas naquela fonte. */
+/** `true` se `code` é uma das ligas do catálogo naquela fonte. */
 export function isMainLeagueCode(source: MainLeagueSource, code: string | null | undefined): boolean {
   return leagueOfCode(source, code) !== null;
 }
@@ -479,7 +480,7 @@ export function mainLeagueIdFromFootballDataCode(code: string | null | undefined
 }
 
 /**
- * Códigos que o plano free do Football-Data.org cobre entre as nossas 16.
+ * Códigos que o plano free do Football-Data.org cobre entre as nossas 18.
  *
  * São exatamente SEIS: PL, PD, SA, BL1, FL1 e BSA. O resto das nossas ligas
  * (Libertadores, MLS, Saudi, Conference, Nations League, Série B) o FD não
@@ -492,7 +493,7 @@ export const FOOTBALLDATA_MAIN_CODES = ["PL", "PD", "SA", "BL1", "FL1", "BSA"] a
 /** Pausa entre requisições consecutivas ao Football-Data (ms) — 10 req/min. */
 export const FOOTBALLDATA_REQUEST_PAUSE_MS = 6_000;
 
-/** Códigos ESPN das 16 ligas — usado para filtrar listas que chegam por código. */
+/** Códigos ESPN de todas as ligas do catálogo — usado para filtrar listas que chegam por código. */
 export const ESPN_MAIN_CODES: string[] = MAIN_LEAGUES.flatMap((l) => l.codes?.espn ?? []);
 
 /**
@@ -515,6 +516,45 @@ export function filterMainLeagues<T>(
   return out;
 }
 
+/** Campos mínimos de uma partida para o veto por catálogo (Match da ESPN e afins). */
+export type FixtureLiga = {
+  /** Código da liga na fonte (ESPN: "eng.1"). */
+  league?: string | null;
+  /** Nome da liga como a fonte escreveu. */
+  leagueName?: string | null;
+  /** País/região como a fonte escreveu. */
+  country?: string | null;
+};
+
+/**
+ * `true` se a partida pertence a uma das 18 ligas do catálogo.
+ *
+ * É O único filtro de "principais" que as telas devem usar. Antes cada rota
+ * (oportunidades, detector, screener, engine, supertips) usava
+ * `leagueInfo(code).priority <= 9`, uma lista paralela em `espn.ts` que cobria
+ * só 10 códigos e deixava de fora 8 ligas permitidas — Brasileirão Série B,
+ * Eerste Divisie, Allsvenskan, Argentina, MLS, Saudi, Conference e
+ * Sul-Americana nunca apareciam com o filtro ligado.
+ *
+ * Casa primeiro pelo CÓDIGO da fonte (estável) e só cai para nome + país quando
+ * o código é desconhecido.
+ *
+ * ```ts
+ * isMainLeagueFixture({ league: "bra.2" })                        // true
+ * isMainLeagueFixture({ league: "mex.1", leagueName: "Liga MX" }) // false
+ * isMainLeagueFixture({ leagueName: "Eerste Divisie", country: "Netherlands" }) // true
+ * ```
+ */
+export function isMainLeagueFixture(f: FixtureLiga, source: MainLeagueSource = "espn"): boolean {
+  if (isMainLeagueCode(source, f.league)) return true;
+  return isMainLeague(f.leagueName ?? null, f.country ?? null);
+}
+
+/** Lista pronta para `Array.filter`: `lista.filter(filtroLigasPrincipais)`. */
+export function filtroLigasPrincipais<T extends FixtureLiga>(f: T): boolean {
+  return isMainLeagueFixture(f);
+}
+
 /**
  * Nome em português a partir do nome que a fonte mandou.
  *
@@ -523,7 +563,7 @@ export function filterMainLeagues<T>(
  * traduzir (`name`), mas só a partir da chave canônica; esta função faz o
  * caminho completo: nome cru → `mainLeagueId` → `mainLeagueName`.
  *
- * Liga fora das 16 volta como veio (só normalizada em espaço), porque inventar
+ * Liga fora do catálogo volta como veio (só normalizada em espaço), porque inventar
  * tradução para 700 competições seria pior que mostrar o nome original.
  *
  * ```ts
@@ -539,5 +579,5 @@ export function mainLeagueLabel(leagueName: string | null | undefined, pais?: st
   return bruto || "Outras competições";
 }
 
-/** Quantidade de ligas na lista (16) — usada em texto de UI/teste. */
+/** Quantidade de ligas na lista (18) — fonte única do número que a UI mostra. */
 export const TOTAL_LIGAS_PRINCIPAIS = MAIN_LEAGUES.length;

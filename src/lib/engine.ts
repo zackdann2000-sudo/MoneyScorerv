@@ -1,4 +1,5 @@
-import { getAllMatches, getSummaryRaw, getTeamHistory, normEvents, normStats, normOdds, leagueInfo, todayYmd, ymd, type HistGame, type Match } from "./espn";
+import { getAllMatches, getSummaryRaw, getTeamHistory, normEvents, normStats, normOdds, todayYmd, ymd, type HistGame, type Match } from "./espn";
+import { isMainLeagueFixture } from "./mainLeagues";
 import { cached } from "./cache";
 import { getKey } from "./keys";
 import { smFixtureStats } from "./providers";
@@ -168,7 +169,7 @@ const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
 export async function getPickDoDia(dateYmd: string) {
   return cached(`pick:v2:${dateYmd}`, 900000, async () => {
     const all = await getAllMatches(dateYmd);
-    const candidates = all.filter((m) => m.state === "pre" && leagueInfo(m.league).priority <= 9).slice(0, 5);
+    const candidates = all.filter((m) => m.state === "pre" && isMainLeagueFixture(m)).slice(0, 5);
     const ranked: any[] = [];
     for (const m of candidates) {
       const hist = await getTeamHistory(m.league, m.home.id, 10).catch(() => ({ games: [] as HistGame[], baseParcial: true, source: "ESPN" }));

@@ -1,12 +1,13 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { TOTAL_LIGAS_PRINCIPAIS } from "@/lib/mainLeagues";
 
 /**
- * Selo "Principais Ligas" — lista FECHADA nas 16 competições permitidas.
+ * Selo "Principais Ligas" — lista FECHADA no catálogo de `mainLeagues`.
  *
  * Não existe mais alternância para "Todas as Ligas": o produto só publica as
- * 16 (ver `src/lib/mainLeagues.ts`), então um botão para mostrar o resto só
+ * ligas de `src/lib/mainLeagues.ts` (hoje 18), então um botão para mostrar o resto só
  * servia para revelar ligas obscuras (Bolívia, divisões inferiores, copas
  * regionais). O filtro agora é fixo e o selo apenas confirma isso ao usuário.
  *
@@ -40,7 +41,7 @@ export default function LeagueFilterPill({
         onClick={() => onChange(true)}
         aria-pressed={principais}
         className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold bg-acc text-bg"
-        title="Só as 16 principais ligas"
+        title={`Só as ${TOTAL_LIGAS_PRINCIPAIS} principais ligas`}
       >
         <Star size={11} /> Principais Ligas
       </button>

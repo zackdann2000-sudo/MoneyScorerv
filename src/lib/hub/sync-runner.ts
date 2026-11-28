@@ -157,7 +157,7 @@ export async function runHubSync(opts: HubSyncOptions = {}): Promise<Record<stri
   /* ---------- 1) fixtures ---------- */
   const fixtures: Array<Record<string, unknown>> = [];
   const fixtureAttempts: Attempt[] = [];
-  /** Jogos que o fornecedor mandou e a porta do `hub_fixture` vetou (ligas fora das 16). */
+  /** Jogos que o fornecedor mandou e a porta do `hub_fixture` vetou (ligas fora do catálogo). */
   let descartadosPorLiga = 0;
 
   /**
