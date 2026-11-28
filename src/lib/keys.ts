@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { apiKeys } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { decrypt, encrypt } from "@/lib/encryption";
 
 export const PROVIDERS = [
   { id: "espn", name: "ESPN", desc: "Gratuita, sem chave. Placares ao vivo, eventos, escalações, H2H, odds e líderes.", needsKey: false, doc: "https://site.api.espn.com" },
@@ -20,24 +21,25 @@ const ENV_MAP: Record<string, string | undefined> = {
 };
 
 /**
- * RISCO RESIDUAL CRÍTICO — tokens de provedor gravados em TEXTO CLARO.
+ * SEGREDOS DE FORNECEDOR — CIFRADOS EM REPOUSO (AES-256-GCM).
  *
- * `setKey()` insere o token cru na tabela `api_keys`. `maskKey()` protege
- * apenas a EXIBIÇÃO na UI; no banco, em qualquer dump/backup e para quem
- * obtiver acesso de leitura ao Postgres (incluindo um snapshot de banco
- * gerenciado, uma réplica de leitura ou uma credencial vazada), as chaves de
- * Sportmonks, Football-Data.org e a REST key do OneSignal ficam legíveis.
+ * `setKey()` grava o token CIFRADO (`enc:v1:iv.tag.ciphertext`, ver
+ * `lib/encryption.ts`); `getKey()` decifra antes de entregar ao fornecedor.
+ * Antes a coluna `api_keys.token` guardava texto claro: qualquer dump, backup,
+ * réplica de leitura ou credencial de banco vazada entregava Sportmonks,
+ * Football-Data e a REST key do OneSignal. `maskKey()` sempre protegeu só a
+ * TELA, nunca o banco.
  *
- * Não implementado nesta rodada por orçamento de tempo. Correção planejada:
- * cifrar com AES-256-GCM usando uma master key em variável de ambiente
- * (ex.: `APIKEY_ENC_KEY`, 32 bytes em base64), gravando `iv:tag:ciphertext`
- * na coluna `token` e decifrando em `getKey()`.
+ * LEITURA TOLERANTE: valor sem o prefixo `enc:v1:` é texto claro legado e volta
+ * como veio. É o que permite o deploy deste código acontecer ANTES da migração
+ * (`npm run keys:encrypt`) sem derrubar nenhum fornecedor.
  *
- * TODO(segurança-crítica): implementar cifragem em repouso em setKey/getKey.
- * TODO(segurança-crítica): enquanto isso, restringir o acesso à tabela
- * api_keys e evitar incluí-la em backups não cifrados.
- * TODO(segurança-crítica): rotacionar todas as chaves já gravadas, pois o
- * histórico do git e os dumps existentes devem ser considerados vazados.
+ * Chamadas continuam funcionando se `ENCRYPTION_SECRET` sumir do ambiente: a
+ * leitura do que já está cifrado falha (volta `""`) e o código cai para a env
+ * do provedor (`ENV_MAP`), em vez de estourar a rota.
+ *
+ * TODO(segurança): rotacionar todas as chaves já gravadas — o histórico do git
+ * e os dumps anteriores a esta cifragem devem ser considerados vazados.
  */
 
 const mem = new Map<string, { at: number; v: string }>();
@@ -48,7 +50,19 @@ export async function getKey(provider: string): Promise<string> {
   let v = "";
   try {
     const rows = await db.select().from(apiKeys).where(eq(apiKeys.provider, provider)).limit(1);
-    v = rows[0]?.token || "";
+    const gravado = rows[0]?.token || "";
+    if (gravado) {
+      /* `decrypt` devolve o texto claro legado quando não há prefixo e ""
+         quando a cifra não abre (segredo ausente/trocado). Nesse caso seguimos
+         para a env do provedor em vez de entregar lixo à API. */
+      v = decrypt(gravado);
+      if (!v) {
+        console.error(
+          `[keys] token de "${provider}" não pôde ser decifrado ` +
+            `(ENCRYPTION_SECRET ausente ou trocada). Usando a env do provedor.`,
+        );
+      }
+    }
   } catch {}
   if (!v) v = ENV_MAP[provider] || "";
   mem.set(provider, { at: Date.now(), v });
@@ -56,10 +70,13 @@ export async function getKey(provider: string): Promise<string> {
 }
 
 export async function setKey(provider: string, token: string) {
-  // TODO(segurança-crítica): cifrar `token` (AES-256-GCM) antes de gravar.
-  // Ver o bloco "RISCO RESIDUAL CRÍTICO" no topo deste arquivo.
-  await db.insert(apiKeys).values({ provider, token, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: apiKeys.provider, set: { token, updatedAt: new Date() } });
+  /* Cifra ANTES de tocar no banco. `encrypt("")` devolve "": limpar a chave
+     continua sendo limpar (não grava ciphertext de nada). Se a
+     `ENCRYPTION_SECRET` não existir, `encrypt` lança e NADA é gravado —
+     falhar fechado é melhor que voltar a escrever texto claro. */
+  const guardado = encrypt(token);
+  await db.insert(apiKeys).values({ provider, token: guardado, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: apiKeys.provider, set: { token: guardado, updatedAt: new Date() } });
   mem.delete(provider);
 }
 

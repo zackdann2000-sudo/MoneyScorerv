@@ -1,0 +1,43 @@
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_ZmxlZXQtZmluY2gtMjUwLmNsZXJrLmFjY291bnRzLmRldiQ"
+CLERK_SECRET_KEY="sk_test_DHKj3Op8hOH7PMWW6xMfuJ0BJ9oWui9079BOChdgiG"
+
+FOOTBALL_DATA_TOKEN="384c2c3de64841e6ad45e212c8450a62"
+BZZOIRO_TOKEN="5ed3ac0d583b7719c06e8efba9bd92ca05b52544"
+SPORTMONKS_TOKEN="Z67UlDm0zhCiQ6j0F2Q9pK4u01Vk0JzoFlt7EVoVNQVEX7i2G23vTkZ23jgb"
+API_FOOTBALL_KEY="ace4adde7633e056893b72796624cad3"
+ONESIGNAL_REST_API_KEY="sua_chave_onesignal_aqui"
+
+NEXT_PUBLIC_VAPID_PUBLIC_KEY="BG9LH8cPlSxSki-jmLufSqK-QwBOnQ0GcIk4FDyZWKeE8-482Nb3KmteEX3qzwKCzWz1dBRB03IuvyiK9UjeWB"
+VAPID_PRIVATE_KEY=""ozBWt8KFXzKnw1yEeQMJUm4ooBRg83_5XLwIqLoaZpw"
+
+# TheSportsDB — chave de testes "123". Troque pela premium no Admin no futuro.
+THESPORTSDB_KEY="123"
+
+# ---- Novas APIs (Etapa 1) — chaves vazias até você colar as reais ----
+# Zafronix: dados históricos e placares (header X-API-Key)
+ZAFRONIX_API_KEY="zsx_free_bc5e317ffd7fe16161748932"
+# 5DollarFootballAPI: odds e mercados (Authorization: Bearer)
+FIVE_DOLLAR_API_KEY="fb_live_P6ltH4ioanTOLYSxb0g9V7FKDyOdISUi"
+# GOAL API: xG e estatísticas de partidas (Authorization: Bearer)
+GOAL_API_KEY="gapi_4e6b83d8323404a997388eb85b24c2e83781cc2b81a1345c007ce6f9fa05737f"
+# StrikerAPI: estatísticas de jogadores (x-api-key, POST)
+STRIKER_API_KEY="sk_live_DqD_FrsoJg1MooR4SPAP4t5jLwtk-IJri_S6Pea-0Jw"
+DATABASE_URL="postgresql://neondb_owner:npg_gnP4Gy6OsXUQ@ep-divine-cell-bdfqb721-pooler.c-8.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+APITOU_SYNC_KEY=apt_211f708ebf5c2c1a20806d1bbd1a50af
+CRON_SECRET=cron_b61d9273e15dee39dd4244fd
+
+# Stripe (preencher com as chaves reais do painel)
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+STRIPE_PRICE_MENSAL=
+STRIPE_PRICE_ANUAL=
+APP_URL=http://localhost:3000
+
+# Emails com poder de owner (separados por virgula) — lido por src/lib/appConfig.ts
+OWNER_EMAILS="admin@greenscore.app,zackdann2000@gmail.com"
+FCM_PROJECT_ID="grennscorer-app"
+FCM_CLIENT_EMAIL="firebase-adminsdk-fbsvc@grennscorer-app.iam.gserviceaccount.com"
+FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDhczt0Wbn\nSUJj66oXiLoGTsWJRl15gLMbBEG/+3Ybmds8ZznJFyt28Zn/YBOQTpfALUrweReT\ne76nyHzz8DKcVD7AVcIXqPtwaCVyhkMVjQbclXqo6lt1Hubp9fbbv9Den80ZG2mW\nzY42crcDX5NA7Se/b4vwa9fAKcatPCzAOCDLOX4x7cYiFrCRwCsKRvBRABHxHs7Q\nqD0e1VDWR+FVb+bab2vlpAgkamRUFIALFMBHcm5F1ZOECx8uzQ3jL6SUL3cP4MeM\n9UrBKJexcSJJ8WmRaTicahSt+85YQ8wr/WWZBvkcNcezFx7VKo2pe4EV06nMgqaa\nOca5msEhAgMBAAECggEANoxDT3zj0FpZ0qqn7+eIMEdkhPayHsQmlMkT7FTo4itN\nm35atxL/WQQsnqJIdGadqpbc4YNefv7Ymg/bFEVh0VkcA9WooCe73BUvWzDLBKRD\n6V4Qut1COg/CJlJmG1gkEUhQvFWcYeVlgUPCCe8QoZ9IzcB/59aYk3/K0LSDRP6I\nOHoWVNU/mDvORA2TKNu14/DPz2qM+U5tW8PQ2Mq/W62znLQvif5DUKhfz9JK0Lfw\n6xV45L/tLaIgw12CUA5dXyB79WOH7BWVp2+iulxSAC0YYw/eRU0+Fi1Y2Wm8c2Ve\nAbpIVjaOt8+xIo22uA7X05jyCXL5yMZybMGHqksaOwKBgQDyieid3OzZHwpSUxKd\nah95GLtdQdVv2ZUTqrAe1ev8LRwL8PFXIGqRnzz+5nfQi8cvZuz3lIhj7Rt8dcln\nzWj2crz8U8Wq9Gzm3V/FPz4YiMIXEE1u6mdYcvLaUBhaVYHmRjCpVQQZ2rUj3D1P\nqsM0EzhhvDx/MrZ8+N8MG2ggVwKBgQDbmgjmy/HtgUNMZ0k+Z/Zt79m+9VsAsEQ0P\n7Qw9f05MVV04EboG1UO2v/PBqEtSvcJ4+9gqKf8GzKHEzYubOto2ASIPevsdx/tl\nWDKki+uEKKM3TqEXWj+Dkvc3Z8uDQBdjpnVnl/2GQH2d9T1y6kkWA5ZnuvRZFN+\nr\nctsN4CLfRwKBgBJXU3v8pPyWWFV5asL0r4Sc1i5rOBLR7XAbTE5IpXve3WwZwGZy\nURzKCfbMvurKZzmycuEWHmpQF/AFh7Uy12krrBb4zs3qxgF/ZCqqaau5S9YiAXkN\nnyNrdmoD/JN4O+aKEEv93d2GqlQZt5k6tKBPg8gAUCLeVuaEe3mS6QDpAoGAS21H\nnjyjbf5ODToUsDipLc2KLsq7PRtN8dxHmeGD3IcRkRIPgX2R045o+sS+K35qJ52Ap\nOSI/lChJD/3Bi8nFFXOCLWsCQZJkvs58ZoQgmr4SgXaiYhD/a8PY4dDm1+f1oKaW\nAMT1sV0JSG3pc0UBYWxOBsbyEn7W7F6A2t03XRUCgYApLM1mzhwvoquQj1rWHGab\nscP5cgZP+chxo4XcS89eXZomWQTEJifjaTaZHXTNJyjLx3PvCpEAtSeYg62VxaK9\nizGSO3I73SMdukqRdpvot/rnFp+hZ6+nLfOE3wg2ieDYOf8alExKaz4yxuKWCC+\nb\niP9YLoHgB5juDuj/MKIIVA==\n-----END PRIVATE KEY-----\n"
+ENCRYPTION_SECRET=
+ENCRYPTION_SECRET="/7SKhJ70iL86buV/iTlHh/KQVZnv95Hhl/CfeqZ5ZtA="

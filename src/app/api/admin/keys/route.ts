@@ -26,6 +26,15 @@ export async function PUT(req: NextRequest) {
   if (!provider) return NextResponse.json({ error: "Provedor inválido." }, { status: 400 });
   const token = str(body.token, MAX_TOKEN);
   if (token === null) return NextResponse.json({ error: "Token inválido." }, { status: 400 });
-  await setKey(provider, token);
+  try {
+    await setKey(provider, token);
+  } catch (e) {
+    /* `setKey` cifra antes de gravar e FALHA FECHADA sem `ENCRYPTION_SECRET`.
+       Sem este catch, o admin só veria um 500 opaco. */
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Não foi possível gravar a chave." },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({ ok: true });
 }
