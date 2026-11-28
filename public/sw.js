@@ -10,13 +10,18 @@
  * arquivo via importScripts, então existe um único worker no scope raiz:
  * push do OneSignal + push nativo VAPID + cache offline.
  */
-// O importScripts é de TERCEIRO (CDN do OneSignal) e roda no topo do worker.
+// O importScripts é de TERCEIRO, mas do DOMÍNIO OFICIAL do OneSignal
+// (`cdn.onesignal.com`, o único que o próprio vendor documenta). Antes vinha de
+// um host `*.workers.dev` de terceiro — que, por rodar DENTRO do worker que
+// controla a origem "/", poderia ler e reescrever qualquer requisição nossa
+// (inclusive o cookie de sessão). Não volte a apontar para um proxy.
+//
 // Se ele falhar (CDN fora do ar, bloqueador de anúncio, rede corporativa), o
 // registro inteiro morria e o Chrome deixava de considerar o app instalável
 // (só sobrava "Criar atalho"). Com o try/catch o worker SEMPRE ativa com o
 // handler de `fetch` abaixo; só o push do OneSignal fica indisponível.
 try {
-  importScripts("https://frosty-disk-8a68.moneyiosates.workers.dev/sdks/web/v16/OneSignalSDK.sw.js");
+  importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");
 } catch (e) {
   /* push do OneSignal indisponível — PWA e push nativo (VAPID) seguem ok */
 }

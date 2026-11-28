@@ -91,7 +91,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`${barlow.variable} ${manrope.variable} antialiased`}>
-        <Script src="https://frosty-disk-8a68.moneyiosates.workers.dev/sdks/web/v16/OneSignalSDK.page.js" strategy="afterInteractive" />
+        {/* SDK do OneSignal sempre pelo CDN OFICIAL (cdn.onesignal.com). O host
+            `*.workers.dev` usado antes era um proxy de terceiro rodando na mesma
+            origem do nosso service worker. */}
+        <Script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" strategy="afterInteractive" />
         <Script id="onesignal-init" strategy="afterInteractive">
           {`window.OneSignalDeferred = window.OneSignalDeferred || [];
             OneSignalDeferred.push(async function(OneSignal) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hubInsightsPorEspnId } from "@/lib/hub/queries";
+import { getUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,34 @@ export const dynamic = "force-dynamic";
  * `/hub/[id]` mostra. Jogo não sincronizado ou banco fora do ar → 200 com
  * `found: false` e listas vazias, para a Pré-Live não quebrar e exibir
  * "dados indisponíveis" em vez de inventar número.
+ *
+ * ACESSO: é conteúdo do produto (padrões, fatores de xG e o relatório IA), então
+ * segue a mesma regra de `/props`: só conta ativa/admin. O corpo do 402/403 já
+ * vem no formato que a UI sabe desenhar — `relatorio: null` desliga o card em
+ * `InfoTabs` (`insights?.relatorio &&`), sem quebrar a aba.
  */
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+
+  // 1) Gate VIP: o mesmo de `/api/matches/[id]/props`.
+  const user = await getUser().catch(() => null);
+  if (!user || !(user.isAdmin || user.access.active)) {
+    return NextResponse.json(
+      {
+        locked: true,
+        error: "Conteúdo VIP. Entre com uma conta ativa para ver o relatório e os padrões do jogo.",
+        found: false,
+        fixtureId: null,
+        analise: null,
+        xg: null,
+        labInsights: [],
+        xgFactors: [],
+        relatorio: null,
+      },
+      { status: user ? 402 : 403 },
+    );
+  }
+
   const r = await hubInsightsPorEspnId(id);
 
   return NextResponse.json({

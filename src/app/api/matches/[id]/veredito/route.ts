@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSummaryRaw, getTeamHistory, matchFromSummary, normH2H, type HistGame } from "@/lib/espn";
 import { cached } from "@/lib/cache";
 import { gerarVeredito } from "@/lib/veredito";
+import { getUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,22 @@ const vazio = { games: [] as HistGame[], baseParcial: true, source: "ESPN" };
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const league = req.nextUrl.searchParams.get("league") || "bra.1";
+
+  /* ACESSO: o veredito estatístico é conteúdo do produto (é a recomendação
+     final do card), então segue a mesma regra de `/props`: só conta
+     ativa/admin. O corpo do 402/403 traz `error` porque `VereditoDoJogo`
+     descarta a resposta nesse caso (`!j.error ? ... : null`) — a aba mostra o
+     resto do conteúdo normalmente, sem card de erro gigante. */
+  const user = await getUser().catch(() => null);
+  if (!user || !(user.isAdmin || user.access.active)) {
+    return NextResponse.json(
+      {
+        locked: true,
+        error: "Conteúdo VIP. Entre com uma conta ativa para ver o veredito do jogo.",
+      },
+      { status: user ? 402 : 403 },
+    );
+  }
 
   try {
     const data = await cached(`veredito:${league}:${id}`, TTL, async () => {
